@@ -1,6 +1,16 @@
 import { getCodeLetter } from "./nbr5426_levels";
 import { AQL_TABLE, SAMPLE_SIZE_BY_CODE } from "./nbr5426_table";
 
+function normalizeAql(aql) {
+  const value = Number(String(aql ?? "").replace(",", "."));
+
+  if (!Number.isFinite(value) || value <= 0) {
+    throw new Error("AQL inválido");
+  }
+
+  return value;
+}
+
 function findPlan(code, aql) {
   const row = AQL_TABLE[code];
 
@@ -8,7 +18,7 @@ function findPlan(code, aql) {
     throw new Error(`Código ${code} não encontrado na tabela AQL`);
   }
 
-  const aqlValue = Number(aql);
+  const aqlValue = normalizeAql(aql);
 
   const keys = Object.keys(row)
     .map(Number)
@@ -28,9 +38,12 @@ function findPlan(code, aql) {
   // Resolve setas da Tabela 2.
   // Exemplo: J + AQL 0.4 => { use: "K" }
   let guard = 0;
+  const switchPath = [code];
 
   while (entry?.use) {
     effectiveCodeLetter = entry.use;
+    switchPath.push(effectiveCodeLetter);
+
     entry = AQL_TABLE[effectiveCodeLetter]?.[selectedAql];
 
     guard++;
@@ -54,6 +67,12 @@ function findPlan(code, aql) {
     );
   }
 
+  if (entry.ac == null || entry.re == null) {
+    throw new Error(
+      `Ac/Re não encontrado para código ${effectiveCodeLetter} e AQL ${selectedAql}`
+    );
+  }
+
   return {
     initialCodeLetter: code,
     effectiveCodeLetter,
@@ -61,6 +80,8 @@ function findPlan(code, aql) {
     sampleN,
     ac: entry.ac,
     re: entry.re,
+    switched: code !== effectiveCodeLetter,
+    switchPath,
   };
 }
 
@@ -72,28 +93,39 @@ export function getSamplingPlan({
 } = {}) {
   const finalLevel = level || inspectionLevel || "II";
 
-  const { codeLetter } = getCodeLetter(lotSize, finalLevel);
+  const { codeLetter, sampleN: initialSampleN } = getCodeLetter(
+    lotSize,
+    finalLevel
+  );
 
-  const plan = findPlan(codeLetter, aql);
+  const finalAql = normalizeAql(aql);
+const plan = findPlan(codeLetter, finalAql);
 
-  return {
-    mode: "nbr5426",
-    lotSize: Number(lotSize),
-    level: finalLevel,
-    inspectionLevel: finalLevel,
-    aql: Number(plan.selectedAql),
+return {
+  mode: "nbr5426",
+  lotSize: Number(lotSize),
+  level: finalLevel,
+  inspectionLevel: finalLevel,
+  aql: finalAql,
 
-    // Código original da Tabela 1
-    codeLetter: plan.initialCodeLetter,
+    // Código da Tabela 1
+    codeLetter,
+    initialCodeLetter: plan.initialCodeLetter,
+    initialSampleN,
 
-    // Código real depois da seta da Tabela 2
+    // Código realmente usado após seta
     effectiveCodeLetter: plan.effectiveCodeLetter,
-
     sampleN: plan.sampleN,
+
     ac: plan.ac,
     re: plan.re,
     accept: plan.ac,
     reject: plan.re,
+
+    switchPath: plan.switchPath,
+    switched: plan.initialCodeLetter !== plan.effectiveCodeLetter,
+    selectedAql: plan.selectedAql,
+    
     source: "NBR_5426",
   };
 }

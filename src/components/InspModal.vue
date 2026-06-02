@@ -479,11 +479,28 @@ function computePlanSamplingFromSelectedPlan() {
       mode: "nbr5426",
       lotSize: ls,
       level,
-      aql,
+      inspectionLevel: sp.inspectionLevel ?? level,
+      aql: sp.aql ?? aql,
+
+      // código inicial da tabela 1
       codeLetter: sp.codeLetter,
+      initialCodeLetter: sp.initialCodeLetter ?? sp.codeLetter,
+      initialSampleN: sp.initialSampleN ?? null,
+
+      // código realmente usado depois da seta
+      effectiveCodeLetter: sp.effectiveCodeLetter ?? sp.codeLetter,
       sampleN: sp.sampleN,
+
       ac: sp.ac,
       re: sp.re,
+      accept: sp.accept ?? sp.ac,
+      reject: sp.reject ?? sp.re,
+
+      switched: sp.switched ?? false,
+      switchPath: sp.switchPath ?? [sp.codeLetter],
+
+      selectedAql: sp.selectedAql ?? aql,
+      source: sp.source ?? "NBR_5426",
     };
 
     planSamplesRef.value = Number(sp.sampleN) || Number(p?.n ?? 5) || 5;
@@ -957,8 +974,20 @@ Motivo: ${p.reason}`;
               N={{ samplingSnapRef.sampleN }} | Ac={{ samplingSnapRef.ac }} Re={{
                 samplingSnapRef.re
               }}
-              (AQL {{ samplingSnapRef.aql }} / Nível {{ samplingSnapRef.level }} / Código
-              {{ samplingSnapRef.codeLetter }})
+              ( AQL {{ samplingSnapRef.aql }} / Nível {{ samplingSnapRef.level }} / Código
+              <template
+                v-if="
+                  samplingSnapRef.effectiveCodeLetter &&
+                  samplingSnapRef.effectiveCodeLetter !== samplingSnapRef.codeLetter
+                "
+              >
+                {{ samplingSnapRef.codeLetter }} →
+                {{ samplingSnapRef.effectiveCodeLetter }}
+              </template>
+              <template v-else>
+                {{ samplingSnapRef.codeLetter }}
+              </template>
+              )
             </template>
             <template v-else>
               Informe o tamanho do lote para calcular n / Ac / Re.

@@ -2,6 +2,91 @@
 import jsPDF from "jspdf";
 import autoTable from "jspdf-autotable";
 
+
+function getCharKind(c) {
+  return c?.kind || c?.type || "visual_produto";
+}
+
+function getSpecialMode(c) {
+  return c?.resultMode || c?.mode || c?.specialMode || "";
+}
+
+function isSpecialChar(c) {
+  return getCharKind(c) === "teste_especial";
+}
+
+function isSpecialNumeric(c) {
+  return isSpecialChar(c) && getSpecialMode(c) === "numerico";
+}
+
+function isSpecialOkNg(c) {
+  return isSpecialChar(c) && getSpecialMode(c) === "ok_ng";
+}
+
+function isNumericChar(c) {
+  return getCharKind(c) === "variavel" || isSpecialNumeric(c);
+}
+
+function isVisualChar(c) {
+  const kind = getCharKind(c);
+
+  return (
+    kind === "visual_produto" ||
+    kind === "visual_caixa" ||
+    isSpecialOkNg(c)
+  );
+}
+
+function charTypeLabel(c) {
+  const kind = getCharKind(c);
+
+  if (kind === "variavel") return "Variável";
+  if (kind === "visual_produto") return "Visual (Produto)";
+  if (kind === "visual_caixa") return "Visual (Caixa)";
+  if (isSpecialNumeric(c)) return "Teste Especial — Numérico";
+  if (isSpecialOkNg(c)) return "Teste Especial — OK/NG";
+
+  return "Característica";
+}
+
+function getCharSampleCount(c, insp) {
+  const kind = getCharKind(c);
+
+  if (kind === "visual_caixa") {
+    return Number(insp?.boxQty ?? insp?.planBoxQty ?? 2) || 2;
+  }
+
+  if (isSpecialChar(c)) {
+    return Number(c?.sampleN ?? c?.n ?? c?.samples ?? 1) || 1;
+  }
+
+  return Number(
+    insp?.sampling?.sampleN ??
+    insp?.planSamples ??
+    insp?.sampleN ??
+    insp?.n ??
+    1
+  ) || 1;
+}
+
+function toNumber(v) {
+  if (v == null) return null;
+  const s = String(v).trim().replace(",", ".");
+  if (!s) return null;
+  const n = Number(s);
+  return Number.isFinite(n) ? n : null;
+}
+
+function normVisual(v) {
+  const s = String(v ?? "").trim().toUpperCase();
+
+  if (!s) return "";
+  if (s === "OK" || s === "PASS") return "OK";
+  if (s === "NG" || s === "NOK" || s === "FAIL") return "NG";
+
+  return "";
+}
+
 function safe(s) {
   return String(s || "").replace(/[\\/:*?"<>|]/g, "-").trim();
 }
@@ -11,25 +96,8 @@ function fmtDate(iso) {
   if (d.length !== 3) return String(iso).slice(0, 10);
   return `${d[2]}/${d[1]}/${d[0]}`;
 }
-function hasLimits(c) {
-  return String(c?.lsl ?? "").trim() !== "" && String(c?.usl ?? "").trim() !== "";
-}
 function normKind(c) {
-  return c?.kind || (hasLimits(c) ? "variavel" : "visual_produto");
-}
-function normVisual(v) {
-  const s = String(v ?? "").trim().toUpperCase();
-  if (!s) return "";
-  if (s === "OK" || s === "PASS") return "OK";
-  if (s === "NG" || s === "NOK" || s === "FAIL") return "NG";
-  return "";
-}
-function toNumber(v) {
-  if (v == null) return null;
-  const s = String(v).trim().replace(",", ".");
-  if (!s) return null;
-  const n = Number(s);
-  return Number.isFinite(n) ? n : null;
+  return getCharKind(c);
 }
 function mean(nums) {
   if (!nums.length) return null;
@@ -42,10 +110,10 @@ function stdevSample(nums) {
   return Math.sqrt(varSum / (nums.length - 1));
 }
 function calcCpkForChar(char, samplesObj) {
-  if (normKind(char) !== "variavel") return null;
+  if (getCharKind(char) !== "variavel") return null;
 
-  const lsl = toNumber(char.lsl);
-  const usl = toNumber(char.usl);
+  const lsl = toNumber(char.lsl ?? char.min);
+  const usl = toNumber(char.usl ?? char.max);
   if (lsl == null || usl == null) return null;
 
   const raw = samplesObj?.[char.id] || [];
@@ -155,7 +223,7 @@ function summarizeVariable(samples) {
   if (!nums.length) return "—";
   const min = Math.min(...nums);
   const max = Math.max(...nums);
-  return `min: ${fmt(min, 3)} | max: ${fmt(max, 3)} (n=${nums.length})`;
+  return `Mín: ${fmt(min, 3)} | Máx: ${fmt(max, 3)} (n=${nums.length})`;
 }
 
 // -------- Estilo --------
@@ -215,7 +283,8 @@ function catOfChar(c) {
   if (cat.includes("dim")) return "DIMENSIONAL";
   if (cat.includes("visual") || cat.includes("apar")) return "VISUAL";
   // fallback: variavel -> dimensional, visual -> visual
-  return normKind(c) === "variavel" ? "DIMENSIONAL" : "VISUAL";
+  if (isSpecialChar(c)) return "FUNCIONAL";
+  return getCharKind(c) === "variavel" ? "DIMENSIONAL" : "VISUAL";
 }
 function shortName(name) {
   const s = String(name || "").trim();
@@ -320,38 +389,50 @@ export function exportInspectionPdf(insp, opts = {}) {
   const samplesObj = insp.samples || {};
 
   const rows = [];
-  for (const c of chars) {
-    const kind = normKind(c);
-    const rawSamples = samplesObj[c.id] || [];
-    const cpk = calcCpkForChar(c, samplesObj);
 
-    if (kind === "variavel") {
-      rows.push([
-        c.name || "Característica",
-        "Variável",
-        `${c.lsl ?? "-"} / ${c.usl ?? "-"}`,
-        cpk ? String(cpk.n) : "-",
-        cpk ? fmt(cpk.mean, 4) : "-",
-        cpk ? fmt(cpk.stdev, 4) : "-",
-        cpk ? fmt(cpk.cp, 2) : "-",
-        cpk ? fmt(cpk.cpk, 2) : "-",
-        summarizeVariable(rawSamples),
-      ]);
-    } else {
-      const expectedN = kind === "visual_caixa" ? boxQty : planSamples;
-      rows.push([
-        c.name || "Característica",
-        kind === "visual_caixa" ? "Visual (Caixa)" : "Visual (Produto)",
-        "-",
-        String(expectedN),
-        "-",
-        "-",
-        "-",
-        "-",
-        summarizeVisual(rawSamples, expectedN),
-      ]);
-    }
+for (const c of chars) {
+  const rawSamples = samplesObj[c.id] || [];
+  const expectedN = getCharSampleCount(c, insp);
+  const cpk = calcCpkForChar(c, samplesObj);
+
+  if (isNumericChar(c)) {
+    rows.push([
+      c.name || "Característica",
+      charTypeLabel(c),
+      `${c.lsl ?? c.min ?? "-"} / ${c.usl ?? c.max ?? "-"}`,
+      String(expectedN),
+      cpk ? fmt(cpk.mean, 4) : "-",
+      cpk ? fmt(cpk.stdev, 4) : "-",
+      cpk ? fmt(cpk.cp, 2) : "-",
+      cpk ? fmt(cpk.cpk, 2) : "-",
+      summarizeVariable(rawSamples),
+    ]);
+  } else if (isVisualChar(c)) {
+    rows.push([
+      c.name || "Característica",
+      charTypeLabel(c),
+      "-",
+      String(expectedN),
+      "-",
+      "-",
+      "-",
+      "-",
+      summarizeVisual(rawSamples, expectedN),
+    ]);
+  } else {
+    rows.push([
+      c.name || "Característica",
+      charTypeLabel(c),
+      "-",
+      String(expectedN),
+      "-",
+      "-",
+      "-",
+      "-",
+      "-",
+    ]);
   }
+}
 
   autoTable(doc, {
     theme: "grid",
@@ -370,7 +451,7 @@ export function exportInspectionPdf(insp, opts = {}) {
     head: [[
       "Característica",
       "Tipo",
-      "LSL/USL",
+      "Mín/Máx",
       "N",
       "Média",
       "s",
@@ -449,8 +530,8 @@ export function exportInspectionPdf(insp, opts = {}) {
     // ============================
     // 1) VARIÁVEIS: juntar quando couber
     // ============================
-    const dimVars = byCat.DIMENSIONAL.filter((c) => normKind(c) === "variavel");
-    const funcVars = byCat.FUNCIONAL.filter((c) => normKind(c) === "variavel");
+    const dimVars = byCat.DIMENSIONAL.filter((c) => isNumericChar(c));
+    const funcVars = byCat.FUNCIONAL.filter((c) => isNumericChar(c));
     const varsAll = [...dimVars, ...funcVars];
 
     // ajuste o limite conforme seu layout (A4). 6~8 costuma ficar bom.
@@ -510,7 +591,7 @@ export function exportInspectionPdf(insp, opts = {}) {
     // ============================
     // 2) VISUAL: uma tabela só
     // ============================
-    const visuals = byCat.VISUAL.filter((c) => normKind(c) !== "variavel");
+    const visuals = chars.filter((c) => isVisualChar(c));
 
     if (visuals.length) {
       if (y > 250) { doc.addPage(); y = 20; }
@@ -519,7 +600,7 @@ export function exportInspectionPdf(insp, opts = {}) {
       y += 4;
 
       // N visual: produto (planSamples) e caixa (boxQty)
-      const N = Math.max(planSamples, boxQty);
+      const N = Math.max(...visuals.map((c) => getCharSampleCount(c, insp)), 1);
       const head = [["Item", ...visuals.map((c) => shortName(c.name))]];
 
       const body = Array.from({ length: N }, (_, i) => {
@@ -527,8 +608,7 @@ export function exportInspectionPdf(insp, opts = {}) {
         const row = [label];
 
         for (const c of visuals) {
-          const kind = normKind(c);
-          const expected = kind === "visual_caixa" ? boxQty : planSamples;
+          const expected = getCharSampleCount(c, insp);
 
           if (i >= expected) { row.push("—"); continue; }
 
