@@ -378,6 +378,32 @@ async function save() {
         c.resultMode = null;
       }
 
+      for (const c of chars) {
+  const isNumeric =
+    c.kind === "variavel" ||
+    (c.kind === "teste_especial" && c.resultMode === "numerico");
+
+  if (!isNumeric) continue;
+
+  const hasMin = String(c.lsl ?? "").trim() !== "";
+  const hasMax = String(c.usl ?? "").trim() !== "";
+
+  if (!hasMin || !hasMax) {
+    return alert(`Informe Mín e Máx para: ${c.name}`);
+  }
+
+  const min = Number(String(c.lsl).replace(",", "."));
+  const max = Number(String(c.usl).replace(",", "."));
+
+  if (!Number.isFinite(min) || !Number.isFinite(max)) {
+    return alert(`Mín e Máx precisam ser numéricos em: ${c.name}`);
+  }
+
+  if (min >= max) {
+    return alert(`O valor Mín precisa ser menor que o Máx em: ${c.name}`);
+  }
+}
+
       return c;
     });
 
@@ -712,14 +738,14 @@ async function save() {
             <div class="span-1">
               <label class="float-label">
                 <input v-model="c.lsl" placeholder=" " />
-                <span>LSL</span>
+                <span>Mín</span>
               </label>
             </div>
 
             <div class="span-1">
               <label class="float-label">
                 <input v-model="c.usl" placeholder=" " />
-                <span>USL</span>
+                <span>Máx</span>
               </label>
             </div>
 
