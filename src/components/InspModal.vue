@@ -621,12 +621,13 @@ function findInspectionProblems(chars, samples) {
 
   for (const c of chars || []) {
     const vals = samples?.[c.id] || [];
-    const kind = getCharKind(c);
 
     if (!vals.length) {
       problems.push({
         charName: c.name || "Característica sem nome",
         sample: "-",
+        sampleLabel: "Amostras",
+        value: "",
         reason: "sem amostras geradas",
       });
       continue;
@@ -639,7 +640,9 @@ function findInspectionProblems(chars, samples) {
         problems.push({
           charName: c.name || "Característica sem nome",
           sample: idx + 1,
-          reason: "em branco",
+          sampleLabel: visualLabel(c, idx),
+          value: "",
+          reason: "campo em branco",
         });
         return;
       }
@@ -654,6 +657,7 @@ function findInspectionProblems(chars, samples) {
           problems.push({
             charName: c.name || "Característica sem nome",
             sample: idx + 1,
+            sampleLabel: visualLabel(c, idx),
             value: raw,
             reason: "valor numérico inválido",
           });
@@ -667,6 +671,7 @@ function findInspectionProblems(chars, samples) {
           problems.push({
             charName: c.name || "Característica sem nome",
             sample: idx + 1,
+            sampleLabel: visualLabel(c, idx),
             value: raw,
             reason: "valor visual inválido. Use OK ou NG",
           });
@@ -787,24 +792,27 @@ async function finalizeInspection() {
   const chars = currentChars.value;
   const res = calcResult(chars, localSamples.value);
 
-  if (res === "EMPTY") {
-    const problems = findInspectionProblems(chars, localSamples.value);
+  const problems = findInspectionProblems(chars, localSamples.value);
 
-    console.table(problems);
-
+  if (problems.length) {
     const msg = problems
       .slice(0, 15)
-      .map((p) => {
-        const valueText = p.value ? ` | valor: ${p.value}` : "";
-        return `${p.charName} - Amostra ${p.sample}: ${p.reason}${valueText}`;
+      .map((p, i) => {
+        return `${i + 1}. ${p.charName} - ${p.sampleLabel || `Amostra ${p.sample}`}
+Valor: "${p.value ?? ""}"
+Motivo: ${p.reason}`;
       })
-      .join("\n");
+      .join("\n\n");
 
     return alert(
-      "Não foi possível finalizar a inspeção.\n\n" +
-        "Existem amostras em branco ou com valor inválido:\n\n" +
-        (msg || "Não foi possível identificar o item.") +
+      `Não foi possível finalizar a inspeção.\n\nVerifique os campos abaixo:\n\n${msg}` +
         (problems.length > 15 ? `\n\nE mais ${problems.length - 15} ocorrência(s).` : "")
+    );
+  }
+
+  if (res === "EMPTY") {
+    return alert(
+      "Não foi possível finalizar a inspeção.\n\nExistem características sem preenchimento completo."
     );
   }
 
@@ -824,7 +832,7 @@ async function finalizeInspection() {
     result: res,
     finishedAt: new Date().toISOString(),
     boxQty: Number(boxQtyRef.value ?? 2),
-    sampling: samplingSnapRef.value || insp.value?.sampling || null, // ✅ mantém snapshot
+    sampling: samplingSnapRef.value || insp.value?.sampling || null,
     createdAt: date.value
       ? new Date(`${date.value}T00:00:00`).toISOString()
       : new Date().toISOString(),
@@ -1050,9 +1058,15 @@ async function finalizeInspection() {
                     >
                   </template>
 
-                  <template v-else-if="isNumericChar(c)">
+                  <template v-else-if="shouldShowCpk(c)">
                     <span class="char-stats-muted">
                       Cpk indisponível: {{ statsMap[c.id]?.reason || "—" }}
+                    </span>
+                  </template>
+
+                  <template v-else-if="isNumericChar(c)">
+                    <span class="char-stats-muted">
+                      Numérico: preencha os valores dentro do mínimo e máximo definidos.
                     </span>
                   </template>
 
