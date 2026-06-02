@@ -179,6 +179,10 @@ function isNumericChar(c) {
   );
 }
 
+function shouldShowCpk(c) {
+  return getCharKind(c) === "variavel";
+}
+
 function isVisualChar(c) {
   const kind = getCharKind(c);
   const mode = getResultMode(c);
@@ -314,8 +318,8 @@ function calcCpkForChar(char, samplesObj) {
     return { ok: false, reason: "Visual (sem Cpk)" };
   }
 
-  const lsl = toNumber(char.lsl);
-  const usl = toNumber(char.usl);
+  const lsl = toNumber(char.lsl ?? char.min);
+  const usl = toNumber(char.usl ?? char.max);
 
   if (lsl == null || usl == null) {
     return { ok: false, reason: "Sem LSL/USL" };
@@ -590,8 +594,8 @@ function checkChar(c, vals = []) {
 
   // VARIÁVEL / TESTE ESPECIAL NUMÉRICO
   if (isNumericChar(c)) {
-    const l = toNumber(c.lsl);
-    const u = toNumber(c.usl);
+    const l = toNumber(c.lsl ?? c.min);
+    const u = toNumber(c.usl ?? c.max);
 
     const raw = vals || [];
     const nums = raw.map(toNumber);
@@ -743,7 +747,9 @@ async function createDraft() {
     sampling: samplingSnapRef.value, // ✅ congela AQL/Ac/Re
     status: "draft",
     result: null,
-    createdAt: new Date().toISOString(),
+    createdAt: date.value
+      ? new Date(`${date.value}T00:00:00`).toISOString()
+      : new Date().toISOString(),
   });
 
   emit("close");
@@ -767,6 +773,9 @@ async function saveDraft() {
     result: res === "EMPTY" ? null : res,
     boxQty: Number(boxQtyRef.value ?? 2),
     sampling: samplingSnapRef.value || insp.value?.sampling || null, // ✅ mantém snapshot
+    createdAt: date.value
+      ? new Date(`${date.value}T00:00:00`).toISOString()
+      : new Date().toISOString(),
   });
 
   emit("close");
@@ -816,6 +825,9 @@ async function finalizeInspection() {
     finishedAt: new Date().toISOString(),
     boxQty: Number(boxQtyRef.value ?? 2),
     sampling: samplingSnapRef.value || insp.value?.sampling || null, // ✅ mantém snapshot
+    createdAt: date.value
+      ? new Date(`${date.value}T00:00:00`).toISOString()
+      : new Date().toISOString(),
   });
 
   emit("close");
@@ -965,8 +977,8 @@ async function finalizeInspection() {
               <div class="char-limits">
                 <b>{{ kindLabel(c) }}</b>
 
-                <template v-if="getCharKind(c) === 'variavel'">
-                  — LSL: {{ c.lsl ?? "-" }} | USL: {{ c.usl ?? "-" }}
+                <template v-if="isNumericChar(c)">
+                  — Mín: {{ c.lsl ?? c.min ?? "-" }} | Máx: {{ c.usl ?? c.max ?? "-" }}
                 </template>
 
                 <template v-else-if="getCharKind(c) === 'visual_caixa'">
@@ -991,13 +1003,17 @@ async function finalizeInspection() {
             </div>
 
             <div class="char-right">
-              <template v-if="isNumericChar(c) && statsMap[c.id]?.ok">
+              <template v-if="shouldShowCpk(c) && statsMap[c.id]?.ok">
                 <span class="cpk-pill" :class="cpkClass(statsMap[c.id]?.cpk)">
                   Cpk {{ fmt(statsMap[c.id]?.cpk, 2) }}
                 </span>
               </template>
-              <template v-else-if="isNumericChar(c)">
+              <template v-else-if="shouldShowCpk(c)">
                 <span class="cpk-pill cpk-warn">Cpk —</span>
+              </template>
+
+              <template v-else-if="isNumericChar(c)">
+                <span class="cpk-pill cpk-warn">Numérico</span>
               </template>
               <template v-else>
                 <span class="cpk-pill cpk-warn">Visual</span>
@@ -1018,7 +1034,7 @@ async function finalizeInspection() {
             <div v-if="isCharOpen(c.id)" class="char-body">
               <div class="char-body-top">
                 <div class="char-stats">
-                  <template v-if="isNumericChar(c) && statsMap[c.id]?.ok">
+                  <template v-if="shouldShowCpk(c) && statsMap[c.id]?.ok">
                     <span class="badge"><b>N</b>&nbsp;{{ statsMap[c.id]?.n }}</span>
                     <span class="badge"
                       ><b>μ</b>&nbsp;{{ fmt(statsMap[c.id]?.mean, 4) }}</span
