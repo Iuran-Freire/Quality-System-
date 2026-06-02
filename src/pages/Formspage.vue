@@ -1,0 +1,168 @@
+<template>
+  <div class="vstack">
+    <div class="title">Formulários (Planos de Inspeção)</div>
+    <div class="tabline"></div>
+
+    <!-- FILTROS -->
+    <div class="filterbar">
+      <div class="hstack gap-8 wrap">
+        <div class="field">
+          <input placeholder="Modelo" v-model="plans.filterModel" />
+        </div>
+        <div class="field">
+          <input placeholder="Cliente" v-model="plans.filterClient" />
+        </div>
+        <div class="field grow">
+          <input placeholder="PN / texto..." v-model="plans.filterText" />
+        </div>
+
+        <div class="field">
+          <button class="btn" @click="seed">+ Criar Plano Teste</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- TABELA -->
+    <div class="card tablecard">
+      <div class="tablewrap">
+        <table>
+          <thead>
+            <tr>
+              <th>Status</th>
+              <th>Tipo</th>
+              <th>PN</th>
+              <th>Modelo</th>
+              <th>Plano</th>
+              <th>Cliente</th>
+              <th style="width: 220px">Ações</th>
+            </tr>
+          </thead>
+          <tbody>
+            <!-- 🔹 AGORA USA SOMENTE OS PLANOS DA PÁGINA ATUAL -->
+            <tr v-for="p in paginatedPlans" :key="p.id">
+              <td>
+                <span class="status-pill" :class="p.active ? 'on' : 'off'">
+                  {{ p.active ? "Ativo" : "Suspenso" }}
+                </span>
+              </td>
+              <td>{{ p.type }}</td>
+              <td>{{ p.pn }}</td>
+              <td>{{ p.model }}</td>
+              <td>{{ p.name }}</td>
+              <td>{{ p.client }}</td>
+              <td>
+                <button class="btn ghost" @click="plans.toggle(p.id)">
+                  {{ p.active ? "Suspender" : "Ativar" }}
+                </button>
+                <button class="btn ghost danger" @click="plans.remove(p.id)">
+                  Excluir
+                </button>
+              </td>
+            </tr>
+
+            <!-- mensagem quando nenhum plano for encontrado -->
+            <tr v-if="!paginatedPlans.length">
+              <td colspan="7">Nenhum plano cadastrado.</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+
+      <!-- PAGINAÇÃO -->
+      <div class="pager">
+        <button class="btn ghost" :disabled="page === 1" @click="prevPage">
+          ◀ Anterior
+        </button>
+
+        <span>Página {{ page }} de {{ totalPages }}</span>
+
+        <button class="btn ghost" :disabled="page === totalPages" @click="nextPage">
+          Próxima ▶
+        </button>
+      </div>
+    </div>
+  </div>
+</template>
+
+<script setup>
+import { onMounted, computed, ref, watch } from "vue";
+import { usePlansStore } from "../stores/plansStore";
+
+const plans = usePlansStore();
+
+// carrega planos do IndexedDB
+onMounted(() => {
+  plans.load();
+});
+
+// ===== PAGINAÇÃO =====
+const page = ref(1);
+const pageSize = 10;
+
+// total de páginas com base nos planos filtrados
+const totalPages = computed(() => {
+  const total = plans.filtered?.length || 0;
+  return total > 0 ? Math.ceil(total / pageSize) : 1;
+});
+
+// planos que aparecem na tabela (apenas a página atual)
+const paginatedPlans = computed(() => {
+  const list = plans.filtered || [];
+  const start = (page.value - 1) * pageSize;
+  return list.slice(start, start + pageSize);
+});
+
+// navegação
+function nextPage() {
+  if (page.value < totalPages.value) page.value++;
+}
+
+function prevPage() {
+  if (page.value > 1) page.value--;
+}
+
+// sempre que filtros mudarem, volta pra página 1
+watch(
+  () => [plans.filterModel, plans.filterClient, plans.filterText],
+  () => {
+    page.value = 1;
+  }
+);
+
+// botão de teste para criar plano rápido
+async function seed() {
+  await plans.save({
+    name: "Plano 15W VE",
+    model: "15W VE",
+    client: "Samsung",
+    pn: "EAY65888903",
+    resp: "Iuran",
+    type: "OQC",
+    n: 5,
+    active: true,
+    chars: [
+      {
+        id: crypto.randomUUID(),
+        name: "Comprimento",
+        category: "Dimensional",
+        lsl: 10,
+        usl: 12,
+        unit: "mm",
+        method: "Paquímetro",
+      },
+    ],
+  });
+}
+</script>
+
+<style scoped>
+.pager {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 16px;
+  font-size: 13px;
+  color: var(--muted, #666);
+}
+</style>
