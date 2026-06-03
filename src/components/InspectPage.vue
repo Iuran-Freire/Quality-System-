@@ -72,9 +72,9 @@ const filtered = computed(() => {
     // busca texto
     if (!s) return true;
 
-    const blob = `${x.planName} ${x.pn} ${x.model} ${x.client} ${x.lot} ${x.invoice || ""} ${x.resp} ${
-      x.supplier || ""
-    }`.toLowerCase();
+    const blob = `${x.planName} ${x.pn} ${x.model} ${x.client} ${x.lot} ${
+      x.invoice || ""
+    } ${x.resp} ${x.supplier || ""}`.toLowerCase();
     return blob.includes(s);
   });
 });
@@ -176,16 +176,18 @@ function pdfDisabledTitle(x) {
     <div class="title">Inspeção</div>
     <div class="tabline"></div>
 
-    <div class="filterbar">
-      <div class="filterbar-row" style="gap: 10px; flex-wrap: wrap">
-        <div class="field grow" style="min-width: 260px">
+    <div class="filterbar inspect-filter-card">
+      <div class="inspect-search-row">
+        <div class="field grow">
           <label class="float-label">
             <input v-model="q" placeholder=" " />
-            <span>Buscar (plano, PN, lote, resp…)</span>
+            <span>Buscar por plano, PN, lote ou responsável</span>
           </label>
         </div>
+      </div>
 
-        <div class="field" style="min-width: 160px">
+      <div class="inspect-filter-row">
+        <div class="field">
           <label class="float-label">
             <select v-model="fStatus">
               <option value="">Status (todos)</option>
@@ -196,7 +198,7 @@ function pdfDisabledTitle(x) {
           </label>
         </div>
 
-        <div class="field" style="min-width: 150px">
+        <div class="field">
           <label class="float-label">
             <select v-model="fResult">
               <option value="">Resultado (todos)</option>
@@ -207,7 +209,7 @@ function pdfDisabledTitle(x) {
           </label>
         </div>
 
-        <div class="field" style="min-width: 150px">
+        <div class="field">
           <label class="float-label">
             <select v-model="fType">
               <option value="">Tipo (todos)</option>
@@ -218,29 +220,25 @@ function pdfDisabledTitle(x) {
           </label>
         </div>
 
-        <div class="field" style="min-width: 150px">
+        <div class="field">
           <label class="float-label">
             <input v-model="fFrom" type="date" placeholder=" " />
             <span>De</span>
           </label>
         </div>
 
-        <div class="field" style="min-width: 150px">
+        <div class="field">
           <label class="float-label">
             <input v-model="fTo" type="date" placeholder=" " />
             <span>Até</span>
           </label>
         </div>
+      </div>
 
-        <div class="field">
-          <button class="btn" type="button" @click="openNew()">+ Nova Inspeção</button>
-        </div>
+      <div class="inspect-actions-row">
+        <button class="btn ghost" type="button" @click="exportCsv()">Exportar CSV</button>
 
-        <div class="field">
-          <button class="btn ghost" type="button" @click="exportCsv()">
-            Exportar CSV
-          </button>
-        </div>
+        <button class="btn" type="button" @click="openNew()">+ Nova Inspeção</button>
       </div>
     </div>
 
@@ -387,5 +385,48 @@ function pdfDisabledTitle(x) {
 
 .inspect-table td {
   vertical-align: middle !important;
+}
+
+.inspect-filter-card {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.inspect-search-row {
+  display: flex;
+  justify-content: center;
+  width: 100%;
+}
+
+.inspect-search-row .field {
+  width: 100%;
+  max-width: 760px;
+}
+
+.inspect-filter-row {
+ display: flex;
+  justify-content: center;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+  width: 100%;
+}
+
+.inspect-filter-row .field {
+  min-width: 170px;
+}
+
+.inspect-actions-row {
+   display: flex;
+  justify-content: center;
+  gap: 10px;
+  padding-top: 5px;
+  width: 100%;
+}
+
+.inspect-actions-row .btn {
+  min-width: 150px;
+  white-space: nowrap;
 }
 </style>

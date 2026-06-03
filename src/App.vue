@@ -64,8 +64,6 @@ function samplingClass(p) {
 
   return "fixed";
 }
-
-
 </script>
 
 <template>
@@ -132,11 +130,11 @@ function samplingClass(p) {
 
                 <tbody>
                   <tr v-if="plans.loading">
-                    <td colspan="8">Carregando...</td>
+                    <td colspan="9">Carregando...</td>
                   </tr>
 
                   <tr v-else-if="!sourcePlans.length">
-                    <td colspan="8">Nenhum plano criado ainda.</td>
+                    <td colspan="9">Nenhum plano criado ainda.</td>
                   </tr>
 
                   <!-- 🔹 AQUI USAMOS APENAS OS PLANOS DA PÁGINA (MÁX 10) -->
@@ -158,21 +156,28 @@ function samplingClass(p) {
                     </td>
                     <td>{{ p.resp }}</td>
                     <td>
-                      <button
-                        class="btn ghost"
-                        @click="
-                          () => {
-                            editPlanId = p.id;
-                            showPlan = true;
-                          }
-                        "
-                      >
-                        Editar
-                      </button>
+                      <div class="actions-wrap">
+                        <button
+                          class="btn ghost"
+                          type="button"
+                          @click="
+                            () => {
+                              editPlanId = p.id;
+                              showPlan = true;
+                            }
+                          "
+                        >
+                          Editar
+                        </button>
 
-                      <button class="btn ghost danger" @click="plans.remove(p.id)">
-                        Excluir
-                      </button>
+                        <button
+                          class="btn ghost danger"
+                          type="button"
+                          @click="plans.remove(p.id)"
+                        >
+                          Excluir
+                        </button>
+                      </div>
                     </td>
                   </tr>
                 </tbody>
@@ -214,7 +219,7 @@ function samplingClass(p) {
             <button
               class="btn"
               @click="
-                edittingPlanId = null;
+                editPlanId = null;
                 showPlan = true;
               "
             >

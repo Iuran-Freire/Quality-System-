@@ -854,3 +854,13 @@ th[data-sort].desc .sort::after{ content:"▼"; }
   border-color: #c7d2fe;
   color: #4338ca;
 }
+.actions-wrap {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: nowrap;
+}
+
+.actions-wrap .btn {
+  min-width: 86px;
+}
