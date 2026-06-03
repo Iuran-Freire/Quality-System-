@@ -34,6 +34,7 @@
               <th>Modelo</th>
               <th>Plano</th>
               <th>Cliente</th>
+              <th>Amostragem</th>
               <th style="width: 220px">Ações</th>
             </tr>
           </thead>
@@ -50,6 +51,7 @@
               <td>{{ p.model }}</td>
               <td>{{ p.name }}</td>
               <td>{{ p.client }}</td>
+              <td>{{ samplingLabel(p) }}</td>
               <td>
                 <button class="btn ghost" @click="plans.toggle(p.id)">
                   {{ p.active ? "Suspender" : "Ativar" }}
@@ -62,7 +64,7 @@
 
             <!-- mensagem quando nenhum plano for encontrado -->
             <tr v-if="!paginatedPlans.length">
-              <td colspan="7">Nenhum plano cadastrado.</td>
+              <td colspan="8">Nenhum plano cadastrado.</td>
             </tr>
           </tbody>
         </table>
@@ -128,6 +130,22 @@ watch(
     page.value = 1;
   }
 );
+
+function samplingLabel(p) {
+  const s = p?.sampling || {};
+
+  if (s.mode === "nbr5426") {
+    const level = s.level || "-";
+    const aql = String(s.aql ?? "-").replace(".", ",");
+    return `NBR 5426: ${level} / AQL ${aql}`;
+  }
+
+  if (s.mode === "client") {
+    return `Cliente: ${s.clientName || "-"}`;
+  }
+
+  return `Fixo: n=${p.n ?? "-"}`;
+}
 
 // botão de teste para criar plano rápido
 async function seed() {

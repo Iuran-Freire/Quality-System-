@@ -284,6 +284,24 @@ watch(
   }
 );
 
+function charBadgeLabel(c) {
+  if (c.kind === "variavel") return "Variável Numérica";
+  if (c.kind === "visual_caixa") return "Visual (Caixa)";
+  if (c.kind === "visual_produto") return "Visual (Produto)";
+
+  if (c.kind === "teste_especial") {
+    return c.resultMode === "numerico"
+      ? "Teste Especial — Numérico"
+      : "Teste Especial — OK/NG";
+  }
+
+  return "Característica";
+}
+
+function normalizeNumber(v) {
+  return Number(String(v ?? "").replace(",", "."));
+}
+
 async function save() {
   // validação mínima
   if (!form.name.trim()) return alert("Preencha o Nome do plano.");
@@ -377,35 +395,38 @@ async function save() {
         c.sampleN = null;
         c.resultMode = null;
       }
-
-      for (const c of chars) {
-  const isNumeric =
-    c.kind === "variavel" ||
-    (c.kind === "teste_especial" && c.resultMode === "numerico");
-
-  if (!isNumeric) continue;
-
-  const hasMin = String(c.lsl ?? "").trim() !== "";
-  const hasMax = String(c.usl ?? "").trim() !== "";
-
-  if (!hasMin || !hasMax) {
-    return alert(`Informe Mín e Máx para: ${c.name}`);
-  }
-
-  const min = Number(String(c.lsl).replace(",", "."));
-  const max = Number(String(c.usl).replace(",", "."));
-
-  if (!Number.isFinite(min) || !Number.isFinite(max)) {
-    return alert(`Mín e Máx precisam ser numéricos em: ${c.name}`);
-  }
-
-  if (min >= max) {
-    return alert(`O valor Mín precisa ser menor que o Máx em: ${c.name}`);
-  }
-}
-
       return c;
     });
+
+  if (!chars.length) {
+    return alert("Adicione pelo menos uma característica ou teste ao plano.");
+  }
+
+  for (const c of chars) {
+    const isNumeric =
+      c.kind === "variavel" ||
+      (c.kind === "teste_especial" && c.resultMode === "numerico");
+
+    if (!isNumeric) continue;
+
+    const hasMin = String(c.lsl ?? "").trim() !== "";
+    const hasMax = String(c.usl ?? "").trim() !== "";
+
+    if (!hasMin || !hasMax) {
+      return alert(`Informe Mín e Máx para: ${c.name}`);
+    }
+
+    const min = normalizeNumber(c.lsl);
+    const max = normalizeNumber(c.usl);
+
+    if (!Number.isFinite(min) || !Number.isFinite(max)) {
+      return alert(`Mín e Máx precisam ser numéricos em: ${c.name}`);
+    }
+
+    if (min >= max) {
+      return alert(`O valor Mín precisa ser menor que o Máx em: ${c.name}`);
+    }
+  }
 
   for (const c of chars) {
     if (c.kind === "teste_especial") {
@@ -463,7 +484,6 @@ async function save() {
     active: true,
     chars,
   };
-  console.log("PAYLOAD ANTES DE SALVAR:", JSON.parse(JSON.stringify(payload)));
 
   await plans.save(payload);
   emit("close");
@@ -477,6 +497,8 @@ async function save() {
         <h3>{{ isEdit ? "Editar Plano de Inspeção" : "Novo Plano de Inspeção" }}</h3>
         <button class="btn ghost" @click="emit('close')">Fechar</button>
       </div>
+
+      <h4 class="modal-section-title">Dados do plano</h4>
 
       <div class="row">
         <div class="span-2">
@@ -644,7 +666,7 @@ async function save() {
       <div class="hr"></div>
 
       <div class="hstack between" style="align-items: center">
-        <h4 style="margin: 0">Características</h4>
+        <h4 style="margin: 0">Características e testes</h4>
 
         <div class="hstack" style="gap: 8px; flex-wrap: wrap">
           <button @click="addChar('variavel')">+ Variável (CPK)</button>
@@ -655,7 +677,8 @@ async function save() {
       </div>
 
       <div v-if="form.chars.length === 0" style="color: var(--muted); font-size: 13px">
-        Nenhuma característica adicionada ainda. Use os botões acima para adicionar.
+        Nenhuma característica ou teste adicionada ainda. Use os botões acima para
+        adicionar.
       </div>
 
       <div
@@ -666,15 +689,7 @@ async function save() {
       >
         <div class="hstack between" style="align-items: center; gap: 12px">
           <div class="badge dot warn">
-            {{
-              c.kind === "variavel"
-                ? "Variável"
-                : c.kind === "visual_caixa"
-                ? "Visual (Caixa)"
-                : c.kind === "teste_especial"
-                ? "Teste Especial"
-                : "Visual (Produto)"
-            }}
+            {{ charBadgeLabel(c) }}
           </div>
           <button class="btn ghost danger" type="button" @click="removeChar(c.id)">
             Remover
@@ -682,22 +697,12 @@ async function save() {
         </div>
 
         <div class="row" style="margin-top: 10px">
-          <div class="span-3">
+          <div class="span-4">
             <label class="float-label">
               <input v-model="c.name" placeholder=" " />
-              <span>Característica *</span>
-            </label>
-          </div>
-
-          <div class="span-2">
-            <label class="float-label">
-              <select v-model="c.kind" @change="onKindChange(c)">
-                <option value="variavel">Variável (com CPK)</option>
-                <option value="visual_produto">Visual (Produto)</option>
-                <option value="visual_caixa">Visual (Caixa)</option>
-                <option value="teste_especial">Teste Especial</option>
-              </select>
-              <span>Tipo</span>
+              <span>
+                {{ c.kind === "teste_especial" ? "Nome do teste *" : "Característica *" }}
+              </span>
             </label>
           </div>
 
@@ -790,3 +795,12 @@ async function save() {
     </div>
   </div>
 </template>
+
+<style scoped>
+.modal-section-title {
+  margin: 0 0 10px 0;
+  font-size: 16px;
+  font-weight: 700;
+  color: var(--text);
+}
+</style>

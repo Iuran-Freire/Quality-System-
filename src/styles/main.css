@@ -822,3 +822,35 @@ th[data-sort].desc .sort::after{ content:"▼"; }
 .cpk-good{ background:#e5f8ec; color:#1b8b3b; }
 .cpk-warn{ background:#fff7e0; color:#b8860b; }
 .cpk-bad{  background:#ffecec; color:#b00020; }
+
+
+.sampling-pill {
+  display: inline-flex;
+  align-items: center;
+  white-space: nowrap;
+  padding: 5px 10px;
+  border-radius: 999px;
+  font-size: 12.5px;
+  font-weight: 700;
+  border: 1px solid #e5e7eb;
+  background: #f8fafc;
+  color: #475569;
+}
+
+.sampling-pill.nbr {
+  background: #fff7ed;
+  border-color: #fed7aa;
+  color: #c2410c;
+}
+
+.sampling-pill.fixed {
+  background: #f1f5f9;
+  border-color: #e2e8f0;
+  color: #475569;
+}
+
+.sampling-pill.client {
+  background: #eef2ff;
+  border-color: #c7d2fe;
+  color: #4338ca;
+}

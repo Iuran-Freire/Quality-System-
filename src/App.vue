@@ -39,6 +39,33 @@ onMounted(async () => {
   await plans.load();
   currentPage.value = 1;
 });
+
+function samplingLabel(p) {
+  const s = p?.sampling || {};
+
+  if (s.mode === "nbr5426") {
+    const level = s.level || "-";
+    const aql = String(s.aql ?? "-").replace(".", ",");
+    return `NBR 5426: ${level} / AQL ${aql}`;
+  }
+
+  if (s.mode === "client") {
+    return `Cliente: ${s.clientName || "-"}`;
+  }
+
+  return `Fixo: n=${p.n ?? "-"}`;
+}
+
+function samplingClass(p) {
+  const mode = p?.sampling?.mode || "fixed";
+
+  if (mode === "nbr5426") return "nbr";
+  if (mode === "client") return "client";
+
+  return "fixed";
+}
+
+
 </script>
 
 <template>
@@ -74,7 +101,7 @@ onMounted(async () => {
       <div class="top">
         <div class="wrap">
           <div class="search">
-            <input v-model="ui.q" placeholder="Buscar planos, lotes, modelo" />
+            <input v-model="ui.q" placeholder="Buscar por PN, modelo, plano ou cliente" />
           </div>
         </div>
       </div>
@@ -97,6 +124,7 @@ onMounted(async () => {
                     <th>Modelo</th>
                     <th>Plano</th>
                     <th>Cliente</th>
+                    <th>Amostragem</th>
                     <th>Responsável</th>
                     <th>Ações</th>
                   </tr>
@@ -123,6 +151,11 @@ onMounted(async () => {
                     <td>{{ p.model }}</td>
                     <td>{{ p.name }}</td>
                     <td>{{ p.client }}</td>
+                    <td>
+                      <span class="sampling-pill" :class="samplingClass(p)">
+                        {{ samplingLabel(p) }}
+                      </span>
+                    </td>
                     <td>{{ p.resp }}</td>
                     <td>
                       <button
