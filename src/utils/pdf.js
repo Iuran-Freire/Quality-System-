@@ -8,7 +8,33 @@ function getCharKind(c) {
 }
 
 function getSpecialMode(c) {
-  return c?.resultMode || c?.mode || c?.specialMode || "";
+  const mode = String(
+    c?.resultMode ??
+    c?.mode ??
+    c?.specialMode ??
+    ""
+  )
+    .trim()
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "");
+
+  if (
+    mode === "numerico" ||
+    mode === "numeric" ||
+    mode === "number" ||
+    mode === "numero"
+  ) {
+    return "numerico";
+  }
+
+  // No PlanModal, Teste Especial OK/NG está salvo como resultMode: "visual"
+  // Então qualquer teste especial que não seja numérico deve ser tratado como OK/NG.
+  return "ok_ng";
+}
+
+function isSpecialOkNg(c) {
+  return isSpecialChar(c) && getSpecialMode(c) !== "numerico";
 }
 
 function isSpecialChar(c) {
@@ -17,10 +43,6 @@ function isSpecialChar(c) {
 
 function isSpecialNumeric(c) {
   return isSpecialChar(c) && getSpecialMode(c) === "numerico";
-}
-
-function isSpecialOkNg(c) {
-  return isSpecialChar(c) && getSpecialMode(c) === "ok_ng";
 }
 
 function isNumericChar(c) {
@@ -43,8 +65,8 @@ function charTypeLabel(c) {
   if (kind === "variavel") return "Variável";
   if (kind === "visual_produto") return "Visual (Produto)";
   if (kind === "visual_caixa") return "Visual (Caixa)";
-  if (isSpecialNumeric(c)) return "Teste Especial — Numérico";
-  if (isSpecialOkNg(c)) return "Teste Especial — OK/NG";
+  if (isSpecialNumeric(c)) return "Teste Esp. Numérico";
+  if (isSpecialOkNg(c)) return "Teste Esp. OK/NG";
 
   return "Característica";
 }
@@ -388,15 +410,39 @@ export function exportInspectionPdf(insp, opts = {}) {
   const chars = insp.chars || [];
   const samplesObj = insp.samples || {};
 
-  const rows = [];
+  const characteristicRows = [];
+  const specialRows = [];
 
 for (const c of chars) {
   const rawSamples = samplesObj[c.id] || [];
   const expectedN = getCharSampleCount(c, insp);
   const cpk = calcCpkForChar(c, samplesObj);
+  const isSpecial = isSpecialChar(c);
+
+  if (isSpecial) {
+    if (isSpecialNumeric(c)) {
+      specialRows.push([
+        c.name || "Teste especial",
+        "Numérico",
+        `${c.lsl ?? c.min ?? "-"} / ${c.usl ?? c.max ?? "-"}`,
+        String(expectedN),
+        summarizeVariable(rawSamples),
+      ]);
+    } else {
+      specialRows.push([
+        c.name || "Teste especial",
+        "OK/NG",
+        "-",
+        String(expectedN),
+        summarizeVisual(rawSamples, expectedN),
+      ]);
+    }
+
+    continue;
+  }
 
   if (isNumericChar(c)) {
-    rows.push([
+    characteristicRows.push([
       c.name || "Característica",
       charTypeLabel(c),
       `${c.lsl ?? c.min ?? "-"} / ${c.usl ?? c.max ?? "-"}`,
@@ -408,7 +454,7 @@ for (const c of chars) {
       summarizeVariable(rawSamples),
     ]);
   } else if (isVisualChar(c)) {
-    rows.push([
+    characteristicRows.push([
       c.name || "Característica",
       charTypeLabel(c),
       "-",
@@ -418,18 +464,6 @@ for (const c of chars) {
       "-",
       "-",
       summarizeVisual(rawSamples, expectedN),
-    ]);
-  } else {
-    rows.push([
-      c.name || "Característica",
-      charTypeLabel(c),
-      "-",
-      String(expectedN),
-      "-",
-      "-",
-      "-",
-      "-",
-      "-",
     ]);
   }
 }
@@ -459,7 +493,7 @@ for (const c of chars) {
       "Cpk",
       "Resumo",
     ]],
-    body: rows,
+    body: characteristicRows,
     columnStyles: {
       0: { cellWidth: 44 },
       1: { cellWidth: 22 },
@@ -473,9 +507,46 @@ for (const c of chars) {
     },
   });
 
-  // Observações
-  const yAfterChars = doc.lastAutoTable?.finalY || 200;
-  sectionTitle(doc, "Observações", M, yAfterChars + 12);
+  let yAfterMainTables = doc.lastAutoTable?.finalY || 200;
+
+if (specialRows.length) {
+  sectionTitle(doc, "Testes Especiais", M, yAfterMainTables + 10);
+
+  autoTable(doc, {
+    theme: "grid",
+    startY: yAfterMainTables + 14,
+    margin: { left: M, right: M },
+    styles: {
+      fontSize: 8.5,
+      cellPadding: 2.1,
+      overflow: "linebreak",
+      lineColor: COLORS.grid,
+      lineWidth: 0.15,
+      textColor: COLORS.text,
+    },
+    headStyles: {
+      fillColor: COLORS.headFill,
+      fontStyle: "bold",
+      textColor: COLORS.text,
+    },
+    alternateRowStyles: { fillColor: [250, 250, 250] },
+    head: [["Teste", "Tipo", "Mín/Máx", "N", "Resumo"]],
+    body: specialRows,
+    columnStyles: {
+      0: { cellWidth: 58 },
+      1: { cellWidth: 24 },
+      2: { cellWidth: 28 },
+      3: { cellWidth: 10 },
+      4: { cellWidth: "auto" },
+    },
+  });
+
+  yAfterMainTables = doc.lastAutoTable?.finalY || yAfterMainTables;
+}
+
+ // Observações
+const yAfterChars = yAfterMainTables;
+sectionTitle(doc, "Observações", M, yAfterChars + 12);
   autoTable(doc, {
     ...commonTableStyle(9),
     startY: yAfterChars + 16,
@@ -503,7 +574,6 @@ for (const c of chars) {
   // Rodapé página 1
   doc.setFontSize(8);
   doc.setTextColor(...COLORS.muted);
-  doc.text(`OQC/IQC Inspection V3 • Página 1/${opts.includeRawSamples ? 2 : 1}`, M, 292);
 
   // ===== Página 2: AMOSTRAS BRUTAS (compacta e inteligente) =====
   if (opts.includeRawSamples) {
@@ -591,23 +661,29 @@ for (const c of chars) {
     // ============================
     // 2) VISUAL: uma tabela só
     // ============================
-    const visuals = chars.filter((c) => isVisualChar(c));
+   const normalVisuals = chars.filter(
+  (c) => isVisualChar(c) && !isSpecialChar(c)
+);
 
-    if (visuals.length) {
+const specialVisuals = chars.filter(
+  (c) => isSpecialOkNg(c)
+);
+
+    if (normalVisuals.length) {
       if (y > 250) { doc.addPage(); y = 20; }
 
       sectionTitle(doc, "VISUAL — Resultados (OK/NG)", M, y);
       y += 4;
 
       // N visual: produto (planSamples) e caixa (boxQty)
-      const N = Math.max(...visuals.map((c) => getCharSampleCount(c, insp)), 1);
-      const head = [["Item", ...visuals.map((c) => shortName(c.name))]];
+      const N = Math.max(...normalVisuals.map((c) => getCharSampleCount(c, insp)), 1);
+      const head = [["Item", ...normalVisuals.map((c) => shortName(c.name))]];
 
       const body = Array.from({ length: N }, (_, i) => {
         const label = i < boxQty ? `Caixa ${i + 1}` : `Amostra ${i + 1}`;
         const row = [label];
 
-        for (const c of visuals) {
+        for (const c of normalVisuals) {
           const expected = getCharSampleCount(c, insp);
 
           if (i >= expected) { row.push("—"); continue; }
@@ -619,7 +695,7 @@ for (const c of chars) {
       });
 
       // se tiver muitas colunas visuais, reduz um pouco
-      const manyCols = visuals.length >= 6;
+      const manyCols = normalVisuals.length >= 6;
       const fs = manyCols ? 7.6 : 8.0;
       const pad = manyCols ? 1.6 : 1.8;
 
@@ -636,10 +712,73 @@ for (const c of chars) {
       y = (doc.lastAutoTable?.finalY || y) + 10;
     }
 
+    if (specialVisuals.length) {
+  // Se estiver muito perto do fim da página, começa em nova página
+    if (y > 210) {
+    doc.addPage();
+
+    if (opts.logoDataUrl) {
+      try { addLogo(doc, opts.logoDataUrl, M, 8, 30, 12); } catch {}
+    }
+
+    doc.setFont("helvetica", "bold");
+    doc.setFontSize(13);
+    doc.setTextColor(...COLORS.text);
+    doc.text("AMOSTRAS BRUTAS (AGRUPADAS)", pageWidth / 2, 16, { align: "center" });
+
+    doc.setDrawColor(...COLORS.grid);
+    doc.setLineWidth(0.3);
+    doc.line(M, 24, pageWidth - M, 24);
+
+    y = 32;
+  }
+
+  sectionTitle(doc, "TESTES ESPECIAIS — OK/NG", M, y);
+  y += 4;
+
+  const N = Math.max(
+    ...specialVisuals.map((c) => getCharSampleCount(c, insp)),
+    1
+  );
+
+  const head = [["Amostra", ...specialVisuals.map((c) => shortName(c.name))]];
+
+  const body = Array.from({ length: N }, (_, i) => {
+    const row = [`Amostra ${i + 1}`];
+
+    for (const c of specialVisuals) {
+      const expected = getCharSampleCount(c, insp);
+
+      if (i >= expected) {
+        row.push("—");
+        continue;
+      }
+
+      const v = normVisual(samplesObj?.[c.id]?.[i]);
+      row.push(v || "—");
+    }
+
+    return row;
+  });
+
+  autoTable(doc, {
+    ...commonTableStyle(8),
+    startY: y,
+    margin: { left: M, right: M },
+    head,
+    body,
+    styles: { ...commonTableStyle(8).styles, cellPadding: 1.8 },
+    columnStyles: {
+      0: { cellWidth: 24, fontStyle: "bold" },
+    },
+  });
+
+  y = (doc.lastAutoTable?.finalY || y) + 10;
+}
+
     // Rodapé da página 2 (fixo)
     doc.setFontSize(8);
     doc.setTextColor(...COLORS.muted);
-    doc.text(`OQC/IQC Inspection V3 • Página 2/2`, M, 292);
   }
 
   const invoicePart = insp.invoice ? `_NF_${safe(insp.invoice)}` : "";
@@ -647,6 +786,15 @@ for (const c of chars) {
    const filename = `Inspecao_${safe(insp.planName || "Plano")}_${safe(
      insp.lot || "Lote"
    )}${invoicePart}_${fmtDate(insp.finishedAt || insp.createdAt).replaceAll("/", "-")}.pdf`;
+
+   const totalPages = doc.getNumberOfPages();
+
+for (let i = 1; i <= totalPages; i++) {
+  doc.setPage(i);
+  doc.setFontSize(8);
+  doc.setTextColor(...COLORS.muted);
+  doc.text(`OQC/IQC Inspection V3 • Página ${i}/${totalPages}`, M, 292);
+}
 
   doc.save(filename);
 }
