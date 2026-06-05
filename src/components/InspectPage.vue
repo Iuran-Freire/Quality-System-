@@ -299,20 +299,20 @@ function pdfDisabledTitle(x) {
                   </button>
 
                   <button
-                    class="btn ghost danger action-btn"
-                    type="button"
-                    @click="confirmRemove(x.id)"
-                  >
-                    Excluir
-                  </button>
-
-                  <button
                     class="btn ghost action-btn"
                     :disabled="x.status !== 'done'"
                     type="button"
                     @click="exportPdf(x)"
                   >
                     PDF
+                  </button>
+
+                  <button
+                    class="btn ghost danger action-btn"
+                    type="button"
+                    @click="confirmRemove(x.id)"
+                  >
+                    Excluir
                   </button>
                 </div>
               </td>
@@ -405,7 +405,7 @@ function pdfDisabledTitle(x) {
 }
 
 .inspect-filter-row {
- display: flex;
+  display: flex;
   justify-content: center;
   align-items: center;
   gap: 12px;
@@ -418,7 +418,7 @@ function pdfDisabledTitle(x) {
 }
 
 .inspect-actions-row {
-   display: flex;
+  display: flex;
   justify-content: center;
   gap: 10px;
   padding-top: 5px;
@@ -429,4 +429,5 @@ function pdfDisabledTitle(x) {
   min-width: 150px;
   white-space: nowrap;
 }
+
 </style>
