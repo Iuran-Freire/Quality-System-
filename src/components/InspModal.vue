@@ -759,6 +759,9 @@ async function createDraft() {
     lotSize: mode === "nbr5426" ? Number(lotSize.value) : null,
     shift: shift.value,
     resp: resp.value.trim(),
+    createdBy: auth.userName || "",
+    createdByUser: auth.user?.username || "",
+    createdByRole: auth.role || "",
     obs: obs.value.trim(),
 
     chars,
@@ -795,6 +798,10 @@ async function saveDraft() {
     samples: JSON.parse(JSON.stringify(localSamples.value)),
     status: "draft",
     result: res === "EMPTY" ? null : res,
+    updatedBy: auth.userName || "",
+    updatedByUser: auth.user?.username || "",
+    updatedByRole: auth.role || "",
+    updatedAt: new Date().toISOString(),
     boxQty: Number(boxQtyRef.value ?? 2),
     sampling: samplingSnapRef.value || insp.value?.sampling || null, // ✅ mantém snapshot
     createdAt: date.value
@@ -850,11 +857,19 @@ Motivo: ${p.reason}`;
     status: "done",
     result: res,
     finishedAt: new Date().toISOString(),
+
+    finishedBy: auth.userName || "",
+    finishedByUser: auth.user?.username || "",
+    finishedByRole: auth.role || "",
+
     boxQty: Number(boxQtyRef.value ?? 2),
     sampling: samplingSnapRef.value || insp.value?.sampling || null,
     createdAt: date.value
       ? new Date(`${date.value}T00:00:00`).toISOString()
       : new Date().toISOString(),
+    updatedBy: auth.userName || "",
+    updatedByUser: auth.user?.username || "",
+    updatedAt: new Date().toISOString(),
   });
 
   emit("close");

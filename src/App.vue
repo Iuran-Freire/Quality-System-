@@ -108,10 +108,12 @@ function samplingClass(p) {
             <input v-model="ui.q" placeholder="Buscar por PN, modelo, plano ou cliente" />
           </div>
 
-          <div class="user-box">
-            <span>
-              Logado como <b>{{ auth.userName }}</b>
-            </span>
+          <div class="qs-user-box">
+            <div class="qs-user-info">
+              <span>Logado como</span>
+              <b>{{ auth.userName }}</b>
+              <span class="qs-role-pill">{{ auth.role }}</span>
+            </div>
 
             <button class="btn ghost" type="button" @click="auth.logout()">Sair</button>
           </div>
@@ -269,3 +271,40 @@ function samplingClass(p) {
     "
   />
 </template>
+
+<style scoped>
+.qs-user-box {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  white-space: nowrap;
+  font-size: 13px;
+  color: var(--muted, #64748b);
+}
+
+.qs-user-info {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.qs-user-info b {
+  color: var(--text, #111827);
+  font-weight: 800;
+}
+
+.qs-role-pill {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 3px 9px;
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 800;
+  line-height: 1;
+  background: #f1f5f9;
+  color: #475569;
+  border: 1px solid #e2e8f0;
+  text-transform: uppercase;
+}
+</style>

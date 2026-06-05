@@ -1262,30 +1262,53 @@ th[data-sort].desc .sort::after {
   color:#666;
 }
 
-.top-wrap {
+/* ===============================
+   USUÁRIO LOGADO / TOPO
+   =============================== */
+
+.top .top-wrap {
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: 16px;
 }
 
-.user-box {
+.top .user-box {
   display: flex;
   align-items: center;
-  gap: 10px;
+  gap: 14px;
   white-space: nowrap;
   font-size: 13px;
   color: var(--muted, #64748b);
 }
 
-.user-box b {
+.top .user-info {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+}
+
+.top .user-info b {
   color: var(--text, #111827);
 }
+
+.top .role-pill {
+  display: inline-flex;
+  align-items: center;
+  padding: 3px 9px;
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 800;
+  line-height: 1;
+  background: #f1f5f9;
+  color: #475569;
+  border: 1px solid #e2e8f0;
+  text-transform: uppercase;
+}
+
 .muted-text {
   color: var(--muted, #64748b);
   font-size: 13px;
   font-weight: 600;
 }
-
-
 
