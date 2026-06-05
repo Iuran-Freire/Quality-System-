@@ -2,6 +2,7 @@
 import { ref, computed, onMounted } from "vue";
 import { useInspectionsStore } from "../stores/inspections";
 import InspModal from "../components/InspModal.vue";
+import { useAuthStore } from "../stores/auth";
 import { exportInspectionPdf } from "../utils/pdf";
 import { getLogoDataUrl } from "../utils/logo";
 
@@ -11,6 +12,9 @@ async function exportPdf(row) {
 }
 
 const insps = useInspectionsStore();
+
+const auth = useAuthStore();
+const isAdmin = computed(() => auth.role === "admin");
 
 const q = ref("");
 const showInsp = ref(false);
@@ -308,6 +312,7 @@ function pdfDisabledTitle(x) {
                   </button>
 
                   <button
+                    v-if="isAdmin"
                     class="btn ghost danger action-btn"
                     type="button"
                     @click="confirmRemove(x.id)"
@@ -429,5 +434,4 @@ function pdfDisabledTitle(x) {
   min-width: 150px;
   white-space: nowrap;
 }
-
 </style>

@@ -1281,6 +1281,11 @@ th[data-sort].desc .sort::after {
 .user-box b {
   color: var(--text, #111827);
 }
+.muted-text {
+  color: var(--muted, #64748b);
+  font-size: 13px;
+  font-weight: 600;
+}
 
 
 

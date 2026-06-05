@@ -10,6 +10,7 @@ import LoginPage from "./components/LoginPage.vue";
 const ui = useUiStore();
 const plans = usePlansStore();
 const auth = useAuthStore();
+const isAdmin = computed(() => auth.role === "admin");
 const showPlan = ref(false);
 const editingPlanId = ref(null); // 👈 novo
 
@@ -169,7 +170,7 @@ function samplingClass(p) {
                     </td>
                     <td>{{ p.resp }}</td>
                     <td>
-                      <div class="actions-wrap">
+                      <div v-if="isAdmin" class="actions-wrap">
                         <button
                           class="btn ghost"
                           type="button"
@@ -191,6 +192,8 @@ function samplingClass(p) {
                           Excluir
                         </button>
                       </div>
+
+                      <span v-else class="muted-text">Somente leitura</span>
                     </td>
                   </tr>
                 </tbody>
@@ -230,6 +233,7 @@ function samplingClass(p) {
 
           <div class="card">
             <button
+              v-if="isAdmin"
               class="btn"
               @click="
                 editPlanId = null;
@@ -265,4 +269,3 @@ function samplingClass(p) {
     "
   />
 </template>
-
