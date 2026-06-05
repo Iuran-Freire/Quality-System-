@@ -4,9 +4,12 @@ import { useUiStore } from "./stores/ui";
 import { usePlansStore } from "./stores/plans";
 import PlanModal from "./components/PlanModal.vue";
 import InspectPage from "./components/InspectPage.vue";
+import { useAuthStore } from "./stores/auth";
+import LoginPage from "./components/LoginPage.vue";
 
 const ui = useUiStore();
 const plans = usePlansStore();
+const auth = useAuthStore();
 const showPlan = ref(false);
 const editingPlanId = ref(null); // 👈 novo
 
@@ -67,7 +70,9 @@ function samplingClass(p) {
 </script>
 
 <template>
-  <div class="layout">
+  <LoginPage v-if="!auth.isLogged" />
+
+  <div v-else class="layout">
     <!-- SIDEBAR -->
     <aside class="side">
       <div class="brand">
@@ -97,9 +102,17 @@ function samplingClass(p) {
     <div>
       <!-- TOP BAR -->
       <div class="top">
-        <div class="wrap">
+        <div class="wrap top-wrap">
           <div class="search">
             <input v-model="ui.q" placeholder="Buscar por PN, modelo, plano ou cliente" />
+          </div>
+
+          <div class="user-box">
+            <span>
+              Logado como <b>{{ auth.userName }}</b>
+            </span>
+
+            <button class="btn ghost" type="button" @click="auth.logout()">Sair</button>
           </div>
         </div>
       </div>
@@ -252,3 +265,4 @@ function samplingClass(p) {
     "
   />
 </template>
+

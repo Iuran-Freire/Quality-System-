@@ -4,6 +4,7 @@ import { usePlansStore } from "../stores/plans";
 import { useInspectionsStore } from "../stores/inspections";
 import { getSamplingPlan } from "../utils/sampling/nbr5426";
 import { resolveSamplingSnapshot } from "../utils/sampling/resolveSamplingSnapshot";
+import { useAuthStore } from "../stores/auth";
 
 /*async function createInspectionFromPlan(plan) {
   // lotSize vem do input do usuário (principalmente para NBR)
@@ -38,6 +39,7 @@ const emit = defineEmits(["close"]);
 
 const plans = usePlansStore();
 const insps = useInspectionsStore();
+const auth = useAuthStore();
 
 // ----------------- CAMPOS -----------------
 const planId = ref("");
@@ -564,7 +566,7 @@ watch(
       invoice.value = "";
       lotSize.value = "";
       date.value = new Date().toISOString().slice(0, 10);
-      resp.value = "";
+      resp.value = auth.userName || "";
       shift.value = "";
       obs.value = "";
       supplier.value = "";
