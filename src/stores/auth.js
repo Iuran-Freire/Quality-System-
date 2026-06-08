@@ -1,59 +1,41 @@
 import { defineStore } from "pinia";
-
-const USERS = [
-    {
-        id: "1",
-        name: "Iuran",
-        username: "iuran",
-        password: "1234",
-        role: "admin",
-    },
-    {
-        id: "2",
-        name: "Inspetor 1",
-        username: "inspetor",
-        password: "1234",
-        role: "inspetor",
-    },
-];
+import { apiFetch } from "../services/api.js";
 
 export const useAuthStore = defineStore("auth", {
-    state: () => ({
-        user: JSON.parse(localStorage.getItem("authUser") || "null"),
-    }),
+  state: () => ({
+    user: JSON.parse(localStorage.getItem("authUser") || "null"),
+    token: localStorage.getItem("authToken") || "",
+  }),
 
-    getters: {
-        isLogged: (state) => !!state.user,
-        userName: (state) => state.user?.name || "",
-        role: (state) => state.user?.role || "",
+  getters: {
+    isLogged: (state) => !!state.user && !!state.token,
+    userName: (state) => state.user?.name || "",
+    role: (state) => state.user?.role || "",
+  },
+
+  actions: {
+    async login(username, password) {
+      const data = await apiFetch("/auth/login", {
+        method: "POST",
+        body: JSON.stringify({
+          username,
+          password,
+        }),
+      });
+
+      this.user = data.user;
+      this.token = data.token;
+
+      localStorage.setItem("authUser", JSON.stringify(data.user));
+      localStorage.setItem("authToken", data.token);
     },
 
-    actions: {
-        login(username, password) {
-            const found = USERS.find(
-                (u) =>
-                    u.username.toLowerCase() === String(username).toLowerCase().trim() &&
-                    u.password === String(password)
-            );
+    logout() {
+      this.user = null;
+      this.token = "";
 
-            if (!found) {
-                throw new Error("Usuário ou senha inválidos.");
-            }
-
-            const safeUser = {
-                id: found.id,
-                name: found.name,
-                username: found.username,
-                role: found.role,
-            };
-
-            this.user = safeUser;
-            localStorage.setItem("authUser", JSON.stringify(safeUser));
-        },
-
-        logout() {
-            this.user = null;
-            localStorage.removeItem("authUser");
-        },
+      localStorage.removeItem("authUser");
+      localStorage.removeItem("authToken");
     },
+  },
 });

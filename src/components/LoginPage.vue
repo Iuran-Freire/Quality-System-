@@ -8,11 +8,11 @@ const username = ref("");
 const password = ref("");
 const error = ref("");
 
-function submitLogin() {
+async function submitLogin() {
   error.value = "";
 
   try {
-    auth.login(username.value, password.value);
+    await auth.login(username.value, password.value);
   } catch (err) {
     error.value = err.message || "Erro ao fazer login.";
   }
