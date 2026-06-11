@@ -4,6 +4,7 @@ import dotenv from "dotenv";
 import { testConnection } from "./db.js";
 import setupRoutes from "./routes/setup.routes.js";
 import authRoutes from "./routes/auth.routes.js";
+import plansRoutes from "./routes/plans.routes.js";
 
 dotenv.config();
 

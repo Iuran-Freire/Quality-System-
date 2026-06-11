@@ -10,29 +10,27 @@ import LoginPage from "./components/LoginPage.vue";
 const ui = useUiStore();
 const plans = usePlansStore();
 const auth = useAuthStore();
+
 const isAdmin = computed(() => auth.role === "admin");
+
 const showPlan = ref(false);
-const editingPlanId = ref(null); // 👈 novo
+const editPlanId = ref(null);
 
 const isForms = computed(() => ui.page === "forms");
 const isInspect = computed(() => ui.page === "inspect");
 const isAnalytics = computed(() => ui.page === "analytics");
-const editPlanId = ref(null);
 
 // ------- paginação -------
 const PAGE_SIZE = 10;
 const currentPage = ref(1);
 
-// fonte de dados da tabela: sempre usar os filtrados do store
 const sourcePlans = computed(() => plans.filtered || []);
 
-// total de páginas
 const totalPages = computed(() => {
   if (!sourcePlans.value.length) return 1;
   return Math.ceil(sourcePlans.value.length / PAGE_SIZE);
 });
 
-// planos visíveis na página atual (máx. 10)
 const paginatedPlans = computed(() => {
   const start = (currentPage.value - 1) * PAGE_SIZE;
   const end = start + PAGE_SIZE;
@@ -153,34 +151,35 @@ function samplingClass(p) {
                     <td colspan="9">Nenhum plano criado ainda.</td>
                   </tr>
 
-                  <!-- 🔹 AQUI USAMOS APENAS OS PLANOS DA PÁGINA (MÁX 10) -->
                   <tr v-else v-for="p in paginatedPlans" :key="p.id">
                     <td>
                       <span class="status-pill" :class="p.active ? 'on' : 'off'">
                         {{ p.active ? "Ativo" : "Suspenso" }}
                       </span>
                     </td>
+
                     <td>{{ p.type }}</td>
                     <td>{{ p.pn }}</td>
                     <td>{{ p.model }}</td>
                     <td>{{ p.name }}</td>
                     <td>{{ p.client }}</td>
+
                     <td>
                       <span class="sampling-pill" :class="samplingClass(p)">
                         {{ samplingLabel(p) }}
                       </span>
                     </td>
+
                     <td>{{ p.resp }}</td>
+
                     <td>
                       <div v-if="isAdmin" class="actions-wrap">
                         <button
                           class="btn ghost"
                           type="button"
                           @click="
-                            () => {
-                              editPlanId = p.id;
-                              showPlan = true;
-                            }
+                            editPlanId = p.id;
+                            showPlan = true;
                           "
                         >
                           Editar
@@ -211,6 +210,7 @@ function samplingClass(p) {
               <div>
                 Mostrando {{ paginatedPlans.length }} de {{ sourcePlans.length }} planos
               </div>
+
               <div class="hstack" style="gap: 8px">
                 <button
                   class="btn ghost"
@@ -220,7 +220,9 @@ function samplingClass(p) {
                 >
                   Anterior
                 </button>
+
                 <span>Página {{ currentPage }} / {{ totalPages }}</span>
+
                 <button
                   class="btn ghost"
                   type="button"
@@ -237,6 +239,7 @@ function samplingClass(p) {
             <button
               v-if="isAdmin"
               class="btn"
+              type="button"
               @click="
                 editPlanId = null;
                 showPlan = true;
