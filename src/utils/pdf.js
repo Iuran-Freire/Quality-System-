@@ -112,23 +112,91 @@ function normVisual(v) {
 function safe(s) {
   return String(s || "").replace(/[\\/:*?"<>|]/g, "-").trim();
 }
-function fmtDate(iso) {
-  if (!iso) return "-";
-  const d = String(iso).slice(0, 10).split("-");
-  if (d.length !== 3) return String(iso).slice(0, 10);
-  return `${d[2]}/${d[1]}/${d[0]}`;
+function parseDateTime(value) {
+  if (!value) return null;
+
+  if (value instanceof Date) {
+    return Number.isNaN(value.getTime()) ? null : value;
+  }
+
+  const raw = String(value).trim();
+
+  /*
+   * Quando o PostgreSQL retorna uma data sem fuso:
+   *
+   * 2026-06-12 16:18:22
+   *
+   * tratamos como horário local para impedir que o navegador
+   * adicione ou retire horas indevidamente.
+   */
+  const localTimestampPattern =
+    /^(\d{4})-(\d{2})-(\d{2})[ T](\d{2}):(\d{2})(?::(\d{2}))?(?:\.\d+)?$/;
+
+  const match = raw.match(localTimestampPattern);
+
+  if (match) {
+    const [, year, month, day, hour, minute, second = "0"] = match;
+
+    const date = new Date(
+      Number(year),
+      Number(month) - 1,
+      Number(day),
+      Number(hour),
+      Number(minute),
+      Number(second)
+    );
+
+    return Number.isNaN(date.getTime()) ? null : date;
+  }
+
+  /*
+   * Valores com Z ou offset continuam sendo convertidos normalmente:
+   *
+   * 2026-06-12T20:18:22.000Z
+   * 2026-06-12T16:18:22-04:00
+   */
+  const date = new Date(raw);
+
+  return Number.isNaN(date.getTime()) ? null : date;
 }
-function fmtDateTime(iso) {
-  if (!iso) return "-";
 
-  const d = new Date(iso);
+function fmtDate(value) {
+  const date = parseDateTime(value);
 
-  if (Number.isNaN(d.getTime())) return "-";
+  if (!date) return "-";
 
-  return d.toLocaleString("pt-BR", {
-    dateStyle: "short",
-    timeStyle: "medium",
+  return date.toLocaleDateString("pt-BR", {
+    day: "2-digit",
+    month: "2-digit",
+    year: "numeric",
   });
+}
+
+function fmtDateTime(value) {
+  const date = parseDateTime(value);
+
+  if (!date) return "-";
+
+  return date.toLocaleString("pt-BR", {
+    day: "2-digit",
+    month: "2-digit",
+    year: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+    second: "2-digit",
+    hour12: false,
+  });
+}
+
+function userWithDateTime(name, role, dateTime) {
+  const user = name || "Não informado";
+  const roleText = role ? ` (${role})` : "";
+
+  const dateTimeText = dateTime
+    ? ` / ${fmtDateTime(dateTime)}`
+    : " / Data não informada";
+
+  return `${user}${roleText}${dateTimeText}`;
 }
 function normKind(c) {
   return getCharKind(c);
@@ -370,26 +438,65 @@ export function exportInspectionPdf(insp, opts = {}) {
   // Dados
   sectionTitle(doc, "Dados da inspeção", M, 43);
 
-  const left = [
-    ["Plano", insp.planName || "-"],
-    ["Tipo", insp.type || "-"],
-    ["Modelo", insp.model || "-"],
-    ["Cliente", insp.client || "-"],
-    ["Fornecedor", insp.supplier || "-"],
-  ];
+const startedDateTime =
+  insp.startedAt ||
+  insp.started_at ||
+  insp.createdAt ||
+  insp.created_at;
 
-  const right = [
-  ["Data", fmtDate(insp.createdAt || insp.startedAt || insp.finishedAt)],
-  ["Início", fmtDateTime(insp.startedAt)],
-  ["Finalização", fmtDateTime(insp.finishedAt)],
+const finishedDateTime =
+  insp.finishedAt ||
+  insp.finished_at;
+
+const startedUser =
+  insp.createdBy ||
+  insp.createdByUser ||
+  insp.inspector_name ||
+  insp.inspectorName;
+
+const finishedUser =
+  insp.finishedBy ||
+  insp.finishedByUser ||
+  insp.inspector_name ||
+  insp.inspectorName;
+
+const left = [
+  ["Plano", insp.planName || "-"],
+  ["Tipo", insp.type || "-"],
+  ["Modelo", insp.model || "-"],
+  ["Cliente", insp.client || "-"],
+  ["Fornecedor", insp.supplier || "-"],
+  [
+    "Iniciado por:",
+    userWithDateTime(
+      startedUser,
+      insp.createdByRole,
+      startedDateTime
+    ),
+  ],
+  [
+    "Finalizado por:",
+    userWithDateTime(
+      finishedUser,
+      insp.finishedByRole,
+      finishedDateTime
+    ),
+  ],
+];
+const right = [
+  ["Data", fmtDate(startedDateTime || finishedDateTime)],
+  ["Início", fmtDateTime(startedDateTime)],
+  ["Finalização", fmtDateTime(finishedDateTime)],
   ["PN", insp.pn || "-"],
   ["Lote", insp.lot || "-"],
   ["Invoice / NF", insp.invoice || "-"],
   ["Turno", insp.shift || "-"],
   ["Responsável", insp.resp || "-"],
   ["Amostras (plano)", String(planSamples)],
-  ...(hasVisualCaixa ? [["Qtd. Caixas (plano)", String(boxQty)]] : []),
-  ];
+  ...(hasVisualCaixa
+    ? [["Qtd. Caixas (plano)", String(boxQty)]]
+    : []),
+];
 
   autoTable(doc, {
     ...commonTableStyle(9),
@@ -576,7 +683,14 @@ sectionTitle(doc, "Observações", M, yAfterChars + 12);
     startY: yAfterObs + 16,
     margin: { left: M, right: M },
     head: [["Responsável", "Qualidade", "Data"]],
-    body: [[insp.resp || "—", "__________________", fmtDate(insp.finishedAt || insp.createdAt)]],
+    body: [[
+  insp.resp || "—",
+  "__________________",
+  fmtDate(
+    finishedDateTime ||
+      startedDateTime
+  ),
+]],
     columnStyles: {
       0: { cellWidth: 70 },
       1: { cellWidth: 70 },
@@ -796,9 +910,13 @@ const specialVisuals = chars.filter(
 
   const invoicePart = insp.invoice ? `_NF_${safe(insp.invoice)}` : "";
 
-   const filename = `Inspecao_${safe(insp.planName || "Plano")}_${safe(
-     insp.lot || "Lote"
-   )}${invoicePart}_${fmtDate(insp.finishedAt || insp.createdAt).replaceAll("/", "-")}.pdf`;
+   const filename = `Inspecao_${safe(
+  insp.planName || "Plano"
+)}_${safe(
+  insp.lot || "Lote"
+)}${invoicePart}_${fmtDate(
+  finishedDateTime || startedDateTime
+).replaceAll("/", "-")}.pdf`;
 
    const totalPages = doc.getNumberOfPages();
 
