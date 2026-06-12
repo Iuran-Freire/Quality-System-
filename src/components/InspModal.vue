@@ -361,6 +361,19 @@ function fmt(v, d = 3) {
   return Number(v).toFixed(d);
 }
 
+function formatDateTimeBR(value) {
+  if (!value) return "—";
+
+  const d = new Date(value);
+
+  if (Number.isNaN(d.getTime())) return "—";
+
+  return d.toLocaleString("pt-BR", {
+    dateStyle: "short",
+    timeStyle: "medium",
+  });
+}
+
 function getCharStats(c) {
   const r = calcCpkForChar(c, localSamples.value);
   return {
@@ -773,6 +786,9 @@ async function createDraft() {
 
     sampling: samplingSnapRef.value, // ✅ congela AQL/Ac/Re
     status: "draft",
+
+    startedAt: new Date().toISOString(),
+    finishedAt: "",
     result: null,
     createdAt: date.value
       ? new Date(`${date.value}T00:00:00`).toISOString()
@@ -887,6 +903,18 @@ Motivo: ${p.reason}`;
       <div class="hr"></div>
 
       <h4 class="insp-section-title">Dados da inspeção</h4>
+
+      <div v-if="isEdit" class="inspection-time-box">
+        <div>
+          <span>Início da inspeção</span>
+          <b>{{ formatDateTimeBR(insp?.startedAt) }}</b>
+        </div>
+
+        <div>
+          <span>Finalização da inspeção</span>
+          <b>{{ formatDateTimeBR(insp?.finishedAt) }}</b>
+        </div>
+      </div>
 
       <div class="row">
         <div class="span-3">
@@ -1256,5 +1284,33 @@ Motivo: ${p.reason}`;
 .visual-summary .total {
   color: var(--muted);
   font-weight: 600;
+}
+
+.inspection-time-box {
+  display: flex;
+  gap: 12px;
+  flex-wrap: wrap;
+  padding: 12px;
+  border: 1px solid #e2e8f0;
+  border-radius: 14px;
+  background: #f8fafc;
+}
+
+.inspection-time-box div {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  min-width: 220px;
+}
+
+.inspection-time-box span {
+  font-size: 12px;
+  color: var(--muted, #64748b);
+  font-weight: 700;
+}
+
+.inspection-time-box b {
+  font-size: 14px;
+  color: var(--text, #111827);
 }
 </style>

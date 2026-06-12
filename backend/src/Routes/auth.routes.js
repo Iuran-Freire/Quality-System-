@@ -116,4 +116,49 @@ router.post("/login", async (req, res) => {
   }
 });
 
+router.post("/seed-inspector", async (req, res) => {
+  try {
+    const name = "Inspetor Teste";
+    const username = "inspetor";
+    const password = "1234";
+    const role = "inspector";
+
+    const existing = await db.query(
+      "SELECT id FROM users WHERE username = $1",
+      [username]
+    );
+
+    if (existing.rows.length) {
+      return res.json({
+        ok: true,
+        message: "Usuário inspetor já existe.",
+      });
+    }
+
+    const passwordHash = await bcrypt.hash(password, 10);
+
+    await db.query(
+      `
+      INSERT INTO users (name, username, password_hash, role, active)
+      VALUES ($1, $2, $3, $4, true)
+      `,
+      [name, username, passwordHash, role]
+    );
+
+    res.json({
+      ok: true,
+      message: "Usuário inspetor criado com sucesso.",
+      user: { name, username, role },
+    });
+  } catch (error) {
+    console.error("Erro ao criar inspetor:", error);
+
+    res.status(500).json({
+      ok: false,
+      message: "Erro ao criar inspetor.",
+      error: error.message,
+    });
+  }
+});
+
 export default router;

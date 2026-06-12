@@ -118,6 +118,18 @@ function fmtDate(iso) {
   if (d.length !== 3) return String(iso).slice(0, 10);
   return `${d[2]}/${d[1]}/${d[0]}`;
 }
+function fmtDateTime(iso) {
+  if (!iso) return "-";
+
+  const d = new Date(iso);
+
+  if (Number.isNaN(d.getTime())) return "-";
+
+  return d.toLocaleString("pt-BR", {
+    dateStyle: "short",
+    timeStyle: "medium",
+  });
+}
 function normKind(c) {
   return getCharKind(c);
 }
@@ -367,15 +379,16 @@ export function exportInspectionPdf(insp, opts = {}) {
   ];
 
   const right = [
-    ["Data", fmtDate(insp.createdAt || insp.finishedAt)],
-    ["PN", insp.pn || "-"],
-    ["Lote", insp.lot || "-"],
-    ["Invoice / NF", insp.invoice || "-"],
-    ["Turno", insp.shift || "-"],
-    ["Responsável", insp.resp || "-"],
-    ["Amostras (plano)", String(planSamples)],
-    ...(hasVisualCaixa ? [["Qtd. Caixas (plano)", String(boxQty)]] : []),
-    ["Finalizado em", fmtDate(insp.finishedAt)],
+  ["Data", fmtDate(insp.createdAt || insp.startedAt || insp.finishedAt)],
+  ["Início", fmtDateTime(insp.startedAt)],
+  ["Finalização", fmtDateTime(insp.finishedAt)],
+  ["PN", insp.pn || "-"],
+  ["Lote", insp.lot || "-"],
+  ["Invoice / NF", insp.invoice || "-"],
+  ["Turno", insp.shift || "-"],
+  ["Responsável", insp.resp || "-"],
+  ["Amostras (plano)", String(planSamples)],
+  ...(hasVisualCaixa ? [["Qtd. Caixas (plano)", String(boxQty)]] : []),
   ];
 
   autoTable(doc, {
@@ -385,9 +398,9 @@ export function exportInspectionPdf(insp, opts = {}) {
     margin: { left: M },
     tableWidth: colW,
     columnStyles: {
-      0: { cellWidth: 24, fontStyle: "bold", textColor: COLORS.muted },
-      1: { cellWidth: colW - 24 },
-    },
+      0: { cellWidth: 32, fontStyle: "bold", textColor: COLORS.muted },
+      1: { cellWidth: colW - 32 },
+     },
   });
 
   autoTable(doc, {
