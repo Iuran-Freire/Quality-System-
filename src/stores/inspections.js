@@ -1,10 +1,10 @@
 // src/stores/inspections.js
 import { defineStore } from "pinia";
-import { db } from "../db/oqcDb";
+import { apiFetch } from "../services/api.js";
 import { resolveSamplingSnapshot } from "../utils/sampling/resolveSamplingSnapshot";
 
 function uid() {
-  return Date.now().toString(36) + Math.random().toString(36).slice(2, 7);
+  return crypto.randomUUID();
 }
 
 function deepClone(x) {
@@ -33,49 +33,63 @@ function getSampleCountForChar(char, insp) {
     return safeNum(insp.boxQty ?? insp.planBoxQty, 2);
   }
 
+  if (kind === "teste_especial") {
+    return safeNum(char.sampleN, 1);
+  }
+
   return safeNum(insp.planSamples, 5);
 }
 
 function initSamplesFromSnapshot(chars = [], insp) {
   const samples = {};
+
   for (const c of chars) {
     const n = getSampleCountForChar(c, insp);
     samples[c.id] = Array.from({ length: n }, () => "");
   }
+
   return samples;
 }
 
 function ensureSamplesSized(chars = [], samples = {}, insp) {
   const out = deepClone(samples || {});
+
   for (const c of chars) {
     const n = getSampleCountForChar(c, insp);
+
     if (!Array.isArray(out[c.id])) out[c.id] = [];
+
     out[c.id] = out[c.id].slice(0, n);
-    while (out[c.id].length < n) out[c.id].push("");
+
+    while (out[c.id].length < n) {
+      out[c.id].push("");
+    }
   }
+
   return out;
 }
 
 function normalizeInspection(row = {}) {
   const x = deepClone(row);
 
-  // defaults seguros
+  x.id = String(x.id || uid());
+
   x.status = x.status ?? "draft";
   x.result = x.result ?? null;
 
-  // planSamples (produto/variável)
   x.planSamples = safeNum(x.planSamples, 5);
-
-  // box qty (caixa)
   x.planBoxQty = safeNum(x.planBoxQty, 2);
   x.boxQty = safeNum(x.boxQty ?? x.planBoxQty, x.planBoxQty);
 
-  // type pode faltar em inspeções antigas
-  x.type = x.type ?? "";
+  x.type = x.type ?? "IQC";
 
-  // chars/samples
   x.chars = Array.isArray(x.chars) ? x.chars : [];
   x.samples = ensureSamplesSized(x.chars, x.samples || {}, x);
+
+  x.sampling = x.sampling ?? x.samplingSnapshot ?? null;
+
+  x.startedAt = x.startedAt || "";
+  x.finishedAt = x.finishedAt || "";
 
   return x;
 }
@@ -89,50 +103,31 @@ export const useInspectionsStore = defineStore("inspections", {
   actions: {
     async load() {
       this.loading = true;
+
       try {
-        const rows = await db.inspections.orderBy("createdAt").reverse().toArray();
+        const data = await apiFetch("/inspections");
 
-        // ✅ migra/normaliza inspeções antigas ao carregar
-        const normalized = rows.map((r) => normalizeInspection(r));
+        const rows = Array.isArray(data.items) ? data.items : [];
 
-        // ✅ opcional: persistir migração no Dexie (para não recalcular sempre)
-        // Só grava se detectar diferenças importantes
-        for (let i = 0; i < rows.length; i++) {
-          const before = rows[i];
-          const after = normalized[i];
-
-          const changed =
-            before.type !== after.type ||
-            before.planSamples !== after.planSamples ||
-            before.planBoxQty !== after.planBoxQty ||
-            before.boxQty !== after.boxQty ||
-            JSON.stringify(before.samples || {}) !== JSON.stringify(after.samples || {}) ||
-            JSON.stringify(before.chars || []) !== JSON.stringify(after.chars || []);
-
-          if (changed) {
-            await db.inspections.put(after);
-          }
-        }
-
-        this.items = normalized;
+        this.items = rows.map((r) => normalizeInspection(r));
+      } catch (error) {
+        console.error("Erro ao carregar inspeções da API:", error);
+        this.items = [];
       } finally {
         this.loading = false;
       }
     },
 
-    // ✅ criação recomendada: sempre a partir do plano
     async createFromPlan(plan, meta = {}) {
       const now = new Date().toISOString();
 
-      // ✅ resolve sampling snapshot (FIXED / NBR / CLIENT)
       const samplingSnapshot = resolveSamplingSnapshot({
         plan,
-        lotSize: meta.lotSize, // virá do InspModal quando for NBR 5426
+        lotSize: meta.lotSize,
       });
 
-      // ✅ n da inspeção sempre vem do snapshot
       const planSamples = safeNum(
-        samplingSnapshot.sampleN,
+        samplingSnapshot?.sampleN,
         safeNum(plan?.n, 5)
       );
 
@@ -143,8 +138,8 @@ export const useInspectionsStore = defineStore("inspections", {
 
         planId: plan.id,
         planName: plan.name,
-        type: plan.type ?? "OQC",
-        samplingSnapshot,
+        type: plan.type ?? "IQC",
+
         pn: plan.pn,
         model: plan.model,
         client: plan.client,
@@ -152,20 +147,27 @@ export const useInspectionsStore = defineStore("inspections", {
         resp: plan.resp,
 
         lot: meta.lot ?? "",
+        invoice: meta.invoice ?? "",
+        lotSize: meta.lotSize ?? null,
         shift: meta.shift ?? "",
         obs: meta.obs ?? "",
 
-        // ✅ snapshot
         chars: deepClone(plan.chars || []),
 
-        // ✅ amostragem
         planSamples,
         planBoxQty,
         boxQty: safeNum(meta.boxQty ?? planBoxQty, planBoxQty),
 
+        sampling: samplingSnapshot,
+
         status: "draft",
         result: null,
+
+        startedAt: now,
+        finishedAt: "",
+
         createdAt: now,
+        updatedAt: now,
       };
 
       insp.samples = initSamplesFromSnapshot(insp.chars, insp);
@@ -174,26 +176,36 @@ export const useInspectionsStore = defineStore("inspections", {
     },
 
     async create(inspection) {
-      const id = inspection.id ?? uid();
       const now = new Date().toISOString();
 
       const obj = {
-        id,
+        id: inspection.id ?? uid(),
         status: inspection.status ?? "draft",
         result: inspection.result ?? null,
+        startedAt: inspection.startedAt ?? now,
+        finishedAt: inspection.finishedAt ?? "",
         createdAt: inspection.createdAt ?? now,
+        updatedAt: inspection.updatedAt ?? now,
         ...inspection,
       };
 
-      const plain = normalizeInspection(obj);
+      const payload = normalizeInspection(obj);
 
-      await db.inspections.put(plain);
-      this.items.unshift(plain);
-      return plain;
+      const data = await apiFetch("/inspections", {
+        method: "POST",
+        body: JSON.stringify(deepClone(payload)),
+      });
+
+      const saved = normalizeInspection(data.item || payload);
+
+      this.items.unshift(saved);
+
+      return saved;
     },
 
     async update(id, patch) {
-      const idx = this.items.findIndex((x) => x.id === id);
+      const idx = this.items.findIndex((x) => String(x.id) === String(id));
+
       if (idx === -1) return;
 
       const updated = {
@@ -202,15 +214,26 @@ export const useInspectionsStore = defineStore("inspections", {
         updatedAt: new Date().toISOString(),
       };
 
-      const plain = normalizeInspection(updated);
+      const payload = normalizeInspection(updated);
 
-      await db.inspections.put(plain);
-      this.items[idx] = plain;
+      const data = await apiFetch(`/inspections/${id}`, {
+        method: "PUT",
+        body: JSON.stringify(deepClone(payload)),
+      });
+
+      const saved = normalizeInspection(data.item || payload);
+
+      this.items[idx] = saved;
+
+      return saved;
     },
 
     async remove(id) {
-      await db.inspections.delete(id);
-      this.items = this.items.filter((x) => x.id !== id);
+      await apiFetch(`/inspections/${id}`, {
+        method: "DELETE",
+      });
+
+      this.items = this.items.filter((x) => String(x.id) !== String(id));
     },
   },
 });
