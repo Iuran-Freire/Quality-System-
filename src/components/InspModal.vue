@@ -109,6 +109,17 @@ const linkedReinspection = computed(() => {
   })[0];
 });
 
+const originalInspection = computed(() => {
+  if (!insp.value?.isReinspection) return null;
+  if (!insp.value?.parentInspectionId) return null;
+
+  return (
+    insps.items.find(
+      (item) => String(item.id) === String(insp.value.parentInspectionId)
+    ) || null
+  );
+});
+
 const hasLinkedReinspection = computed(() => {
   return Boolean(linkedReinspection.value);
 });
@@ -391,12 +402,6 @@ function cpkClass(v) {
 function fmt(v, d = 3) {
   if (v == null || !Number.isFinite(v)) return "—";
   return Number(v).toFixed(d);
-}
-
-function shortInspectionId(id) {
-  if (!id) return "—";
-
-  return `#${String(id).replaceAll("-", "").slice(0, 8).toUpperCase()}`;
 }
 
 function formatDateTimeBR(value) {
@@ -1004,8 +1009,7 @@ Motivo: ${p.reason}`;
           <strong>Esta inspeção possui uma reinspeção criada</strong>
 
           <span>
-            Ciclo {{ linkedReinspection?.inspectionCycle || 2 }} · Código
-            {{ shortInspectionId(linkedReinspection?.id) }}
+            Ciclo {{ linkedReinspection?.inspectionCycle || 2 }}
             · Status:
             {{ linkedReinspection?.status === "done" ? "Finalizada" : "Em andamento" }}
           </span>
@@ -1023,9 +1027,23 @@ Motivo: ${p.reason}`;
           <b>{{ insp?.inspectionCycle || 2 }}</b>
         </div>
 
-        <div>
+        <div class="origin-inspection-info">
           <span>Inspeção de origem</span>
-          <b>{{ shortInspectionId(insp?.parentInspectionId) }}</b>
+
+          <b v-if="originalInspection">
+            {{ originalInspection.pn || "PN não informado" }}
+            —
+            {{ originalInspection.model || "Modelo não informado" }}
+            —
+            {{ originalInspection.planName || "Plano não informado" }}
+          </b>
+
+          <small v-if="originalInspection">
+            Lote: {{ originalInspection.lot || "—" }} 
+            | NF: {{ originalInspection.invoice || "—" }}
+          </small>
+
+          <b v-else> Inspeção original não localizada </b>
         </div>
       </div>
 
@@ -1522,5 +1540,18 @@ Motivo: ${p.reason}`;
   color: #c2410c;
   font-size: 13px;
   font-weight: 600;
+}
+
+.origin-inspection-info {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.origin-inspection-info small {
+  color: #9a3412;
+  font-size: 12px;
+  font-weight: 600;
+  line-height: 1.35;
 }
 </style>

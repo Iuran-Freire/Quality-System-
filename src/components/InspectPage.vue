@@ -128,7 +128,9 @@ function exportCsv() {
 
     const line = [
       date,
-      x.type || "", // pode ficar vazio em inspeções antigas
+      x.isReinspection
+        ? `${x.type || "OQC"} - Reinspeção ${x.inspectionCycle || 2}`
+        : x.type || "", // pode ficar vazio em inspeções antigas
       x.planName || "",
       x.pn || "",
       x.model || "",
@@ -276,7 +278,17 @@ function pdfDisabledTitle(x) {
 
             <tr v-else v-for="x in filtered" :key="x.id">
               <td>{{ (x.createdAt || "").slice(0, 10) }}</td>
-              <td>{{ x.type || "—" }}</td>
+              <td>
+                <div class="inspection-type-cell">
+                  <span class="inspection-type-text">
+                    {{ x.type || "—" }}
+                  </span>
+
+                  <span v-if="x.isReinspection" class="reinspection-table-badge">
+                    Reinspeção {{ x.inspectionCycle || 2 }}
+                  </span>
+                </div>
+              </td>
               <td>{{ x.planName }}</td>
               <td>{{ x.pn }}</td>
               <td>{{ x.model }}</td>
@@ -390,6 +402,7 @@ function pdfDisabledTitle(x) {
 
 .inspect-table td {
   vertical-align: middle !important;
+  text-align: center;
 }
 
 .inspect-filter-card {
@@ -432,6 +445,30 @@ function pdfDisabledTitle(x) {
 
 .inspect-actions-row .btn {
   min-width: 150px;
+  white-space: nowrap;
+}
+.inspection-type-cell {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 5px;
+}
+
+.inspection-type-text {
+  font-weight: 500;
+}
+
+.reinspection-table-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 3px 8px;
+  border: 1px solid #f59e0b;
+  border-radius: 999px;
+  background: #fff7ed;
+  color: #c2410c;
+  font-size: 10px;
+  font-weight: 645;
   white-space: nowrap;
 }
 </style>

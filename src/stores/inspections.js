@@ -286,7 +286,10 @@ export const useInspectionsStore = defineStore("inspections", {
           originalInspection.resp ||
           "",
 
-        obs: `Reinspeção OQC — ciclo ${currentCycle + 1}`,
+        obs:
+         `Reinspeção OQC — ciclo ${currentCycle + 1}` +
+         ` | Lote: ${originalInspection.lot || "-"}` +
+         ` | NF: ${originalInspection.invoice || "-"}`,
 
         chars,
 

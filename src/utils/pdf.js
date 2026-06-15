@@ -919,7 +919,7 @@ const specialVisuals = chars.filter(
 ).replaceAll("/", "-")}.pdf`;
 
    const totalPages = doc.getNumberOfPages();
-
+3
 for (let i = 1; i <= totalPages; i++) {
   doc.setPage(i);
   doc.setFontSize(8);
