@@ -92,6 +92,38 @@ onMounted(async () => {
 const insp = computed(() => insps.items.find((x) => String(x.id) === String(props.id)));
 const isEdit = computed(() => props.id != null && !!insp.value);
 const isDone = computed(() => insp.value?.status === "done");
+const linkedReinspection = computed(() => {
+  if (!insp.value?.id) return null;
+
+  const linkedItems = insps.items.filter((item) => {
+    return (
+      String(item.parentInspectionId || "") === String(insp.value.id) &&
+      Boolean(item.isReinspection)
+    );
+  });
+
+  if (!linkedItems.length) return null;
+
+  return linkedItems.sort((a, b) => {
+    return Number(b.inspectionCycle || 1) - Number(a.inspectionCycle || 1);
+  })[0];
+});
+
+const hasLinkedReinspection = computed(() => {
+  return Boolean(linkedReinspection.value);
+});
+
+const canReinspect = computed(() => {
+  const x = insp.value;
+
+  return (
+    isEdit.value &&
+    String(x?.type || "").toUpperCase() === "OQC" &&
+    String(x?.status || "").toLowerCase() === "done" &&
+    String(x?.result || "").toUpperCase() === "FAIL" &&
+    !hasLinkedReinspection.value
+  );
+});
 
 // lista de planos
 const planList = computed(() => plans.items || []);
@@ -359,6 +391,12 @@ function cpkClass(v) {
 function fmt(v, d = 3) {
   if (v == null || !Number.isFinite(v)) return "—";
   return Number(v).toFixed(d);
+}
+
+function shortInspectionId(id) {
+  if (!id) return "—";
+
+  return `#${String(id).replaceAll("-", "").slice(0, 8).toUpperCase()}`;
 }
 
 function formatDateTimeBR(value) {
@@ -726,6 +764,42 @@ function calcResult(chars, samples) {
   return hasAny ? "PASS" : null;
 }
 
+async function createReinspection() {
+  if (!insp.value) {
+    alert("Inspeção original não encontrada.");
+    return;
+  }
+
+  const confirmed = confirm(
+    `Deseja criar uma reinspeção para esta inspeção?\n\n` +
+      `Plano: ${insp.value.planName || "-"}\n` +
+      `Lote: ${insp.value.lot || "-"}\n` +
+      `Resultado atual: ${insp.value.result || "-"}`
+  );
+
+  if (!confirmed) return;
+
+  try {
+    const newInspection = await insps.createReinspection(insp.value, {
+      name: auth.userName || "",
+      username: auth.user?.username || "",
+      role: auth.role || "",
+    });
+
+    alert(
+      `Reinspeção criada com sucesso.\n\n` +
+        `Ciclo: ${newInspection.inspectionCycle || 2}\n` +
+        `Status: Rascunho`
+    );
+
+    emit("close");
+  } catch (error) {
+    console.error("Erro ao criar reinspeção:", error);
+
+    alert(error?.message || "Não foi possível criar a reinspeção.");
+  }
+}
+
 // ----------------- AÇÕES -----------------
 async function createDraft() {
   const p = selectedPlan.value;
@@ -896,13 +970,64 @@ Motivo: ${p.reason}`;
   <div class="modal" :class="{ show: props.show }" @click.self="emit('close')">
     <div class="sheet vstack">
       <div class="hstack" style="justify-content: space-between; align-items: center">
-        <h3>{{ isEdit ? "Editar Inspeção" : "Nova Inspeção" }}</h3>
-        <button class="btn ghost" type="button" @click="emit('close')">Fechar</button>
+        <div>
+          <h3>{{ isEdit ? "Editar Inspeção" : "Nova Inspeção" }}</h3>
+
+          <div v-if="insp?.isReinspection" class="reinspection-header">
+            REINSPEÇÃO — CICLO {{ insp?.inspectionCycle || 2 }}
+          </div>
+        </div>
+
+        <div class="hstack" style="gap: 8px">
+          <button
+            v-if="canReinspect"
+            class="btn reinspection-btn"
+            type="button"
+            @click="createReinspection"
+          >
+            Criar reinspeção
+          </button>
+
+          <button class="btn ghost" type="button" @click="emit('close')">Fechar</button>
+        </div>
       </div>
 
       <div class="hr"></div>
 
       <h4 class="insp-section-title">Dados da inspeção</h4>
+
+      <div
+        v-if="hasLinkedReinspection && !insp?.isReinspection"
+        class="linked-reinspection-alert"
+      >
+        <div>
+          <strong>Esta inspeção possui uma reinspeção criada</strong>
+
+          <span>
+            Ciclo {{ linkedReinspection?.inspectionCycle || 2 }} · Código
+            {{ shortInspectionId(linkedReinspection?.id) }}
+            · Status:
+            {{ linkedReinspection?.status === "done" ? "Finalizada" : "Em andamento" }}
+          </span>
+        </div>
+      </div>
+
+      <div v-if="insp?.isReinspection" class="reinspection-info">
+        <div>
+          <span>Tipo</span>
+          <b>Reinspeção OQC</b>
+        </div>
+
+        <div>
+          <span>Ciclo</span>
+          <b>{{ insp?.inspectionCycle || 2 }}</b>
+        </div>
+
+        <div>
+          <span>Inspeção de origem</span>
+          <b>{{ shortInspectionId(insp?.parentInspectionId) }}</b>
+        </div>
+      </div>
 
       <div v-if="isEdit" class="inspection-time-box">
         <div>
@@ -1312,5 +1437,90 @@ Motivo: ${p.reason}`;
 .inspection-time-box b {
   font-size: 14px;
   color: var(--text, #111827);
+}
+
+.reinspection-btn {
+  background: #f59e0b;
+  border-color: #f59e0b;
+  color: #ffffff;
+  font-weight: 700;
+}
+
+.reinspection-btn:hover {
+  background: #d97706;
+  border-color: #d97706;
+}
+
+.reinspection-header {
+  display: inline-flex;
+  align-items: center;
+  margin-top: 4px;
+  padding: 4px 10px;
+  border: 1px solid #f59e0b;
+  border-radius: 999px;
+  background: #fff7ed;
+  color: #c2410c;
+  font-size: 12px;
+  font-weight: 800;
+  letter-spacing: 0.3px;
+}
+
+.reinspection-info {
+  display: grid;
+  grid-template-columns: 1fr 100px 2fr;
+  gap: 12px;
+  margin-bottom: 12px;
+  padding: 12px;
+  border: 1px solid #fed7aa;
+  border-radius: 14px;
+  background: #fff7ed;
+}
+
+.reinspection-info div {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.reinspection-info span {
+  font-size: 12px;
+  color: #9a3412;
+  font-weight: 700;
+}
+
+.reinspection-info b {
+  font-size: 14px;
+  color: #7c2d12;
+}
+
+@media (max-width: 800px) {
+  .reinspection-info {
+    grid-template-columns: 1fr;
+  }
+}
+
+.linked-reinspection-alert {
+  margin-bottom: 12px;
+  padding: 12px 14px;
+  border: 1px solid #fdba74;
+  border-radius: 14px;
+  background: #fff7ed;
+}
+
+.linked-reinspection-alert div {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.linked-reinspection-alert strong {
+  color: #9a3412;
+  font-size: 14px;
+}
+
+.linked-reinspection-alert span {
+  color: #c2410c;
+  font-size: 13px;
+  font-weight: 600;
 }
 </style>

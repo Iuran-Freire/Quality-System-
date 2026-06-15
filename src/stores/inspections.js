@@ -91,6 +91,22 @@ function normalizeInspection(row = {}) {
   x.startedAt = x.startedAt || "";
   x.finishedAt = x.finishedAt || "";
 
+  x.parentInspectionId =
+    x.parentInspectionId ??
+    x.parent_inspection_id ??
+    null;
+
+  x.isReinspection =
+    x.isReinspection ??
+    x.is_reinspection ??
+    false;
+
+  x.inspectionCycle = safeNum(
+    x.inspectionCycle ??
+    x.inspection_cycle,
+    1
+  );
+
   return x;
 }
 
@@ -173,6 +189,155 @@ export const useInspectionsStore = defineStore("inspections", {
       insp.samples = initSamplesFromSnapshot(insp.chars, insp);
 
       return await this.create(insp);
+    },
+
+    async createReinspection(originalInspection, user = {}) {
+      if (!originalInspection) {
+        throw new Error("Inspeção original não encontrada.");
+      }
+
+      const originalType = String(
+        originalInspection.type || ""
+      ).toUpperCase();
+
+      const originalStatus = String(
+        originalInspection.status || ""
+      ).toLowerCase();
+
+      const originalResult = String(
+        originalInspection.result || ""
+      ).toUpperCase();
+
+      if (originalType !== "OQC") {
+        throw new Error(
+          "A reinspeção está disponível somente para inspeções OQC."
+        );
+      }
+
+      if (originalStatus !== "done") {
+        throw new Error(
+          "A inspeção original ainda não foi finalizada."
+        );
+      }
+
+      if (originalResult !== "FAIL") {
+        throw new Error(
+          "Somente inspeções OQC com resultado FAIL podem ser reinspecionadas."
+        );
+      }
+
+      const rootInspectionId =
+        originalInspection.parentInspectionId ||
+        originalInspection.parent_inspection_id ||
+        originalInspection.id;
+
+      const existingOpenReinspection = this.items.find((item) => {
+        const itemParentId =
+          item.parentInspectionId ||
+          item.parent_inspection_id;
+
+        return (
+          String(itemParentId || "") ===
+          String(rootInspectionId) &&
+          Boolean(
+            item.isReinspection ??
+            item.is_reinspection
+          ) &&
+          String(item.status || "").toLowerCase() !== "done"
+        );
+      });
+
+      if (existingOpenReinspection) {
+        throw new Error(
+          "Já existe uma reinspeção em andamento para esta inspeção."
+        );
+      }
+
+      const now = new Date().toISOString();
+
+      const currentCycle = safeNum(
+        originalInspection.inspectionCycle ??
+        originalInspection.inspection_cycle,
+        1
+      );
+
+      const chars = deepClone(
+        originalInspection.chars || []
+      );
+
+      const newInspection = {
+        id: uid(),
+
+        planId: originalInspection.planId,
+        planName: originalInspection.planName,
+        type: "OQC",
+
+        pn: originalInspection.pn,
+        model: originalInspection.model,
+        client: originalInspection.client,
+        supplier: originalInspection.supplier,
+
+        lot: originalInspection.lot,
+        invoice: originalInspection.invoice,
+        lotSize: originalInspection.lotSize ?? null,
+        shift: originalInspection.shift,
+        resp:
+          user.name ||
+          originalInspection.resp ||
+          "",
+
+        obs: `Reinspeção OQC — ciclo ${currentCycle + 1}`,
+
+        chars,
+
+        planSamples: safeNum(
+          originalInspection.planSamples,
+          5
+        ),
+
+        planBoxQty: safeNum(
+          originalInspection.planBoxQty,
+          2
+        ),
+
+        boxQty: safeNum(
+          originalInspection.boxQty ??
+          originalInspection.planBoxQty,
+          2
+        ),
+
+        sampling: deepClone(
+          originalInspection.sampling || null
+        ),
+
+        status: "draft",
+        result: null,
+
+        startedAt: now,
+        finishedAt: "",
+
+        createdAt: now,
+        updatedAt: now,
+
+        createdBy: user.name || "",
+        createdByUser: user.username || "",
+        createdByRole: user.role || "",
+
+        finishedBy: "",
+        finishedByUser: "",
+        finishedByRole: "",
+
+        parentInspectionId: rootInspectionId,
+        isReinspection: true,
+        inspectionCycle: currentCycle + 1,
+      };
+
+      newInspection.samples = initSamplesFromSnapshot(
+        chars,
+        newInspection
+      );
+
+      return await this.create(newInspection);
     },
 
     async create(inspection) {

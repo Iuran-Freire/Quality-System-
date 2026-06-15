@@ -49,6 +49,10 @@ function mapInspection(row) {
     chars: row.chars || [],
     samples: row.samples || {},
 
+    parentInspectionId: row.parent_inspection_id,
+    isReinspection: row.is_reinspection ?? false,
+    inspectionCycle: row.inspection_cycle ?? 1,
+
     createdAt: row.created_at,
     updatedAt: row.updated_at,
   };
@@ -152,6 +156,9 @@ router.post("/", async (req, res) => {
         sampling,
         chars,
         samples,
+        parent_inspection_id,
+        is_reinspection,
+        inspection_cycle,
         created_at,
         updated_at
       )
@@ -161,7 +168,8 @@ router.post("/", async (req, res) => {
         $17, $18, $19, $20, $21, $22, $23, $24,
         $25, $26, $27, $28, $29, $30,
         $31::jsonb, $32::jsonb, $33::jsonb,
-        $34, $35
+        $34, $35, $36,
+        $37, $38
       )
       RETURNING *
       `,
@@ -209,6 +217,10 @@ router.post("/", async (req, res) => {
         JSON.stringify(p.sampling || null),
         JSON.stringify(p.chars || []),
         JSON.stringify(p.samples || {}),
+
+        p.parentInspectionId || null,
+        Boolean(p.isReinspection),
+        Number(p.inspectionCycle ?? 1),
 
         p.createdAt || new Date().toISOString(),
         p.updatedAt || new Date().toISOString(),
@@ -268,9 +280,12 @@ router.put("/:id", async (req, res) => {
         sampling = $27::jsonb,
         chars = $28::jsonb,
         samples = $29::jsonb,
-        created_at = $30,
+        parent_inspection_id = $30,
+        is_reinspection = $31,
+        inspection_cycle = $32,
+        created_at = $33,
         updated_at = NOW()
-      WHERE id = $31
+        WHERE id = $34
       RETURNING *
       `,
       [
@@ -311,6 +326,10 @@ router.put("/:id", async (req, res) => {
         JSON.stringify(p.sampling || null),
         JSON.stringify(p.chars || []),
         JSON.stringify(p.samples || {}),
+
+        p.parentInspectionId || null,
+        Boolean(p.isReinspection),
+        Number(p.inspectionCycle ?? 1),
 
         p.createdAt || new Date().toISOString(),
         id,
