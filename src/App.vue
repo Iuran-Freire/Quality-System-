@@ -16,6 +16,11 @@ const isAdmin = computed(() => auth.role === "admin");
 const showPlan = ref(false);
 const editPlanId = ref(null);
 
+const sideHover = ref(false);
+const sidePinned = ref(false);
+
+const sideOpen = computed(() => sideHover.value || sidePinned.value);
+
 const isForms = computed(() => ui.page === "forms");
 const isInspect = computed(() => ui.page === "inspect");
 const isAnalytics = computed(() => ui.page === "analytics");
@@ -71,18 +76,20 @@ function samplingClass(p) {
 <template>
   <LoginPage v-if="!auth.isLogged" />
 
-  <div v-else class="layout">
+  <div v-else class="layout" :class="{ 'layout-side-open': sideOpen }">
     <!-- SIDEBAR -->
-    <aside class="side">
+    <aside
+      class="side"
+      :class="{ 'side-hover-open': sideOpen }"
+      @mouseenter="sideHover = true"
+      @mouseleave="sideHover = false"
+    >
       <div class="brand">
         <img src="/logo.png" alt="Inventus Power" />
       </div>
 
       <nav class="menu">
-        <div class="mi" @click="ui.toggleSide()" title="Expandir/Recolher menu">
-          ☰<span class="mi-label">Menu</span>
-        </div>
-
+      
         <div class="mi" :class="{ active: isForms }" @click="ui.setPage('forms')">
           🧾<span class="mi-label">Formulários</span>
         </div>
@@ -309,5 +316,39 @@ function samplingClass(p) {
   color: #475569;
   border: 1px solid #e2e8f0;
   text-transform: uppercase;
+}
+
+.layout {
+  transition: grid-template-columns 0.22s ease;
+}
+
+.layout-side-open {
+  grid-template-columns: 290px 1fr !important;
+}
+
+.side {
+  width: 100%;
+  transition: width 0.22s ease;
+}
+
+.side-hover-open {
+  width: 290px !important;
+}
+
+.side-hover-open .mi {
+  justify-content: flex-start !important;
+  gap: 12px !important;
+  padding-left: 18px !important;
+}
+
+.side-hover-open .mi-label {
+  display: inline-flex !important;
+  opacity: 1 !important;
+  visibility: visible !important;
+  width: auto !important;
+  max-width: 180px !important;
+  overflow: visible !important;
+  margin-left: 8px !important;
+  white-space: nowrap !important;
 }
 </style>

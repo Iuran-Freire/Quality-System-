@@ -1,5 +1,5 @@
 <script setup>
-import { reactive, watch, computed, onMounted } from "vue";
+import { reactive, watch, computed, onMounted, ref } from "vue";
 import { usePlansStore } from "../stores/plans";
 
 const props = defineProps({
@@ -11,6 +11,7 @@ const emit = defineEmits(["close"]);
 
 const plans = usePlansStore();
 const isEdit = computed(() => !!props.id);
+const cloneSourceId = ref("");
 
 onMounted(() => {
   plans.load();
@@ -58,6 +59,8 @@ const hasVisualCaixa = computed(
 );
 
 function resetForm() {
+  cloneSourceId.value = "";
+
   form.id = null;
   form.name = "";
   form.model = "";
@@ -181,6 +184,65 @@ watch(
     }
   }
 );
+function cloneCharacteristicsFromPlan() {
+  if (!cloneSourceId.value) {
+    alert("Selecione um plano para clonar as características.");
+    return;
+  }
+
+  const sourcePlan = plans.items.find(
+    (p) => String(p.id) === String(cloneSourceId.value)
+  );
+
+  if (!sourcePlan) {
+    alert("Plano selecionado não encontrado.");
+    return;
+  }
+
+  const sourceChars = Array.isArray(sourcePlan.chars) ? sourcePlan.chars : [];
+
+  if (!sourceChars.length) {
+    alert("O plano selecionado não possui características para clonar.");
+    return;
+  }
+
+  const ok = confirm(
+    "Deseja clonar as características deste plano?\n\n" +
+      "Atenção: os valores Mín/Máx serão removidos.\n" +
+      "Os dados do plano atual não serão alterados."
+  );
+
+  if (!ok) return;
+
+  form.chars = sourceChars.map((raw) => {
+    const c = normalizeChar(JSON.parse(JSON.stringify(raw)));
+
+    c.id = cid();
+
+    // remove limites numéricos
+    c.lsl = "";
+    c.usl = "";
+
+    // mantém unidade/método/categoria/nome/tipo para agilizar
+    c.unit = c.unit || "";
+    c.method = c.method || "";
+    c.category = c.category || "Outros";
+
+    // se for teste especial numérico, mantém como numérico,
+    // mas sem mínimo e máximo
+    if (c.kind === "teste_especial" && c.resultMode === "numerico") {
+      c.lsl = "";
+      c.usl = "";
+    }
+
+    return c;
+  });
+
+  alert(
+    `${form.chars.length} característica(s) clonada(s).\n\n` +
+      "Agora preencha os dados do novo plano e ajuste os limites quando necessário."
+  );
+}
 
 function addChar(kind = "variavel") {
   form.chars.push({
@@ -498,6 +560,36 @@ async function save() {
         <button class="btn ghost" @click="emit('close')">Fechar</button>
       </div>
 
+      <div v-if="!isEdit" class="clone-plan-box">
+        <div class="clone-plan-text">
+          <strong>Usar plano existente como base</strong>
+          <span>
+            Importe a estrutura de características e testes de um plano existente, mantendo os limites em branco para nova parametrização.
+          </span>
+        </div>
+
+        <div class="clone-plan-actions">
+          <label class="float-label clone-select">
+            <select v-model="cloneSourceId">
+              <option value="">Selecione um plano...</option>
+
+              <option v-for="p in plans.items" :key="p.id" :value="p.id">
+                {{ p.type }} | {{ p.pn }} | {{ p.model }} | {{ p.name }}
+              </option>
+            </select>
+            <span>Plano base</span>
+          </label>
+
+          <button
+            class="btn ghost clone-btn"
+            type="button"
+            @click="cloneCharacteristicsFromPlan"
+          >
+            Clonar características
+          </button>
+        </div>
+      </div>
+
       <h4 class="modal-section-title">Dados do plano</h4>
 
       <div class="row">
@@ -802,5 +894,68 @@ async function save() {
   font-size: 16px;
   font-weight: 700;
   color: var(--text);
+}
+.clone-plan-box {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+  padding: 14px;
+  border: 1px solid #fed7aa;
+  border-radius: 16px;
+  background: #fff7ed;
+}
+
+.clone-plan-text {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.clone-plan-text strong {
+  color: #7c2d12;
+  font-size: 14px;
+}
+
+.clone-plan-text span {
+  color: #9a3412;
+  font-size: 12.5px;
+}
+
+.clone-plan-actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 520px;
+}
+
+.clone-select {
+  flex: 1;
+}
+
+.clone-btn {
+  border-color: #f59e0b;
+  color: #c2410c;
+  background: #ffffff;
+  white-space: nowrap;
+}
+
+.clone-btn:hover {
+  background: #ffedd5;
+  border-color: #f97316;
+}
+
+@media (max-width: 900px) {
+  .clone-plan-box {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .clone-plan-actions {
+    min-width: 0;
+    width: 100%;
+    flex-direction: column;
+    align-items: stretch;
+  }
 }
 </style>

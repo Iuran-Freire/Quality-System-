@@ -47,7 +47,7 @@ const planSearch = ref("");
 const lot = ref("");
 const invoice = ref("");
 const lotSize = ref(""); // tamanho do lote (NBR)
-const date = ref(new Date().toISOString().slice(0, 10));
+const date = ref(nowLocalISO().slice(0, 10));
 const resp = ref("");
 const shift = ref("");
 const obs = ref("");
@@ -326,10 +326,89 @@ function onAfterLeave(el) {
 function totalCount(charId) {
   return (localSamples.value?.[charId] || []).length;
 }
+
 function filledCount(charId) {
   const arr = localSamples.value?.[charId] || [];
   return arr.filter((v) => String(v ?? "").trim() !== "").length;
 }
+
+function getCurrentUserTrace() {
+  return {
+    name: auth.userName || "",
+    username: auth.user?.username || "",
+    role: auth.role || "",
+    at: nowLocalISO(),
+  };
+}
+
+function isCharCompleted(c, samplesObj = localSamples.value) {
+  const vals = samplesObj?.[c.id] || [];
+
+  if (!vals.length) return false;
+
+  return vals.every((v) => String(v ?? "").trim() !== "");
+}
+
+function applyCharTraceability(chars = [], samplesObj = localSamples.value) {
+  const now = nowLocalISO();
+
+  return (chars || []).map((raw) => {
+    const c = JSON.parse(JSON.stringify(raw));
+    const vals = samplesObj?.[c.id] || [];
+
+    const hasAnyValue = vals.some((v) => String(v ?? "").trim() !== "");
+    const completed = isCharCompleted(c, samplesObj);
+
+    if (hasAnyValue && !c.startedAt) {
+      c.startedAt = now;
+      c.startedBy = auth.userName || "";
+      c.startedByUser = auth.user?.username || "";
+      c.startedByRole = auth.role || "";
+    }
+
+    if (completed && !c.finishedAt) {
+      c.finishedAt = now;
+      c.finishedBy = auth.userName || "";
+      c.finishedByUser = auth.user?.username || "";
+      c.finishedByRole = auth.role || "";
+    }
+
+    return c;
+  });
+}
+
+function markCharTrace(c) {
+  if (!c || isDone.value) return;
+
+  const now = nowLocalISO();
+  const vals = localSamples.value?.[c.id] || [];
+
+  const hasAnyValue = vals.some((v) => String(v ?? "").trim() !== "");
+  const completed = isCharCompleted(c, localSamples.value);
+
+  if (hasAnyValue && !c.startedAt) {
+    c.startedAt = now;
+    c.startedBy = auth.userName || "";
+    c.startedByUser = auth.user?.username || "";
+    c.startedByRole = auth.role || "";
+  }
+
+  if (completed && !c.finishedAt) {
+    c.finishedAt = now;
+    c.finishedBy = auth.userName || "";
+    c.finishedByUser = auth.user?.username || "";
+    c.finishedByRole = auth.role || "";
+  }
+}
+
+function formatUserTrace(name, role, at) {
+  const user = name || "Não informado";
+  const roleText = role ? ` (${role})` : "";
+  const dateText = at ? ` / ${formatDateTimeBR(at)}` : " / —";
+
+  return `${user}${roleText}${dateText}`;
+}
+
 function clearChar(charId) {
   const ok = confirm("Limpar todas as amostras desta característica?");
   if (!ok) return;
@@ -404,12 +483,55 @@ function fmt(v, d = 3) {
   return Number(v).toFixed(d);
 }
 
+function nowLocalISO() {
+  const d = new Date();
+  const pad = (n) => String(n).padStart(2, "0");
+
+  return (
+    `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}` +
+    `T${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`
+  );
+}
+
+function parseDateTimeLocal(value) {
+  if (!value) return null;
+
+  if (value instanceof Date) return value;
+
+  const s = String(value).trim();
+
+  // Se vier com Z ou com fuso horário, deixa o JavaScript converter para horário local.
+  // Exemplo: 2026-06-16T19:48:16.000Z -> 16/06/2026 15:48:16 em Manaus
+  if (/[zZ]$/.test(s) || /[+-]\d{2}:\d{2}$/.test(s)) {
+    const d = new Date(s);
+    return Number.isNaN(d.getTime()) ? null : d;
+  }
+
+  // Se vier sem fuso, trata como horário local.
+  // Exemplo: 2026-06-16T15:48:16 -> 16/06/2026 15:48:16
+  const m = s.match(/^(\d{4})-(\d{2})-(\d{2})(?:[T\s](\d{2}):(\d{2})(?::(\d{2}))?)?/);
+
+  if (m) {
+    const [, yy, mm, dd, hh = "00", mi = "00", ss = "00"] = m;
+
+    return new Date(
+      Number(yy),
+      Number(mm) - 1,
+      Number(dd),
+      Number(hh),
+      Number(mi),
+      Number(ss)
+    );
+  }
+
+  const d = new Date(s);
+  return Number.isNaN(d.getTime()) ? null : d;
+}
+
 function formatDateTimeBR(value) {
-  if (!value) return "—";
+  const d = parseDateTimeLocal(value);
 
-  const d = new Date(value);
-
-  if (Number.isNaN(d.getTime())) return "—";
+  if (!d) return "—";
 
   return d.toLocaleString("pt-BR", {
     dateStyle: "short",
@@ -600,8 +722,7 @@ watch(
       lot.value = x.lot ?? "";
       invoice.value = x.invoice ?? "";
       lotSize.value = x.lotSize ?? "";
-      date.value =
-        (x.createdAt || "").slice(0, 10) || new Date().toISOString().slice(0, 10);
+      date.value = (x.createdAt || "").slice(0, 10) || nowLocalISO().slice(0, 10);
       resp.value = x.resp ?? "";
       shift.value = x.shift ?? "";
       obs.value = x.obs ?? "";
@@ -621,7 +742,7 @@ watch(
       lot.value = "";
       invoice.value = "";
       lotSize.value = "";
-      date.value = new Date().toISOString().slice(0, 10);
+      date.value = nowLocalISO().slice(0, 10);
       resp.value = auth.userName || "";
       shift.value = "";
       obs.value = "";
@@ -866,12 +987,12 @@ async function createDraft() {
     sampling: samplingSnapRef.value, // ✅ congela AQL/Ac/Re
     status: "draft",
 
-    startedAt: new Date().toISOString(),
+    startedAt: nowLocalISO(),
     finishedAt: "",
     result: null,
     createdAt: date.value
       ? new Date(`${date.value}T00:00:00`).toISOString()
-      : new Date().toISOString(),
+      : nowLocalISO(),
   });
 
   emit("close");
@@ -880,7 +1001,7 @@ async function createDraft() {
 async function saveDraft() {
   if (!props.id) return alert("Crie a inspeção primeiro (rascunho).");
 
-  const chars = currentChars.value;
+  const chars = applyCharTraceability(currentChars.value, localSamples.value);
   const res = calcResult(chars, localSamples.value);
 
   await insps.update(props.id, {
@@ -890,18 +1011,19 @@ async function saveDraft() {
     shift: shift.value,
     resp: resp.value.trim(),
     obs: obs.value.trim(),
+    chars: JSON.parse(JSON.stringify(chars)),
     samples: JSON.parse(JSON.stringify(localSamples.value)),
     status: "draft",
     result: res === "EMPTY" ? null : res,
     updatedBy: auth.userName || "",
     updatedByUser: auth.user?.username || "",
     updatedByRole: auth.role || "",
-    updatedAt: new Date().toISOString(),
+    updatedAt: nowLocalISO(),
     boxQty: Number(boxQtyRef.value ?? 2),
     sampling: samplingSnapRef.value || insp.value?.sampling || null, // ✅ mantém snapshot
     createdAt: date.value
       ? new Date(`${date.value}T00:00:00`).toISOString()
-      : new Date().toISOString(),
+      : nowLocalISO(),
   });
 
   emit("close");
@@ -910,7 +1032,7 @@ async function saveDraft() {
 async function finalizeInspection() {
   if (!props.id || !insp.value) return alert("Inspeção não encontrada.");
 
-  const chars = currentChars.value;
+  const chars = applyCharTraceability(currentChars.value, localSamples.value);
   const res = calcResult(chars, localSamples.value);
 
   const problems = findInspectionProblems(chars, localSamples.value);
@@ -948,10 +1070,11 @@ Motivo: ${p.reason}`;
     shift: shift.value,
     resp: resp.value.trim(),
     obs: obs.value.trim(),
+    chars: JSON.parse(JSON.stringify(chars)),
     samples: JSON.parse(JSON.stringify(localSamples.value)),
     status: "done",
     result: res,
-    finishedAt: new Date().toISOString(),
+    finishedAt: nowLocalISO(),
 
     finishedBy: auth.userName || "",
     finishedByUser: auth.user?.username || "",
@@ -961,10 +1084,10 @@ Motivo: ${p.reason}`;
     sampling: samplingSnapRef.value || insp.value?.sampling || null,
     createdAt: date.value
       ? new Date(`${date.value}T00:00:00`).toISOString()
-      : new Date().toISOString(),
+      : nowLocalISO(),
     updatedBy: auth.userName || "",
     updatedByUser: auth.user?.username || "",
-    updatedAt: new Date().toISOString(),
+    updatedAt: nowLocalISO(),
   });
 
   emit("close");
@@ -1039,8 +1162,8 @@ Motivo: ${p.reason}`;
           </b>
 
           <small v-if="originalInspection">
-            Lote: {{ originalInspection.lot || "—" }} 
-            | NF: {{ originalInspection.invoice || "—" }}
+            Lote: {{ originalInspection.lot || "—" }} | NF:
+            {{ originalInspection.invoice || "—" }}
           </small>
 
           <b v-else> Inspeção original não localizada </b>
@@ -1323,6 +1446,24 @@ Motivo: ${p.reason}`;
                     {{ filledCount(c.id) }} / {{ totalCount(c.id) }} preenchidas
                   </div>
 
+                  <div v-if="isDone" class="char-trace-box">
+                    <div>
+                      <span>Iniciado por</span>
+                      <b>
+                        {{ formatUserTrace(c.startedBy, c.startedByRole, c.startedAt) }}
+                      </b>
+                    </div>
+
+                    <div>
+                      <span>Finalizado por</span>
+                      <b>
+                        {{
+                          formatUserTrace(c.finishedBy, c.finishedByRole, c.finishedAt)
+                        }}
+                      </b>
+                    </div>
+                  </div>
+
                   <div class="char-actions" v-if="!isDone">
                     <button class="mini-btn" type="button" @click.stop="clearChar(c.id)">
                       Limpar
@@ -1346,6 +1487,7 @@ Motivo: ${p.reason}`;
                           inputmode="decimal"
                           placeholder=" "
                           :disabled="isDone"
+                          @input="markCharTrace(c)"
                         />
                         <span>{{ visualLabel(c, idx) }}</span>
                       </label>
@@ -1360,10 +1502,12 @@ Motivo: ${p.reason}`;
                             placeholder=" "
                             :disabled="isDone"
                             maxlength="2"
+                            @input="markCharTrace(c)"
                             @blur="
                               localSamples[c.id][idx] = normVisual(
                                 localSamples[c.id][idx]
-                              )
+                              );
+                              markCharTrace(c);
                             "
                           />
                           <span>{{ visualLabel(c, idx) }} - OK/NG</span>
@@ -1553,5 +1697,33 @@ Motivo: ${p.reason}`;
   font-size: 12px;
   font-weight: 600;
   line-height: 1.35;
+}
+.char-trace-box {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-width: 260px;
+  padding: 8px 10px;
+  border: 1px solid #e2e8f0;
+  border-radius: 12px;
+  background: #f8fafc;
+}
+
+.char-trace-box div {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.char-trace-box span {
+  font-size: 11px;
+  color: var(--muted, #64748b);
+  font-weight: 700;
+}
+
+.char-trace-box b {
+  font-size: 12px;
+  color: var(--text, #111827);
+  font-weight: 700;
 }
 </style>

@@ -198,6 +198,36 @@ function userWithDateTime(name, role, dateTime) {
 
   return `${user}${roleText}${dateTimeText}`;
 }
+function fmtTime(value) {
+  const date = parseDateTime(value);
+
+  if (!date) return "-";
+
+  return date.toLocaleTimeString("pt-BR", {
+    hour: "2-digit",
+    minute: "2-digit",
+    second: "2-digit",
+    hour12: false,
+  });
+}
+
+function charTraceSummary(c) {
+  const startedUser = c.startedBy || c.startedByUser || "Não informado";
+  const finishedUser = c.finishedBy || c.finishedByUser || startedUser;
+
+  const startedAt = c.startedAt ? fmtTime(c.startedAt) : "-";
+  const finishedAt = c.finishedAt ? fmtTime(c.finishedAt) : "-";
+
+  if (startedUser === finishedUser) {
+    return `Trace: ${startedUser} ${startedAt} - ${finishedAt}`;
+  }
+
+  return `Trace: ${startedUser} ${startedAt} - ${finishedUser} ${finishedAt}`;
+}
+
+function summaryWithTrace(summary, c) {
+  return `${summary || "-"}\n${charTraceSummary(c)}`;
+}
 function normKind(c) {
   return getCharKind(c);
 }
@@ -565,53 +595,53 @@ for (const c of chars) {
   const cpk = calcCpkForChar(c, samplesObj);
   const isSpecial = isSpecialChar(c);
 
-  if (isSpecial) {
-    if (isSpecialNumeric(c)) {
-      specialRows.push([
-        c.name || "Teste especial",
-        "Numérico",
-        `${c.lsl ?? c.min ?? "-"} / ${c.usl ?? c.max ?? "-"}`,
-        String(expectedN),
-        summarizeVariable(rawSamples),
-      ]);
-    } else {
-      specialRows.push([
-        c.name || "Teste especial",
-        "OK/NG",
-        "-",
-        String(expectedN),
-        summarizeVisual(rawSamples, expectedN),
-      ]);
-    }
-
-    continue;
-  }
-
-  if (isNumericChar(c)) {
-    characteristicRows.push([
-      c.name || "Característica",
-      charTypeLabel(c),
+ if (isSpecial) {
+  if (isSpecialNumeric(c)) {
+    specialRows.push([
+      c.name || "Teste especial",
+      "Numérico",
       `${c.lsl ?? c.min ?? "-"} / ${c.usl ?? c.max ?? "-"}`,
       String(expectedN),
-      cpk ? fmt(cpk.mean, 4) : "-",
-      cpk ? fmt(cpk.stdev, 4) : "-",
-      cpk ? fmt(cpk.cp, 2) : "-",
-      cpk ? fmt(cpk.cpk, 2) : "-",
-      summarizeVariable(rawSamples),
+      summaryWithTrace(summarizeVariable(rawSamples), c),
     ]);
-  } else if (isVisualChar(c)) {
-    characteristicRows.push([
-      c.name || "Característica",
-      charTypeLabel(c),
+  } else {
+    specialRows.push([
+      c.name || "Teste especial",
+      "OK/NG",
       "-",
       String(expectedN),
-      "-",
-      "-",
-      "-",
-      "-",
-      summarizeVisual(rawSamples, expectedN),
+      summaryWithTrace(summarizeVisual(rawSamples, expectedN), c),
     ]);
   }
+
+  continue;
+}
+
+  if (isNumericChar(c)) {
+  characteristicRows.push([
+    c.name || "Característica",
+    charTypeLabel(c),
+    `${c.lsl ?? c.min ?? "-"} / ${c.usl ?? c.max ?? "-"}`,
+    String(expectedN),
+    cpk ? fmt(cpk.mean, 4) : "-",
+    cpk ? fmt(cpk.stdev, 4) : "-",
+    cpk ? fmt(cpk.cp, 2) : "-",
+    cpk ? fmt(cpk.cpk, 2) : "-",
+    summaryWithTrace(summarizeVariable(rawSamples), c),
+  ]);
+} else if (isVisualChar(c)) {
+  characteristicRows.push([
+    c.name || "Característica",
+    charTypeLabel(c),
+    "-",
+    String(expectedN),
+    "-",
+    "-",
+    "-",
+    "-",
+    summaryWithTrace(summarizeVisual(rawSamples, expectedN), c),
+  ]);
+}
 }
 
   autoTable(doc, {
@@ -641,16 +671,16 @@ for (const c of chars) {
     ]],
     body: characteristicRows,
     columnStyles: {
-      0: { cellWidth: 44 },
-      1: { cellWidth: 22 },
-      2: { cellWidth: 20 },
-      3: { cellWidth: 8 },
-      4: { cellWidth: 14 },
-      5: { cellWidth: 14 },
-      6: { cellWidth: 12 },
-      7: { cellWidth: 12 },
-      8: { cellWidth: "auto" },
-    },
+     0: { cellWidth: 42 },
+     1: { cellWidth: 20 },
+     2: { cellWidth: 18 },
+     3: { cellWidth: 8 },
+     4: { cellWidth: 13 },
+     5: { cellWidth: 13 },
+     6: { cellWidth: 11 },
+     7: { cellWidth: 11 },
+     8: { cellWidth: "auto" },
+   },
   });
 
   let yAfterMainTables = doc.lastAutoTable?.finalY || 200;
@@ -663,7 +693,7 @@ if (specialRows.length) {
     startY: yAfterMainTables + 14,
     margin: { left: M, right: M },
     styles: {
-      fontSize: 8.5,
+      fontSize: 8,
       cellPadding: 2.1,
       overflow: "linebreak",
       lineColor: COLORS.grid,
