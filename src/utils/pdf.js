@@ -404,6 +404,24 @@ function maxSampleLenFor(chars, samplesObj, fallbackN) {
 
 export function exportInspectionPdf(insp, opts = {}) {
   if (!insp) return;
+    const originalInspection = opts.originalInspection || null;
+  const isReinspection = Boolean(insp?.isReinspection);
+
+  const inspectionTypeText = isReinspection
+    ? `${insp.type || "OQC"} — Reinspeção ciclo ${insp.inspectionCycle || 2}`
+    : insp.type || "-";
+
+  const originalInspectionText = originalInspection
+    ? `${originalInspection.pn || "PN não informado"} — ${
+        originalInspection.model || "Modelo não informado"
+      } — ${originalInspection.planName || "Plano não informado"}`
+    : "Inspeção original não localizada";
+
+  const originalLotInvoiceText = originalInspection
+    ? `Lote: ${originalInspection.lot || "—"} | NF: ${
+        originalInspection.invoice || "—"
+      }`
+    : "—";
   if (insp.status !== "done") {
     alert("Somente inspeções finalizadas podem gerar PDF.");
     return;
@@ -462,7 +480,13 @@ const finishedUser =
 
 const left = [
   ["Plano", insp.planName || "-"],
-  ["Tipo", insp.type || "-"],
+  ["Tipo", inspectionTypeText],
+  ...(isReinspection
+    ? [
+        ["Origem", originalInspectionText],
+        ["Lote/NF origem", originalLotInvoiceText],
+      ]
+    : []),
   ["Modelo", insp.model || "-"],
   ["Cliente", insp.client || "-"],
   ["Fornecedor", insp.supplier || "-"],
@@ -485,8 +509,6 @@ const left = [
 ];
 const right = [
   ["Data", fmtDate(startedDateTime || finishedDateTime)],
-  ["Início", fmtDateTime(startedDateTime)],
-  ["Finalização", fmtDateTime(finishedDateTime)],
   ["PN", insp.pn || "-"],
   ["Lote", insp.lot || "-"],
   ["Invoice / NF", insp.invoice || "-"],
@@ -499,30 +521,34 @@ const right = [
 ];
 
   autoTable(doc, {
-    ...commonTableStyle(9),
-    startY: 47,
-    body: left,
-    margin: { left: M },
-    tableWidth: colW,
-    columnStyles: {
-      0: { cellWidth: 32, fontStyle: "bold", textColor: COLORS.muted },
-      1: { cellWidth: colW - 32 },
-     },
-  });
+  ...commonTableStyle(9),
+  startY: 47,
+  body: left,
+  margin: { left: M },
+  tableWidth: colW,
+  columnStyles: {
+    0: { cellWidth: 32, fontStyle: "bold", textColor: COLORS.muted },
+    1: { cellWidth: colW - 32 },
+  },
+});
 
-  autoTable(doc, {
-    ...commonTableStyle(9),
-    startY: 47,
-    body: right,
-    margin: { left: M + colW + COL_GAP },
-    tableWidth: colW,
-    columnStyles: {
-      0: { cellWidth: 34, fontStyle: "bold", textColor: COLORS.muted },
-      1: { cellWidth: colW - 34 },
-    },
-  });
+const leftTableFinalY = doc.lastAutoTable?.finalY || 90;
 
-  const yAfterData = doc.lastAutoTable?.finalY || 90;
+ autoTable(doc, {
+  ...commonTableStyle(9),
+  startY: 47,
+  body: right,
+  margin: { left: M + colW + COL_GAP },
+  tableWidth: colW,
+  columnStyles: {
+    0: { cellWidth: 34, fontStyle: "bold", textColor: COLORS.muted },
+    1: { cellWidth: colW - 34 },
+  },
+});
+
+const rightTableFinalY = doc.lastAutoTable?.finalY || 90;;
+
+  const yAfterData = Math.max(leftTableFinalY, rightTableFinalY);
 
   // Características (resumo)
   sectionTitle(doc, "Características", M, yAfterData + 12);

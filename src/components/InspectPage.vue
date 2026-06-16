@@ -8,7 +8,17 @@ import { getLogoDataUrl } from "../utils/logo";
 
 async function exportPdf(row) {
   const logoDataUrl = await getLogoDataUrl();
-  exportInspectionPdf(row, { logoDataUrl, includeRawSamples: true }); // ✅ habilita aqui
+
+  const originalInspection = row?.isReinspection
+    ? insps.items.find((item) => String(item.id) === String(row.parentInspectionId)) ||
+      null
+    : null;
+
+  exportInspectionPdf(row, {
+    logoDataUrl,
+    includeRawSamples: true,
+    originalInspection,
+  });
 }
 
 const insps = useInspectionsStore();
