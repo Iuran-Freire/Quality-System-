@@ -34,6 +34,7 @@ const editingId = ref(null);
 const fStatus = ref(""); // "" | "draft" | "done"
 const fResult = ref(""); // "" | "PASS" | "FAIL"
 const fType = ref(""); // "" | "OQC" | "IQC"
+const fRecordType = ref("");
 const fFrom = ref(""); // yyyy-mm-dd
 const fTo = ref(""); // yyyy-mm-dd
 
@@ -79,6 +80,11 @@ const filtered = computed(() => {
 
     // type pode não existir em inspeções antigas (fallback: do planoName não dá)
     if (fType.value && String(x.type || "") !== fType.value) return false;
+
+    // filtro: normal / reinspeção
+    if (fRecordType.value === "normal" && x.isReinspection) return false;
+
+    if (fRecordType.value === "reinspection" && !x.isReinspection) return false;
 
     // data
     if (!inDateRange(x.createdAt)) return false;
@@ -259,6 +265,17 @@ function pdfDisabledTitle(x) {
               <option value="IQC">IQC</option>
             </select>
             <span>Tipo</span>
+          </label>
+        </div>
+
+        <div class="field">
+          <label class="float-label">
+            <select v-model="fRecordType">
+              <option value="">Registro (todos)</option>
+              <option value="normal">Inspeções normais</option>
+              <option value="reinspection">Reinspeções</option>
+            </select>
+            <span>Registro</span>
           </label>
         </div>
 
