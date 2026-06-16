@@ -175,10 +175,36 @@ function exportCsv() {
 }
 
 async function confirmRemove(id) {
-  const ok = confirm(
-    "Tem certeza que deseja excluir esta inspeção? Esta ação não pode ser desfeita."
-  );
+  const inspection = insps.items.find((item) => String(item.id) === String(id));
+
+  const linkedReinspection = insps.items.find((item) => {
+    return (
+      String(item.parentInspectionId || "") === String(id) && Boolean(item.isReinspection)
+    );
+  });
+
+  let message =
+    "Tem certeza que deseja excluir esta inspeção?\n\n" +
+    "Esta ação não pode ser desfeita.";
+
+  if (linkedReinspection) {
+    message =
+      "Atenção: esta inspeção possui uma reinspeção vinculada.\n\n" +
+      `Tipo: ${inspection?.type || "—"}\n` +
+      `Lote: ${inspection?.lot || "—"}\n` +
+      `NF: ${inspection?.invoice || "—"}\n\n` +
+      `Reinspeção vinculada: ciclo ${linkedReinspection.inspectionCycle || 2}\n` +
+      `Status da reinspeção: ${
+        linkedReinspection.status === "done" ? "Finalizada" : "Em andamento"
+      }\n\n` +
+      "Se você excluir esta inspeção, a rastreabilidade da origem poderá ser prejudicada.\n\n" +
+      "Deseja continuar mesmo assim?";
+  }
+
+  const ok = confirm(message);
+
   if (!ok) return;
+
   await insps.remove(id);
 }
 
