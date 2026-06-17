@@ -1,17 +1,20 @@
 <script setup>
-import { ref, computed, onMounted } from "vue";
+import { ref, computed, onMounted, watch } from "vue";
 import { useUiStore } from "./stores/ui";
 import { usePlansStore } from "./stores/plans";
 import PlanModal from "./components/PlanModal.vue";
 import InspectPage from "./components/InspectPage.vue";
 import { useAuthStore } from "./stores/auth";
 import LoginPage from "./components/LoginPage.vue";
+import { useUsersStore } from "./stores/users";
 
 const ui = useUiStore();
 const plans = usePlansStore();
 const auth = useAuthStore();
+const users = useUsersStore();
 
-const isAdmin = computed(() => auth.role === "admin");
+const canEditSystem = computed(() => auth.canEditSystem);
+const canManageUsers = computed(() => auth.canManageUsers);
 
 const showPlan = ref(false);
 const editPlanId = ref(null);
@@ -24,6 +27,8 @@ const sideOpen = computed(() => sideHover.value || sidePinned.value);
 const isForms = computed(() => ui.page === "forms");
 const isInspect = computed(() => ui.page === "inspect");
 const isAnalytics = computed(() => ui.page === "analytics");
+
+const isManagement = computed(() => ui.page === "management");
 
 // ------- paginação -------
 const PAGE_SIZE = 10;
@@ -44,8 +49,18 @@ const paginatedPlans = computed(() => {
 
 onMounted(async () => {
   await plans.load();
+  await users.load();
   currentPage.value = 1;
 });
+
+watch(
+  () => ui.page,
+  async (page) => {
+    if (page === "management") {
+      await users.load();
+    }
+  }
+);
 
 function samplingLabel(p) {
   const s = p?.sampling || {};
@@ -78,18 +93,13 @@ function samplingClass(p) {
 
   <div v-else class="layout" :class="{ 'layout-side-open': sideOpen }">
     <!-- SIDEBAR -->
-    <aside
-      class="side"
-      :class="{ 'side-hover-open': sideOpen }"
-      @mouseenter="sideHover = true"
-      @mouseleave="sideHover = false"
-    >
+    <aside class="side" :class="{ 'side-hover-open': sideOpen }" @mouseenter="sideHover = true"
+      @mouseleave="sideHover = false">
       <div class="brand">
         <img src="/logo.png" alt="Inventus Power" />
       </div>
 
       <nav class="menu">
-      
         <div class="mi" :class="{ active: isForms }" @click="ui.setPage('forms')">
           🧾<span class="mi-label">Formulários</span>
         </div>
@@ -100,6 +110,10 @@ function samplingClass(p) {
 
         <div class="mi" :class="{ active: isAnalytics }" @click="ui.setPage('analytics')">
           📈<span class="mi-label">Análises</span>
+        </div>
+
+        <div class="mi" :class="{ active: isManagement }" @click="ui.setPage('management')">
+          ⚙️<span class="mi-label">Gerenciamento</span>
         </div>
       </nav>
     </aside>
@@ -117,7 +131,9 @@ function samplingClass(p) {
             <div class="qs-user-info">
               <span>Logado como</span>
               <b>{{ auth.userName }}</b>
-              <span class="qs-role-pill">{{ auth.role }}</span>
+              <span class="qs-role-pill">
+                Nível {{ auth.accessLevel }} · {{ auth.cargo || auth.role }}
+              </span>
             </div>
 
             <button class="btn ghost" type="button" @click="auth.logout()">Sair</button>
@@ -180,23 +196,15 @@ function samplingClass(p) {
                     <td>{{ p.resp }}</td>
 
                     <td>
-                      <div v-if="isAdmin" class="actions-wrap">
-                        <button
-                          class="btn ghost"
-                          type="button"
-                          @click="
-                            editPlanId = p.id;
-                            showPlan = true;
-                          "
-                        >
+                      <div v-if="canEditSystem" class="actions-wrap">
+                        <button class="btn ghost" type="button" @click="
+                          editPlanId = p.id;
+                        showPlan = true;
+                        ">
                           Editar
                         </button>
 
-                        <button
-                          class="btn ghost danger"
-                          type="button"
-                          @click="plans.remove(p.id)"
-                        >
+                        <button class="btn ghost danger" type="button" @click="plans.remove(p.id)">
                           Excluir
                         </button>
                       </div>
@@ -209,33 +217,20 @@ function samplingClass(p) {
             </div>
 
             <!-- PAGINAÇÃO -->
-            <div
-              class="hstack"
-              style="justify-content: space-between; padding: 8px 12px; font-size: 13px"
-              v-if="sourcePlans.length"
-            >
+            <div class="hstack" style="justify-content: space-between; padding: 8px 12px; font-size: 13px"
+              v-if="sourcePlans.length">
               <div>
                 Mostrando {{ paginatedPlans.length }} de {{ sourcePlans.length }} planos
               </div>
 
               <div class="hstack" style="gap: 8px">
-                <button
-                  class="btn ghost"
-                  type="button"
-                  :disabled="currentPage === 1"
-                  @click="currentPage--"
-                >
+                <button class="btn ghost" type="button" :disabled="currentPage === 1" @click="currentPage--">
                   Anterior
                 </button>
 
                 <span>Página {{ currentPage }} / {{ totalPages }}</span>
 
-                <button
-                  class="btn ghost"
-                  type="button"
-                  :disabled="currentPage === totalPages"
-                  @click="currentPage++"
-                >
+                <button class="btn ghost" type="button" :disabled="currentPage === totalPages" @click="currentPage++">
                   Próxima
                 </button>
               </div>
@@ -243,15 +238,10 @@ function samplingClass(p) {
           </div>
 
           <div class="card">
-            <button
-              v-if="isAdmin"
-              class="btn"
-              type="button"
-              @click="
-                editPlanId = null;
-                showPlan = true;
-              "
-            >
+            <button v-if="canEditSystem" class="btn" type="button" @click="
+              editPlanId = null;
+            showPlan = true;
+            ">
               + Novo Plano
             </button>
           </div>
@@ -263,23 +253,122 @@ function samplingClass(p) {
         </div>
 
         <!-- ================= ANÁLISES ================= -->
-        <div v-else class="vstack">
+        <div v-else-if="isAnalytics" class="vstack">
           <div class="title">Análises</div>
           <div class="tabline"></div>
           <div class="card">Em construção…</div>
+        </div>
+
+        <!-- ================= GERENCIAMENTO ================= -->
+        <div v-else-if="isManagement" class="vstack">
+          <div class="title">Gerenciamento</div>
+          <div class="tabline"></div>
+
+          <div class="management-summary">
+            <div class="mg-card">
+              <span>Total de usuários</span>
+              <b>{{ users.totalUsers }}</b>
+            </div>
+
+            <div class="mg-card">
+              <span>Ativos</span>
+              <b>{{ users.totalActive }}</b>
+            </div>
+
+            <div class="mg-card">
+              <span>Nível 1</span>
+              <b>{{ users.totalAdmins }}</b>
+            </div>
+
+            <div class="mg-card">
+              <span>Nível 2</span>
+              <b>{{ users.totalLevel2 }}</b>
+            </div>
+
+            <div class="mg-card">
+              <span>Inspetores</span>
+              <b>{{ users.totalInspectors }}</b>
+            </div>
+          </div>
+
+          <div class="card tablecard">
+            <div class="hstack" style="
+                justify-content: space-between;
+                align-items: center;
+                margin-bottom: 12px;
+              ">
+              <h3 style="margin: 0">Usuários cadastrados</h3>
+
+              <button v-if="canManageUsers" class="btn" type="button">
+                + Novo usuário
+              </button>
+            </div>
+
+            <div class="tablewrap">
+              <table>
+                <thead>
+                  <tr>
+                    <th>Status</th>
+                    <th>Nome</th>
+                    <th>Usuário</th>
+                    <th>Matrícula</th>
+                    <th>Cargo</th>
+                    <th>Perfil</th>
+                    <th>Nível</th>
+                    <th>Ações</th>
+                  </tr>
+                </thead>
+
+                <tbody>
+                  <tr v-if="users.loading">
+                    <td colspan="8">Carregando usuários...</td>
+                  </tr>
+
+                  <tr v-else-if="users.error">
+                    <td colspan="8">Erro ao carregar usuários: {{ users.error }}</td>
+                  </tr>
+
+                  <tr v-else-if="!users.items.length">
+                    <td colspan="8">Nenhum usuário cadastrado.</td>
+                  </tr>
+
+                  <tr v-else v-for="u in users.items" :key="u.id">
+                    <td>
+                      <span class="status-pill" :class="u.active ? 'on' : 'off'">
+                        {{ u.active ? "Ativo" : "Inativo" }}
+                      </span>
+                    </td>
+
+                    <td>{{ u.name }}</td>
+                    <td>{{ u.username }}</td>
+                    <td>{{ u.matricula || "—" }}</td>
+                    <td>{{ u.cargo || "—" }}</td>
+                    <td>{{ u.role || "—" }}</td>
+                    <td>Nível {{ u.accessLevel || 3 }}</td>
+
+                    <td>
+                      <div v-if="canManageUsers" class="actions-wrap">
+                        <button class="btn ghost" type="button">Editar</button>
+
+                        <button class="btn ghost danger" type="button">Inativar</button>
+                      </div>
+
+                      <span v-else class="muted-text">Visualização</span>
+                    </td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
         </div>
       </main>
     </div>
   </div>
 
-  <PlanModal
-    :show="showPlan"
-    :id="editPlanId"
-    @close="
-      showPlan = false;
-      editPlanId = null;
-    "
-  />
+  <PlanModal :show="showPlan" :id="editPlanId" @close="
+    showPlan = false;
+  editPlanId = null;
+  " />
 </template>
 
 <style scoped>
@@ -350,5 +439,40 @@ function samplingClass(p) {
   overflow: visible !important;
   margin-left: 8px !important;
   white-space: nowrap !important;
+}
+
+.management-summary {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(140px, 1fr));
+  gap: 12px;
+}
+
+.mg-card {
+  padding: 14px;
+  border: 1px solid #e2e8f0;
+  border-radius: 16px;
+  background: #ffffff;
+  box-shadow: var(--shadow-min);
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.mg-card span {
+  color: var(--muted, #64748b);
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.mg-card b {
+  color: var(--text, #111827);
+  font-size: 24px;
+  font-weight: 900;
+}
+
+@media (max-width: 1100px) {
+  .management-summary {
+    grid-template-columns: repeat(2, minmax(140px, 1fr));
+  }
 }
 </style>

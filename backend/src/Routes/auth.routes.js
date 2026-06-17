@@ -11,6 +11,9 @@ router.post("/seed-admin", async (req, res) => {
     const username = "iuran";
     const password = "1234";
     const role = "admin";
+    const matricula = "8919";
+    const cargo = "Admin";
+    const accessLevel = 1;
 
     const existing = await db.query(
       "SELECT id FROM users WHERE username = $1",
@@ -28,10 +31,19 @@ router.post("/seed-admin", async (req, res) => {
 
     await db.query(
       `
-      INSERT INTO users (name, username, password_hash, role, active)
-      VALUES ($1, $2, $3, $4, true)
-      `,
-      [name, username, passwordHash, role]
+  INSERT INTO users (
+    name,
+    username,
+    password_hash,
+    matricula,
+    cargo,
+    role,
+    access_level,
+    active
+  )
+  VALUES ($1, $2, $3, $4, $5, $6, $7, true)
+  `,
+      [name, username, passwordHash, matricula, cargo, role, accessLevel]
     );
 
     res.json({
@@ -40,7 +52,10 @@ router.post("/seed-admin", async (req, res) => {
       user: {
         name,
         username,
+        matricula,
+        cargo,
         role,
+        accessLevel,
       },
     });
   } catch (error) {
@@ -60,9 +75,18 @@ router.post("/login", async (req, res) => {
 
     const result = await db.query(
       `
-      SELECT id, name, username, password_hash, role, active
-      FROM users
-      WHERE username = $1
+      SELECT
+  id,
+  name,
+  username,
+  password_hash,
+  matricula,
+  cargo,
+  role,
+  access_level,
+  active
+FROM users
+WHERE username = $1
       `,
       [String(username || "").trim().toLowerCase()]
     );
@@ -92,7 +116,11 @@ router.post("/login", async (req, res) => {
       id: user.id,
       name: user.name,
       username: user.username,
+      matricula: user.matricula || "",
+      cargo: user.cargo || "",
       role: user.role,
+      accessLevel: Number(user.access_level || 3),
+      active: Boolean(user.active),
     };
 
     const token = jwt.sign(safeUser, process.env.JWT_SECRET, {
@@ -121,7 +149,10 @@ router.post("/seed-inspector", async (req, res) => {
     const name = "Inspetor Teste";
     const username = "inspetor";
     const password = "1234";
-    const role = "inspector";
+    const role = "inspetor";
+    const matricula = "0003";
+    const cargo = "Inspetor OQC";
+    const accessLevel = 3;
 
     const existing = await db.query(
       "SELECT id FROM users WHERE username = $1",
@@ -139,16 +170,32 @@ router.post("/seed-inspector", async (req, res) => {
 
     await db.query(
       `
-      INSERT INTO users (name, username, password_hash, role, active)
-      VALUES ($1, $2, $3, $4, true)
-      `,
-      [name, username, passwordHash, role]
+  INSERT INTO users (
+    name,
+    username,
+    password_hash,
+    matricula,
+    cargo,
+    role,
+    access_level,
+    active
+  )
+  VALUES ($1, $2, $3, $4, $5, $6, $7, true)
+  `,
+      [name, username, passwordHash, matricula, cargo, role, accessLevel]
     );
 
     res.json({
       ok: true,
       message: "Usuário inspetor criado com sucesso.",
-      user: { name, username, role },
+      user: {
+  name,
+  username,
+  matricula,
+  cargo,
+  role,
+  accessLevel,
+},
     });
   } catch (error) {
     console.error("Erro ao criar inspetor:", error);

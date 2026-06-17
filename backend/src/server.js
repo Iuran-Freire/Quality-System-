@@ -4,6 +4,7 @@ import dotenv from "dotenv";
 import { testConnection } from "./db.js";
 import setupRoutes from "./routes/setup.routes.js";
 import authRoutes from "./routes/auth.routes.js";
+import usersRoutes from "./routes/users.routes.js";
 import plansRoutes from "./routes/plans.routes.js";
 import inspectionsRoutes from "./routes/inspections.routes.js";
 
@@ -16,6 +17,7 @@ app.use(express.json());
 
 app.use("/setup", setupRoutes);
 app.use("/auth", authRoutes);
+app.use("/api/users", usersRoutes);
 app.use("/plans", plansRoutes);
 app.use("/inspections", inspectionsRoutes);
 

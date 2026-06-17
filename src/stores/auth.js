@@ -9,8 +9,31 @@ export const useAuthStore = defineStore("auth", {
 
   getters: {
     isLogged: (state) => !!state.user && !!state.token,
+
     userName: (state) => state.user?.name || "",
+    username: (state) => state.user?.username || "",
     role: (state) => state.user?.role || "",
+
+    matricula: (state) => state.user?.matricula || "",
+    cargo: (state) => state.user?.cargo || "",
+
+    accessLevel: (state) => Number(state.user?.accessLevel || 3),
+
+    isActive: (state) => Boolean(state.user?.active),
+
+    // Nível 1 e 2: controle total
+    canEditSystem: (state) => Number(state.user?.accessLevel || 3) <= 2,
+
+    // Nível 1 e 2: podem criar/editar/inativar usuários
+    canManageUsers: (state) => Number(state.user?.accessLevel || 3) <= 2,
+
+    // Níveis 1, 2 e 3: podem operar inspeções
+    canOperateInspection: (state) => Number(state.user?.accessLevel || 3) <= 3,
+
+    // Níveis 1, 2 e 3: podem visualizar tudo
+    canViewAll: (state) => Number(state.user?.accessLevel || 3) <= 3,
+
+    isInspector: (state) => Number(state.user?.accessLevel || 3) === 3,
   },
 
   actions: {
