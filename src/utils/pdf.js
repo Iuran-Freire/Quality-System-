@@ -219,10 +219,10 @@ function charTraceSummary(c) {
   const finishedAt = c.finishedAt ? fmtTime(c.finishedAt) : "-";
 
   if (startedUser === finishedUser) {
-    return `Trace: ${startedUser} ${startedAt} - ${finishedAt}`;
+    return `Resp.: ${startedUser} ${startedAt} - ${finishedAt}`; q
   }
 
-  return `Trace: ${startedUser} ${startedAt} - ${finishedUser} ${finishedAt}`;
+  return `Resp.: ${startedUser} ${startedAt} - ${finishedUser} ${finishedAt}`;
 }
 
 function summaryWithTrace(summary, c) {
@@ -671,16 +671,16 @@ for (const c of chars) {
     ]],
     body: characteristicRows,
     columnStyles: {
-     0: { cellWidth: 42 },
-     1: { cellWidth: 20 },
-     2: { cellWidth: 18 },
-     3: { cellWidth: 8 },
-     4: { cellWidth: 13 },
-     5: { cellWidth: 13 },
-     6: { cellWidth: 11 },
-     7: { cellWidth: 11 },
-     8: { cellWidth: "auto" },
-   },
+  0: { cellWidth: 40 },
+  1: { cellWidth: 20 },
+  2: { cellWidth: 18 },
+  3: { cellWidth: 8 },
+  4: { cellWidth: 13 },
+  5: { cellWidth: 13 },
+  6: { cellWidth: 13 },
+  7: { cellWidth: 11 },
+  8: { cellWidth: "auto" },
+},
   });
 
   let yAfterMainTables = doc.lastAutoTable?.finalY || 200;
