@@ -170,4 +170,261 @@ router.post("/", async (req, res) => {
   }
 });
 
+// ativar / inativar usuário
+router.patch("/:id/active", async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { active } = req.body;
+
+    const result = await db.query(
+      `
+      UPDATE users
+      SET
+        active = $1,
+        updated_at = NOW()
+      WHERE id = $2
+      RETURNING
+        id,
+        name,
+        username,
+        matricula,
+        cargo,
+        role,
+        access_level,
+        active,
+        created_at,
+        updated_at
+      `,
+      [Boolean(active), id]
+    );
+
+    if (!result.rows.length) {
+      return res.status(404).json({
+        ok: false,
+        message: "Usuário não encontrado.",
+      });
+    }
+
+    const u = result.rows[0];
+
+    res.json({
+      ok: true,
+      message: active
+        ? "Usuário ativado com sucesso."
+        : "Usuário inativado com sucesso.",
+      user: {
+        id: u.id,
+        name: u.name,
+        username: u.username,
+        matricula: u.matricula || "",
+        cargo: u.cargo || "",
+        role: u.role || "",
+        accessLevel: Number(u.access_level || 3),
+        active: Boolean(u.active),
+        createdAt: u.created_at,
+        updatedAt: u.updated_at,
+      },
+    });
+  } catch (error) {
+    console.error("Erro ao alterar status do usuário:", error);
+
+    res.status(500).json({
+      ok: false,
+      message: "Erro ao alterar status do usuário.",
+      error: error.message,
+    });
+  }
+});
+
+// editar usuário
+router.put("/:id", async (req, res) => {
+  try {
+    const { id } = req.params;
+
+    const {
+      name,
+      username,
+      password,
+      matricula,
+      cargo,
+      role,
+      accessLevel,
+      active,
+    } = req.body;
+
+    if (!String(name || "").trim()) {
+      return res.status(400).json({
+        ok: false,
+        message: "Informe o nome.",
+      });
+    }
+
+    if (!String(username || "").trim()) {
+      return res.status(400).json({
+        ok: false,
+        message: "Informe o usuário.",
+      });
+    }
+
+    if (!String(matricula || "").trim()) {
+      return res.status(400).json({
+        ok: false,
+        message: "Informe a matrícula.",
+      });
+    }
+
+    if (!String(cargo || "").trim()) {
+      return res.status(400).json({
+        ok: false,
+        message: "Informe o cargo.",
+      });
+    }
+
+    const cleanUsername = String(username).trim().toLowerCase();
+
+    const existing = await db.query(
+      `
+      SELECT id
+      FROM users
+      WHERE username = $1
+        AND id <> $2
+      `,
+      [cleanUsername, id]
+    );
+
+    if (existing.rows.length) {
+      return res.status(409).json({
+        ok: false,
+        message: "Já existe outro usuário com este login.",
+      });
+    }
+
+    const level = Number(accessLevel || 3);
+
+    let finalRole = "inspetor";
+
+    if (level === 1) {
+      finalRole = "admin";
+    } else if (level === 2) {
+      finalRole = "lider";
+    }
+
+    let result;
+
+    if (String(password || "").trim()) {
+      const passwordHash = await bcrypt.hash(String(password), 10);
+
+      result = await db.query(
+        `
+        UPDATE users
+        SET
+          name = $1,
+          username = $2,
+          password_hash = $3,
+          matricula = $4,
+          cargo = $5,
+          role = $6,
+          access_level = $7,
+          active = $8,
+          updated_at = NOW()
+        WHERE id = $9
+        RETURNING
+          id,
+          name,
+          username,
+          matricula,
+          cargo,
+          role,
+          access_level,
+          active,
+          created_at,
+          updated_at
+        `,
+        [
+          String(name).trim(),
+          cleanUsername,
+          passwordHash,
+          String(matricula || "").trim(),
+          String(cargo || "").trim(),
+          finalRole,
+          level,
+          active !== false,
+          id,
+        ]
+      );
+    } else {
+      result = await db.query(
+        `
+        UPDATE users
+        SET
+          name = $1,
+          username = $2,
+          matricula = $3,
+          cargo = $4,
+          role = $5,
+          access_level = $6,
+          active = $7,
+          updated_at = NOW()
+        WHERE id = $8
+        RETURNING
+          id,
+          name,
+          username,
+          matricula,
+          cargo,
+          role,
+          access_level,
+          active,
+          created_at,
+          updated_at
+        `,
+        [
+          String(name).trim(),
+          cleanUsername,
+          String(matricula || "").trim(),
+          String(cargo || "").trim(),
+          finalRole,
+          level,
+          active !== false,
+          id,
+        ]
+      );
+    }
+
+    if (!result.rows.length) {
+      return res.status(404).json({
+        ok: false,
+        message: "Usuário não encontrado.",
+      });
+    }
+
+    const u = result.rows[0];
+
+    res.json({
+      ok: true,
+      message: "Usuário atualizado com sucesso.",
+      user: {
+        id: u.id,
+        name: u.name,
+        username: u.username,
+        matricula: u.matricula || "",
+        cargo: u.cargo || "",
+        role: u.role || "",
+        accessLevel: Number(u.access_level || 3),
+        active: Boolean(u.active),
+        createdAt: u.created_at,
+        updatedAt: u.updated_at,
+      },
+    });
+  } catch (error) {
+    console.error("Erro ao editar usuário:", error);
+
+    res.status(500).json({
+      ok: false,
+      message: "Erro ao editar usuário.",
+      error: error.message,
+    });
+  }
+});
+
 export default router;

@@ -3,6 +3,7 @@ import { ref, computed, onMounted } from "vue";
 import { useInspectionsStore } from "../stores/inspections";
 import InspModal from "../components/InspModal.vue";
 import { useAuthStore } from "../stores/auth";
+import { useUiStore } from "../stores/ui";
 import { exportInspectionPdf } from "../utils/pdf";
 import { getLogoDataUrl } from "../utils/logo";
 
@@ -22,11 +23,11 @@ async function exportPdf(row) {
 }
 
 const insps = useInspectionsStore();
+const ui = useUiStore();
 
 const auth = useAuthStore();
 const isAdmin = computed(() => auth.role === "admin");
 
-const q = ref("");
 const showInsp = ref(false);
 const editingId = ref(null);
 
@@ -66,8 +67,9 @@ function inDateRange(createdAtIso) {
 }
 
 const filtered = computed(() => {
-  const s = q.value.trim().toLowerCase();
-
+  const s = String(ui.q || "")
+    .trim()
+    .toLowerCase();
   // garante ordenação por data decrescente
   const base = [...(insps.items || [])].sort((a, b) =>
     String(b.createdAt || "").localeCompare(String(a.createdAt || ""))
@@ -225,15 +227,6 @@ function pdfDisabledTitle(x) {
     <div class="tabline"></div>
 
     <div class="filterbar inspect-filter-card">
-      <div class="inspect-search-row">
-        <div class="field grow">
-          <label class="float-label">
-            <input v-model="q" placeholder=" " />
-            <span>Buscar por plano, PN, lote ou responsável</span>
-          </label>
-        </div>
-      </div>
-
       <div class="inspect-filter-row">
         <div class="field">
           <label class="float-label">

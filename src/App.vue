@@ -19,6 +19,20 @@ const canManageUsers = computed(() => auth.canManageUsers);
 const showPlan = ref(false);
 const editPlanId = ref(null);
 
+const showUserModal = ref(false);
+const editUserId = ref(null);
+
+const userForm = ref({
+  name: "",
+  username: "",
+  password: "",
+  matricula: "",
+  cargo: "",
+  role: "inspetor",
+  accessLevel: 3,
+  active: true,
+});
+
 const sideHover = ref(false);
 const sidePinned = ref(false);
 
@@ -34,7 +48,32 @@ const isManagement = computed(() => ui.page === "management");
 const PAGE_SIZE = 10;
 const currentPage = ref(1);
 
-const sourcePlans = computed(() => plans.filtered || []);
+const sourcePlans = computed(() => {
+  const s = String(ui.q || "")
+    .trim()
+    .toLowerCase();
+
+  const list = plans.items || [];
+
+  if (!s) return list;
+
+  return list.filter((p) => {
+    const blob = `
+      ${p.type || ""}
+      ${p.pn || ""}
+      ${p.model || ""}
+      ${p.name || ""}
+      ${p.client || ""}
+      ${p.supplier || ""}
+      ${p.resp || ""}
+      ${p.sampling?.mode || ""}
+      ${p.sampling?.standard || ""}
+      ${p.sampling?.clientName || ""}
+    `.toLowerCase();
+
+    return blob.includes(s);
+  });
+});
 
 const totalPages = computed(() => {
   if (!sourcePlans.value.length) return 1;
@@ -86,6 +125,144 @@ function samplingClass(p) {
 
   return "fixed";
 }
+
+function openNewUser() {
+  editUserId.value = null;
+
+  userForm.value = {
+    name: "",
+    username: "",
+    password: "",
+    matricula: "",
+    cargo: "",
+    role: "inspetor",
+    accessLevel: 3,
+    active: true,
+  };
+
+  showUserModal.value = true;
+}
+
+function openEditUser(user) {
+  if (!user) return;
+
+  editUserId.value = user.id;
+
+  userForm.value = {
+    name: user.name || "",
+    username: user.username || "",
+    password: "",
+    matricula: user.matricula || "",
+    cargo: user.cargo || "",
+    role: user.role || "inspetor",
+    accessLevel: Number(user.accessLevel || 3),
+    active: Boolean(user.active),
+  };
+
+  showUserModal.value = true;
+}
+
+function syncUserRoleByAccessLevel() {
+  const level = Number(userForm.value.accessLevel || 3);
+
+  if (level === 1) {
+    userForm.value.role = "admin";
+    return;
+  }
+
+  if (level === 2) {
+    userForm.value.role = "lider";
+    return;
+  }
+
+  userForm.value.role = "inspetor";
+}
+
+async function saveUser() {
+  if (!String(userForm.value.name || "").trim()) {
+    alert("Preencha o nome.");
+    return;
+  }
+
+  if (!String(userForm.value.username || "").trim()) {
+    alert("Preencha o usuário/login.");
+    return;
+  }
+
+  if (!editUserId.value && !String(userForm.value.password || "").trim()) {
+    alert("Preencha a senha.");
+    return;
+  }
+
+  if (!String(userForm.value.matricula || "").trim()) {
+    alert("Preencha a matrícula.");
+    return;
+  }
+
+  if (!String(userForm.value.cargo || "").trim()) {
+    alert("Preencha o cargo.");
+    return;
+  }
+
+  syncUserRoleByAccessLevel();
+
+  try {
+    const payload = {
+      ...userForm.value,
+      username: String(userForm.value.username || "")
+        .trim()
+        .toLowerCase(),
+      accessLevel: Number(userForm.value.accessLevel || 3),
+    };
+
+    if (editUserId.value) {
+      await users.update(editUserId.value, payload);
+      alert("Usuário atualizado com sucesso.");
+    } else {
+      await users.create(payload);
+      alert("Usuário criado com sucesso.");
+    }
+
+    showUserModal.value = false;
+    editUserId.value = null;
+
+    await users.load();
+  } catch (error) {
+    console.error("Erro ao criar usuário:", error);
+    alert(error?.message || "Não foi possível criar o usuário.");
+  }
+}
+
+async function toggleUserActive(user) {
+  if (!user) return;
+
+  if (String(user.id) === String(auth.user?.id)) {
+    alert("Você não pode inativar o seu próprio usuário.");
+    return;
+  }
+
+  const nextActive = !user.active;
+
+  const ok = confirm(
+    `${nextActive ? "Ativar" : "Inativar"} este usuário?\n\n` +
+      `Nome: ${user.name || "-"}\n` +
+      `Usuário: ${user.username || "-"}\n` +
+      `Matrícula: ${user.matricula || "-"}\n` +
+      `Cargo: ${user.cargo || "-"}`
+  );
+
+  if (!ok) return;
+
+  try {
+    await users.setActive(user.id, nextActive);
+    await users.load();
+
+    alert(nextActive ? "Usuário ativado com sucesso." : "Usuário inativado com sucesso.");
+  } catch (error) {
+    console.error("Erro ao alterar status do usuário:", error);
+    alert(error?.message || "Não foi possível alterar o status do usuário.");
+  }
+}
 </script>
 
 <template>
@@ -93,8 +270,12 @@ function samplingClass(p) {
 
   <div v-else class="layout" :class="{ 'layout-side-open': sideOpen }">
     <!-- SIDEBAR -->
-    <aside class="side" :class="{ 'side-hover-open': sideOpen }" @mouseenter="sideHover = true"
-      @mouseleave="sideHover = false">
+    <aside
+      class="side"
+      :class="{ 'side-hover-open': sideOpen }"
+      @mouseenter="sideHover = true"
+      @mouseleave="sideHover = false"
+    >
       <div class="brand">
         <img src="/logo.png" alt="Inventus Power" />
       </div>
@@ -112,7 +293,11 @@ function samplingClass(p) {
           📈<span class="mi-label">Análises</span>
         </div>
 
-        <div class="mi" :class="{ active: isManagement }" @click="ui.setPage('management')">
+        <div
+          class="mi"
+          :class="{ active: isManagement }"
+          @click="ui.setPage('management')"
+        >
           ⚙️<span class="mi-label">Gerenciamento</span>
         </div>
       </nav>
@@ -197,14 +382,22 @@ function samplingClass(p) {
 
                     <td>
                       <div v-if="canEditSystem" class="actions-wrap">
-                        <button class="btn ghost" type="button" @click="
-                          editPlanId = p.id;
-                        showPlan = true;
-                        ">
+                        <button
+                          class="btn ghost"
+                          type="button"
+                          @click="
+                            editPlanId = p.id;
+                            showPlan = true;
+                          "
+                        >
                           Editar
                         </button>
 
-                        <button class="btn ghost danger" type="button" @click="plans.remove(p.id)">
+                        <button
+                          class="btn ghost danger"
+                          type="button"
+                          @click="plans.remove(p.id)"
+                        >
                           Excluir
                         </button>
                       </div>
@@ -217,20 +410,33 @@ function samplingClass(p) {
             </div>
 
             <!-- PAGINAÇÃO -->
-            <div class="hstack" style="justify-content: space-between; padding: 8px 12px; font-size: 13px"
-              v-if="sourcePlans.length">
+            <div
+              class="hstack"
+              style="justify-content: space-between; padding: 8px 12px; font-size: 13px"
+              v-if="sourcePlans.length"
+            >
               <div>
                 Mostrando {{ paginatedPlans.length }} de {{ sourcePlans.length }} planos
               </div>
 
               <div class="hstack" style="gap: 8px">
-                <button class="btn ghost" type="button" :disabled="currentPage === 1" @click="currentPage--">
+                <button
+                  class="btn ghost"
+                  type="button"
+                  :disabled="currentPage === 1"
+                  @click="currentPage--"
+                >
                   Anterior
                 </button>
 
                 <span>Página {{ currentPage }} / {{ totalPages }}</span>
 
-                <button class="btn ghost" type="button" :disabled="currentPage === totalPages" @click="currentPage++">
+                <button
+                  class="btn ghost"
+                  type="button"
+                  :disabled="currentPage === totalPages"
+                  @click="currentPage++"
+                >
                   Próxima
                 </button>
               </div>
@@ -238,10 +444,15 @@ function samplingClass(p) {
           </div>
 
           <div class="card">
-            <button v-if="canEditSystem" class="btn" type="button" @click="
-              editPlanId = null;
-            showPlan = true;
-            ">
+            <button
+              v-if="canEditSystem"
+              class="btn"
+              type="button"
+              @click="
+                editPlanId = null;
+                showPlan = true;
+              "
+            >
               + Novo Plano
             </button>
           </div>
@@ -292,14 +503,22 @@ function samplingClass(p) {
           </div>
 
           <div class="card tablecard">
-            <div class="hstack" style="
+            <div
+              class="hstack"
+              style="
                 justify-content: space-between;
                 align-items: center;
                 margin-bottom: 12px;
-              ">
+              "
+            >
               <h3 style="margin: 0">Usuários cadastrados</h3>
 
-              <button v-if="canManageUsers" class="btn" type="button">
+              <button
+                v-if="canManageUsers"
+                class="btn"
+                type="button"
+                @click="openNewUser"
+              >
                 + Novo usuário
               </button>
             </div>
@@ -313,7 +532,6 @@ function samplingClass(p) {
                     <th>Usuário</th>
                     <th>Matrícula</th>
                     <th>Cargo</th>
-                    <th>Perfil</th>
                     <th>Nível</th>
                     <th>Ações</th>
                   </tr>
@@ -321,15 +539,15 @@ function samplingClass(p) {
 
                 <tbody>
                   <tr v-if="users.loading">
-                    <td colspan="8">Carregando usuários...</td>
+                    <td colspan="7">Carregando usuários...</td>
                   </tr>
 
                   <tr v-else-if="users.error">
-                    <td colspan="8">Erro ao carregar usuários: {{ users.error }}</td>
+                    <td colspan="7">Erro ao carregar usuários: {{ users.error }}</td>
                   </tr>
 
                   <tr v-else-if="!users.items.length">
-                    <td colspan="8">Nenhum usuário cadastrado.</td>
+                    <td colspan="7">Nenhum usuário cadastrado.</td>
                   </tr>
 
                   <tr v-else v-for="u in users.items" :key="u.id">
@@ -343,14 +561,22 @@ function samplingClass(p) {
                     <td>{{ u.username }}</td>
                     <td>{{ u.matricula || "—" }}</td>
                     <td>{{ u.cargo || "—" }}</td>
-                    <td>{{ u.role || "—" }}</td>
                     <td>Nível {{ u.accessLevel || 3 }}</td>
 
                     <td>
                       <div v-if="canManageUsers" class="actions-wrap">
-                        <button class="btn ghost" type="button">Editar</button>
+                        <button class="btn ghost" type="button" @click="openEditUser(u)">
+                          Editar
+                        </button>
 
-                        <button class="btn ghost danger" type="button">Inativar</button>
+                        <button
+                          class="btn ghost danger"
+                          type="button"
+                          :disabled="String(u.id) === String(auth.user?.id)"
+                          @click="toggleUserActive(u)"
+                        >
+                          {{ u.active ? "Inativar" : "Ativar" }}
+                        </button>
                       </div>
 
                       <span v-else class="muted-text">Visualização</span>
@@ -365,10 +591,101 @@ function samplingClass(p) {
     </div>
   </div>
 
-  <PlanModal :show="showPlan" :id="editPlanId" @close="
-    showPlan = false;
-  editPlanId = null;
-  " />
+  <PlanModal
+    :show="showPlan"
+    :id="editPlanId"
+    @close="
+      showPlan = false;
+      editPlanId = null;
+    "
+  />
+
+  <div class="modal" :class="{ show: showUserModal }" @click.self="showUserModal = false">
+    <div class="sheet vstack user-sheet">
+      <div class="hstack" style="justify-content: space-between; align-items: center">
+        <h3>{{ editUserId ? "Editar usuário" : "Novo usuário" }}</h3>
+
+        <button class="btn ghost" type="button" @click="showUserModal = false">
+          Fechar
+        </button>
+      </div>
+
+      <div class="hr"></div>
+
+      <h4 class="modal-section-title">Dados do usuário</h4>
+
+      <div class="row">
+        <div class="span-3">
+          <label class="float-label">
+            <input v-model="userForm.name" placeholder=" " />
+            <span>Nome *</span>
+          </label>
+        </div>
+
+        <div class="span-3">
+          <label class="float-label">
+            <input v-model="userForm.username" placeholder=" " />
+            <span>Usuário / Login *</span>
+          </label>
+        </div>
+
+        <div class="span-3">
+          <label class="float-label">
+            <input v-model="userForm.password" type="password" placeholder=" " />
+            <span>{{ editUserId ? "Nova senha (opcional)" : "Senha *" }}</span>
+          </label>
+        </div>
+
+        <div class="span-3">
+          <label class="float-label">
+            <input v-model="userForm.matricula" placeholder=" " />
+            <span>Matrícula *</span>
+          </label>
+        </div>
+
+        <div class="span-3">
+          <label class="float-label">
+            <input v-model="userForm.cargo" placeholder=" " />
+            <span>Cargo *</span>
+          </label>
+        </div>
+
+        <div class="span-2">
+          <label class="float-label">
+            <select
+              v-model.number="userForm.accessLevel"
+              @change="syncUserRoleByAccessLevel"
+            >
+              <option :value="1">Nível 1 - Controle total</option>
+              <option :value="2">Nível 2 - Controle total</option>
+              <option :value="3">Nível 3 - Operacional</option>
+            </select>
+            <span>Nível *</span>
+          </label>
+        </div>
+
+        <div class="span-2">
+          <label class="float-label">
+            <select v-model="userForm.active">
+              <option :value="true">Ativo</option>
+              <option :value="false">Inativo</option>
+            </select>
+            <span>Status</span>
+          </label>
+        </div>
+      </div>
+
+      <div class="hr"></div>
+
+      <div class="hstack" style="justify-content: flex-end; gap: 8px">
+        <button class="btn ghost" type="button" @click="showUserModal = false">
+          Cancelar
+        </button>
+
+        <button class="btn" type="button" @click="saveUser">{{ editUserId ? "Salvar alterações" : "Salvar usuário" }}</button>
+      </div>
+    </div>
+  </div>
 </template>
 
 <style scoped>
@@ -474,5 +791,16 @@ function samplingClass(p) {
   .management-summary {
     grid-template-columns: repeat(2, minmax(140px, 1fr));
   }
+}
+
+.user-sheet {
+  max-width: 920px;
+}
+
+.modal-section-title {
+  margin: 0 0 10px 0;
+  font-size: 16px;
+  font-weight: 700;
+  color: var(--text);
 }
 </style>
