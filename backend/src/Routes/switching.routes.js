@@ -4,7 +4,7 @@ import { db } from "../db.js";
 
 const router = express.Router();
 
-const SWITCHING_PASSWORD_KEY = "switching_password_hash";
+const SWITCHING_PASSWORD_KEY = "switching_password_hash"; 
 
 function canManageSwitching(user) {
   return Number(user?.accessLevel || user?.access_level || 3) <= 2;
@@ -475,6 +475,223 @@ router.post("/plans/:planId/suggest", async (req, res) => {
     res.status(500).json({
       ok: false,
       message: "Erro ao registrar sugestão de comutação.",
+      error: error.message,
+    });
+  }
+});
+
+// aprovar comutação pendente
+router.post("/plans/:planId/approve", async (req, res) => {
+  try {
+    const { planId } = req.params;
+    const { password, approvedBy } = req.body;
+
+    if (!String(password || "").trim()) {
+      return res.status(400).json({
+        ok: false,
+        message: "Informe a senha de comutação.",
+      });
+    }
+
+    const userLevel = Number(approvedBy?.accessLevel || approvedBy?.access_level || 3);
+
+    if (userLevel > 2) {
+      return res.status(403).json({
+        ok: false,
+        message: "Usuário sem permissão para aprovar comutação.",
+      });
+    }
+
+    const passwordResult = await db.query(
+      `
+      SELECT setting_value
+      FROM system_settings
+      WHERE setting_key = $1
+      `,
+      [SWITCHING_PASSWORD_KEY]
+    );
+
+    const passwordHash = passwordResult.rows[0]?.setting_value;
+
+    if (!passwordHash) {
+      return res.status(400).json({
+        ok: false,
+        message: "Senha de comutação ainda não cadastrada.",
+      });
+    }
+
+    const passwordOk = await bcrypt.compare(String(password), passwordHash);
+
+    if (!passwordOk) {
+      return res.status(401).json({
+        ok: false,
+        message: "Senha de comutação inválida.",
+      });
+    }
+
+    const planResult = await db.query(
+      `
+      SELECT
+        id,
+        name,
+        pn,
+        model,
+        client,
+        inspection_regime,
+        switching_status,
+        suggested_regime,
+        switching_reason,
+        current_sample_n,
+        suggested_sample_n
+      FROM plans
+      WHERE id = $1
+      `,
+      [planId]
+    );
+
+    const plan = planResult.rows[0];
+
+    if (!plan) {
+      return res.status(404).json({
+        ok: false,
+        message: "Plano não encontrado.",
+      });
+    }
+
+    if (plan.switching_status !== "pendente" || !plan.suggested_regime) {
+      return res.status(400).json({
+        ok: false,
+        message: "Este plano não possui comutação pendente.",
+      });
+    }
+
+    const previousRegime = normalizeRegime(plan.inspection_regime);
+    const newRegime = normalizeRegime(plan.suggested_regime);
+
+    await db.query("BEGIN");
+
+    const updateResult = await db.query(
+      `
+      UPDATE plans
+      SET
+        inspection_regime = $1,
+        switching_status = 'aprovado',
+        suggested_regime = NULL,
+        switching_reason = NULL,
+        current_sample_n = COALESCE(suggested_sample_n, current_sample_n),
+        suggested_sample_n = NULL,
+        switching_updated_at = NOW()
+      WHERE id = $2
+      RETURNING
+        id,
+        name,
+        pn,
+        model,
+        client,
+        inspection_regime,
+        switching_status,
+        suggested_regime,
+        switching_reason,
+        current_sample_n,
+        suggested_sample_n,
+        switching_updated_at
+      `,
+      [newRegime, planId]
+    );
+
+    await db.query(
+      `
+      INSERT INTO plan_switching_history (
+        plan_id,
+        previous_regime,
+        new_regime,
+        previous_sample_n,
+        new_sample_n,
+        switching_type,
+        switching_status,
+        reason,
+        history_snapshot,
+        approved_by_id,
+        approved_by_name,
+        approved_by_username,
+        approved_by_role,
+        approved_by_level,
+        approved_at,
+        created_at
+      )
+      VALUES (
+        $1,
+        $2,
+        $3,
+        $4,
+        $5,
+        'sugerida',
+        'aprovado',
+        $6,
+        $7,
+        $8,
+        $9,
+        $10,
+        $11,
+        $12,
+        NOW(),
+        NOW()
+      )
+      `,
+      [
+        plan.id,
+        previousRegime,
+        newRegime,
+        plan.current_sample_n,
+        plan.suggested_sample_n || plan.current_sample_n,
+        plan.switching_reason,
+        JSON.stringify({
+          planId: plan.id,
+          pn: plan.pn,
+          model: plan.model,
+          client: plan.client,
+          previousRegime,
+          newRegime,
+          reason: plan.switching_reason,
+        }),
+        approvedBy?.id || null,
+        approvedBy?.name || "Não informado",
+        approvedBy?.username || "",
+        approvedBy?.role || "",
+        userLevel,
+      ]
+    );
+
+    await db.query("COMMIT");
+
+    const updated = updateResult.rows[0];
+
+    res.json({
+      ok: true,
+      message: "Comutação aprovada com sucesso.",
+      plan: {
+        id: updated.id,
+        name: updated.name,
+        pn: updated.pn,
+        model: updated.model,
+        client: updated.client,
+        currentRegime: normalizeRegime(updated.inspection_regime),
+        switchingStatus: updated.switching_status,
+        suggestedRegime: updated.suggested_regime,
+        switchingReason: updated.switching_reason,
+        currentSampleN: updated.current_sample_n,
+        suggestedSampleN: updated.suggested_sample_n,
+        switchingUpdatedAt: updated.switching_updated_at,
+      },
+    });
+  } catch (error) {
+    await db.query("ROLLBACK");
+
+    console.error("Erro ao aprovar comutação:", error);
+
+    res.status(500).json({
+      ok: false,
+      message: "Erro ao aprovar comutação.",
       error: error.message,
     });
   }
