@@ -7,11 +7,17 @@ import InspectPage from "./components/InspectPage.vue";
 import { useAuthStore } from "./stores/auth";
 import LoginPage from "./components/LoginPage.vue";
 import { useUsersStore } from "./stores/users";
+import { useSwitchingStore } from "./stores/switching";
 
 const ui = useUiStore();
 const plans = usePlansStore();
 const auth = useAuthStore();
 const users = useUsersStore();
+const switchingPasswordForm = ref({
+  password: "",
+  confirmPassword: "",
+}); onMounted
+const switching = useSwitchingStore();
 
 const canEditSystem = computed(() => auth.canEditSystem);
 const canManageUsers = computed(() => auth.canManageUsers);
@@ -89,6 +95,8 @@ const paginatedPlans = computed(() => {
 onMounted(async () => {
   await plans.load();
   await users.load();
+  await switching.loadPasswordStatus();
+
   currentPage.value = 1;
 });
 
@@ -97,6 +105,7 @@ watch(
   async (page) => {
     if (page === "management") {
       await users.load();
+      await switching.loadPasswordStatus();
     }
   }
 );
@@ -245,10 +254,10 @@ async function toggleUserActive(user) {
 
   const ok = confirm(
     `${nextActive ? "Ativar" : "Inativar"} este usuário?\n\n` +
-      `Nome: ${user.name || "-"}\n` +
-      `Usuário: ${user.username || "-"}\n` +
-      `Matrícula: ${user.matricula || "-"}\n` +
-      `Cargo: ${user.cargo || "-"}`
+    `Nome: ${user.name || "-"}\n` +
+    `Usuário: ${user.username || "-"}\n` +
+    `Matrícula: ${user.matricula || "-"}\n` +
+    `Cargo: ${user.cargo || "-"}`
   );
 
   if (!ok) return;
@@ -263,6 +272,58 @@ async function toggleUserActive(user) {
     alert(error?.message || "Não foi possível alterar o status do usuário.");
   }
 }
+
+async function saveSwitchingPassword() {
+  if (!auth.canEditSystem) {
+    alert("Você não possui permissão para alterar a senha de comutação.");
+    return;
+  }
+
+  if (!String(switchingPasswordForm.value.password || "").trim()) {
+    alert("Informe a senha de comutação.");
+    return;
+  }
+
+  if (
+    String(switchingPasswordForm.value.password) !==
+    String(switchingPasswordForm.value.confirmPassword)
+  ) {
+    alert("A confirmação da senha não confere.");
+    return;
+  }
+
+  if (String(switchingPasswordForm.value.password).length < 4) {
+    alert("A senha de comutação deve ter pelo menos 4 caracteres.");
+    return;
+  }
+
+  const ok = confirm(
+    switching.hasPassword
+      ? "Deseja alterar a senha de comutação?"
+      : "Deseja cadastrar a senha de comutação?"
+  );
+
+  if (!ok) return;
+
+  try {
+    await switching.savePassword(
+      switchingPasswordForm.value.password,
+      switchingPasswordForm.value.confirmPassword
+    );
+
+    switchingPasswordForm.value = {
+      password: "",
+      confirmPassword: "",
+    };
+
+    await switching.loadPasswordStatus();
+
+    alert("Senha de comutação salva com sucesso.");
+  } catch (error) {
+    console.error("Erro ao salvar senha de comutação:", error);
+    alert(error?.message || "Não foi possível salvar a senha de comutação.");
+  }
+}
 </script>
 
 <template>
@@ -270,12 +331,8 @@ async function toggleUserActive(user) {
 
   <div v-else class="layout" :class="{ 'layout-side-open': sideOpen }">
     <!-- SIDEBAR -->
-    <aside
-      class="side"
-      :class="{ 'side-hover-open': sideOpen }"
-      @mouseenter="sideHover = true"
-      @mouseleave="sideHover = false"
-    >
+    <aside class="side" :class="{ 'side-hover-open': sideOpen }" @mouseenter="sideHover = true"
+      @mouseleave="sideHover = false">
       <div class="brand">
         <img src="/logo.png" alt="Inventus Power" />
       </div>
@@ -293,11 +350,7 @@ async function toggleUserActive(user) {
           📈<span class="mi-label">Análises</span>
         </div>
 
-        <div
-          class="mi"
-          :class="{ active: isManagement }"
-          @click="ui.setPage('management')"
-        >
+        <div class="mi" :class="{ active: isManagement }" @click="ui.setPage('management')">
           ⚙️<span class="mi-label">Gerenciamento</span>
         </div>
       </nav>
@@ -382,22 +435,14 @@ async function toggleUserActive(user) {
 
                     <td>
                       <div v-if="canEditSystem" class="actions-wrap">
-                        <button
-                          class="btn ghost"
-                          type="button"
-                          @click="
-                            editPlanId = p.id;
-                            showPlan = true;
-                          "
-                        >
+                        <button class="btn ghost" type="button" @click="
+                          editPlanId = p.id;
+                        showPlan = true;
+                        ">
                           Editar
                         </button>
 
-                        <button
-                          class="btn ghost danger"
-                          type="button"
-                          @click="plans.remove(p.id)"
-                        >
+                        <button class="btn ghost danger" type="button" @click="plans.remove(p.id)">
                           Excluir
                         </button>
                       </div>
@@ -410,33 +455,20 @@ async function toggleUserActive(user) {
             </div>
 
             <!-- PAGINAÇÃO -->
-            <div
-              class="hstack"
-              style="justify-content: space-between; padding: 8px 12px; font-size: 13px"
-              v-if="sourcePlans.length"
-            >
+            <div class="hstack" style="justify-content: space-between; padding: 8px 12px; font-size: 13px"
+              v-if="sourcePlans.length">
               <div>
                 Mostrando {{ paginatedPlans.length }} de {{ sourcePlans.length }} planos
               </div>
 
               <div class="hstack" style="gap: 8px">
-                <button
-                  class="btn ghost"
-                  type="button"
-                  :disabled="currentPage === 1"
-                  @click="currentPage--"
-                >
+                <button class="btn ghost" type="button" :disabled="currentPage === 1" @click="currentPage--">
                   Anterior
                 </button>
 
                 <span>Página {{ currentPage }} / {{ totalPages }}</span>
 
-                <button
-                  class="btn ghost"
-                  type="button"
-                  :disabled="currentPage === totalPages"
-                  @click="currentPage++"
-                >
+                <button class="btn ghost" type="button" :disabled="currentPage === totalPages" @click="currentPage++">
                   Próxima
                 </button>
               </div>
@@ -444,15 +476,10 @@ async function toggleUserActive(user) {
           </div>
 
           <div class="card">
-            <button
-              v-if="canEditSystem"
-              class="btn"
-              type="button"
-              @click="
-                editPlanId = null;
-                showPlan = true;
-              "
-            >
+            <button v-if="canEditSystem" class="btn" type="button" @click="
+              editPlanId = null;
+            showPlan = true;
+            ">
               + Novo Plano
             </button>
           </div>
@@ -502,23 +529,54 @@ async function toggleUserActive(user) {
             </div>
           </div>
 
+          <div class="switching-config-card">
+            <div class="switching-config-head">
+              <div>
+                <h3>Configuração de Comutação</h3>
+                <p>
+                  Cadastre a senha usada para confirmar alterações de regime de inspeção.
+                </p>
+              </div>
+
+              <span class="switching-password-status" :class="switching.hasPassword ? 'ok' : 'warn'">
+                {{ switching.hasPassword ? "Senha cadastrada" : "Senha não cadastrada" }}
+              </span>
+            </div>
+
+            <div class="switching-password-form">
+              <label class="float-label">
+                <input v-model="switchingPasswordForm.password" type="password" placeholder=" "
+                  :disabled="!canEditSystem" />
+                <span>
+                  {{ switching.hasPassword ? "Nova senha de comutação" : "Senha de comutação" }}
+                </span>
+              </label>
+
+              <label class="float-label">
+                <input v-model="switchingPasswordForm.confirmPassword" type="password" placeholder=" "
+                  :disabled="!canEditSystem" />
+                <span>Confirmar senha</span>
+              </label>
+
+              <button class="btn primary" type="button" :disabled="!canEditSystem" @click="saveSwitchingPassword">
+                {{ switching.hasPassword ? "Alterar senha" : "Cadastrar senha" }}
+              </button>
+            </div>
+
+            <p v-if="!canEditSystem" class="muted-text">
+              Apenas usuários Nível 1 ou Nível 2 podem configurar a senha de comutação.
+            </p>
+          </div>
+
           <div class="card tablecard">
-            <div
-              class="hstack"
-              style="
+            <div class="hstack" style="
                 justify-content: space-between;
                 align-items: center;
                 margin-bottom: 12px;
-              "
-            >
+              ">
               <h3 style="margin: 0">Usuários cadastrados</h3>
 
-              <button
-                v-if="canManageUsers"
-                class="btn"
-                type="button"
-                @click="openNewUser"
-              >
+              <button v-if="canManageUsers" class="btn" type="button" @click="openNewUser">
                 + Novo usuário
               </button>
             </div>
@@ -569,12 +627,8 @@ async function toggleUserActive(user) {
                           Editar
                         </button>
 
-                        <button
-                          class="btn ghost danger"
-                          type="button"
-                          :disabled="String(u.id) === String(auth.user?.id)"
-                          @click="toggleUserActive(u)"
-                        >
+                        <button class="btn ghost danger" type="button"
+                          :disabled="String(u.id) === String(auth.user?.id)" @click="toggleUserActive(u)">
                           {{ u.active ? "Inativar" : "Ativar" }}
                         </button>
                       </div>
@@ -591,14 +645,10 @@ async function toggleUserActive(user) {
     </div>
   </div>
 
-  <PlanModal
-    :show="showPlan"
-    :id="editPlanId"
-    @close="
-      showPlan = false;
-      editPlanId = null;
-    "
-  />
+  <PlanModal :show="showPlan" :id="editPlanId" @close="
+    showPlan = false;
+  editPlanId = null;
+  " />
 
   <div class="modal" :class="{ show: showUserModal }" @click.self="showUserModal = false">
     <div class="sheet vstack user-sheet">
@@ -652,10 +702,7 @@ async function toggleUserActive(user) {
 
         <div class="span-2">
           <label class="float-label">
-            <select
-              v-model.number="userForm.accessLevel"
-              @change="syncUserRoleByAccessLevel"
-            >
+            <select v-model.number="userForm.accessLevel" @change="syncUserRoleByAccessLevel">
               <option :value="1">Nível 1 - Controle total</option>
               <option :value="2">Nível 2 - Controle total</option>
               <option :value="3">Nível 3 - Operacional</option>
@@ -682,7 +729,8 @@ async function toggleUserActive(user) {
           Cancelar
         </button>
 
-        <button class="btn" type="button" @click="saveUser">{{ editUserId ? "Salvar alterações" : "Salvar usuário" }}</button>
+        <button class="btn" type="button" @click="saveUser">{{ editUserId ? "Salvar alterações" : "Salvar usuário"
+          }}</button>
       </div>
     </div>
   </div>
@@ -802,5 +850,72 @@ async function toggleUserActive(user) {
   font-size: 16px;
   font-weight: 700;
   color: var(--text);
+}
+
+.switching-config-card {
+  margin-top: 14px;
+  margin-bottom: 14px;
+  padding: 16px;
+  border: 1px solid #fed7aa;
+  border-radius: 18px;
+  background: #fff7ed;
+  box-shadow: var(--shadow-min);
+}
+
+.switching-config-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 14px;
+  margin-bottom: 14px;
+}
+
+.switching-config-head h3 {
+  margin: 0;
+  font-size: 18px;
+  color: #7c2d12;
+}
+
+.switching-config-head p {
+  margin: 4px 0 0 0;
+  font-size: 13px;
+  color: #9a3412;
+}
+
+.switching-password-status {
+  padding: 6px 10px;
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 800;
+  white-space: nowrap;
+}
+
+.switching-password-status.ok {
+  color: #166534;
+  background: #dcfce7;
+  border: 1px solid #bbf7d0;
+}
+
+.switching-password-status.warn {
+  color: #92400e;
+  background: #fef3c7;
+  border: 1px solid #fde68a;
+}
+
+.switching-password-form {
+  display: grid;
+  grid-template-columns: 1fr 1fr auto;
+  gap: 12px;
+  align-items: center;
+}
+
+@media (max-width: 900px) {
+  .switching-config-head {
+    flex-direction: column;
+  }
+
+  .switching-password-form {
+    grid-template-columns: 1fr;
+  }
 }
 </style>

@@ -1,6 +1,6 @@
 // src/stores/plans.js
 import { defineStore } from "pinia";
-import { db } from "../db/oqcDb";
+import { apiFetch } from "../services/api.js";
 
 function deepClone(x) {
   return JSON.parse(JSON.stringify(x));
@@ -14,75 +14,72 @@ function deepClone(x) {
  *  - "visual_caixa"    -> OK/NG por caixa, usa sampleN da própria característica
  *  - "teste_especial"  -> usa sampleN próprio e pode ser OK/NG ou numérico
  */
-
-
 function normalizeChar(char = {}, planN = 5) {
   const c = { ...char };
 
   c.id = c.id || crypto.randomUUID();
   c.name = c.name ?? "";
 
-  const hasLSL = c.lsl !== undefined && c.lsl !== null && String(c.lsl).trim() !== "";
-  const hasUSL = c.usl !== undefined && c.usl !== null && String(c.usl).trim() !== "";
+  const hasLSL =
+    c.lsl !== undefined &&
+    c.lsl !== null &&
+    String(c.lsl).trim() !== "";
 
-  // MIGRAÇÃO: se não existir "kind", inferir
+  const hasUSL =
+    c.usl !== undefined &&
+    c.usl !== null &&
+    String(c.usl).trim() !== "";
+
   if (!c.kind) {
     if (hasLSL && hasUSL) c.kind = "variavel";
     else c.kind = "visual_produto";
   }
 
-// ✅ REGRA NOVA:
-// visual_caixa usa sampleN próprio definido na característica
-// teste_especial usa sampleN próprio definido na característica
-if (c.kind === "teste_especial") {
-  const sn = Number(c.sampleN ?? 1);
-  c.sampleN = Number.isFinite(sn) && sn > 0 ? sn : 1;
-  c.sampleMode = "fixed";
-} else if (c.kind === "visual_caixa") {
-  const sn = Number(c.sampleN ?? c.boxQty ?? 2);
-  c.sampleN = Number.isFinite(sn) && sn > 0 ? sn : 2;
-  c.sampleMode = "fixed";
-} else {
-  c.sampleMode = null;
-  c.sampleN = null;
-}
-
-  /// ✅ Teste especial: define modo de resultado
-if (c.kind === "teste_especial") {
-  c.resultMode = c.resultMode || "visual"; // "visual" | "numerico"
-
-  if (c.resultMode === "visual") {
-    c.lsl = "";
-    c.usl = "";
-    c.unit = c.unit ?? "";
+  if (c.kind === "teste_especial") {
+    const sn = Number(c.sampleN ?? 1);
+    c.sampleN = Number.isFinite(sn) && sn > 0 ? sn : 1;
+    c.sampleMode = "fixed";
+  } else if (c.kind === "visual_caixa") {
+    const sn = Number(c.sampleN ?? c.boxQty ?? 2);
+    c.sampleN = Number.isFinite(sn) && sn > 0 ? sn : 2;
+    c.sampleMode = "fixed";
   } else {
+    c.sampleMode = null;
+    c.sampleN = null;
+  }
+
+  if (c.kind === "teste_especial") {
+    c.resultMode = c.resultMode || "visual";
+
+    if (c.resultMode === "visual") {
+      c.lsl = "";
+      c.usl = "";
+      c.unit = c.unit ?? "";
+    } else {
+      c.lsl = c.lsl ?? "";
+      c.usl = c.usl ?? "";
+      c.unit = c.unit ?? "";
+    }
+  } else {
+    c.resultMode = null;
+  }
+
+  if (c.kind === "variavel") {
     c.lsl = c.lsl ?? "";
     c.usl = c.usl ?? "";
     c.unit = c.unit ?? "";
+  } else if (c.kind === "teste_especial" && c.resultMode === "numerico") {
+    c.lsl = c.lsl ?? "";
+    c.usl = c.usl ?? "";
+    c.unit = c.unit ?? "";
+  } else {
+    c.lsl = "";
+    c.usl = "";
+    c.unit = c.unit ?? "";
   }
-} else {
-  c.resultMode = null;
-}
-
- // ✅ padronização de limites
-if (c.kind === "variavel") {
-  c.lsl = c.lsl ?? "";
-  c.usl = c.usl ?? "";
-  c.unit = c.unit ?? "";
-} else if (c.kind === "teste_especial" && c.resultMode === "numerico") {
-  c.lsl = c.lsl ?? "";
-  c.usl = c.usl ?? "";
-  c.unit = c.unit ?? "";
-} else {
-  c.lsl = "";
-  c.usl = "";
-  c.unit = c.unit ?? "";
-}
 
   c.method = c.method ?? "";
   c.category = c.category ?? "Dimensional";
-
-  // metadados opcionais
   c.decimals = c.decimals ?? 3;
 
   return c;
@@ -91,7 +88,9 @@ if (c.kind === "variavel") {
 function normalizePlan(plan = {}) {
   const p = { ...plan };
 
-  p.id = p.id || crypto.randomUUID();
+  // IMPORTANTE:
+  // Agora o ID do plano vem do PostgreSQL.
+  // Não criamos UUID para plano novo.
   p.name = p.name || "";
   p.model = p.model || "";
   p.client = p.client || "";
@@ -104,64 +103,95 @@ function normalizePlan(plan = {}) {
 
   const charsRaw = Array.isArray(p.chars) ? p.chars : [];
 
-  // ✅ Migração de legado: se plano antigo não tinha boxQty, tenta inferir de chars antigas (sampleN)
   const inferredBoxQty =
     charsRaw
       .map((c) => {
         const n = Number(c.sampleN);
         const fixed = c.sampleMode === "fixed";
-        if (c.kind === "visual_caixa" && Number.isFinite(n) && n > 0) return n;
-        if (fixed && Number.isFinite(n) && n > 0) return n;
+
+        if (c.kind === "visual_caixa" && Number.isFinite(n) && n > 0) {
+          return n;
+        }
+
+        if (fixed && Number.isFinite(n) && n > 0) {
+          return n;
+        }
+
         return null;
       })
       .find((v) => v != null) ?? null;
 
-  // ✅ REGRA NOVA: boxQty é do plano
   const bq = Number(p.boxQty ?? inferredBoxQty ?? 2);
   p.boxQty = Number.isFinite(bq) && bq > 0 ? bq : 2;
 
-  // ✅ NOVO: normaliza sampling (NBR 5426 / fixo / cliente)
-  // defaults (plano antigo = fixo usando n)
- const s = p.sampling || {};
- const mode = String(s.mode || "fixed"); // "fixed" | "nbr5426" | "client"
+  const s = p.sampling || {};
+  const mode = String(s.mode || "fixed");
 
- const levelRaw = String(s.level || "II").toUpperCase().trim();
+  const levelRaw = String(s.level || "II").toUpperCase().trim();
+  const validLevels = ["S1", "S2", "S3", "S4", "I", "II", "III"];
+  const level = validLevels.includes(levelRaw) ? levelRaw : "II";
 
- const validLevels = ["S1", "S2", "S3", "S4", "I", "II", "III"];
+  const aqlNum =
+    s.aql == null || String(s.aql).trim() === "" ? null : Number(s.aql);
 
- const level = validLevels.includes(levelRaw) ? levelRaw : "II";
-
-  // aql/nqa
-  const aqlNum = s.aql == null || String(s.aql).trim() === "" ? null : Number(s.aql);
   const aql = Number.isFinite(aqlNum) && aqlNum > 0 ? aqlNum : null;
 
-  // standard label
   let standard = String(s.standard || "").trim();
-  if (!standard) standard = mode === "nbr5426" ? "NBR 5426" : mode === "client" ? "Norma do cliente" : "Fixo (n)";
 
-  // clientName
+  if (!standard) {
+    standard =
+      mode === "nbr5426"
+        ? "NBR 5426"
+        : mode === "client"
+          ? "Norma do cliente"
+          : "Fixo (n)";
+  }
+
   let clientName = String(s.clientName || "").trim();
-  if (mode !== "client") clientName = "";
 
-  // note
+  if (mode !== "client") {
+    clientName = "";
+  }
+
   const note = String(s.note || "").trim();
 
   p.sampling = {
-    mode,          // fixed | nbr5426 | client
-    standard,      // texto para PDF/UI
-    level,         // S1 | S2 | S3 | S4 | I | II | III (NBR)
-    aql,           // number|null
-    clientName,    // string (somente modo client)
-    note,          // string opcional
+    mode,
+    standard,
+    level,
+    aql,
+    clientName,
+    note,
   };
 
-  // normaliza chars já no novo padrão
   p.chars = charsRaw.map((c) => normalizeChar(c, p.n));
 
-  // ✅ versão do schema (atualizada por causa de sampling)
   p.schemaVersion = 4;
 
+  // Campos novos da comutação
+  p.inspectionRegime =
+    p.inspectionRegime || p.inspection_regime || "normal";
+
+  p.switchingStatus =
+    p.switchingStatus || p.switching_status || "sem_pendencia";
+
+  p.suggestedRegime =
+    p.suggestedRegime || p.suggested_regime || null;
+
+  p.switchingReason =
+    p.switchingReason || p.switching_reason || "";
+
+  p.currentSampleN =
+    p.currentSampleN ?? p.current_sample_n ?? null;
+
+  p.suggestedSampleN =
+    p.suggestedSampleN ?? p.suggested_sample_n ?? null;
+
   return p;
+}
+
+function isPersistedId(id) {
+  return Number.isInteger(Number(id)) && Number(id) > 0;
 }
 
 export const usePlansStore = defineStore("plans", {
@@ -175,31 +205,18 @@ export const usePlansStore = defineStore("plans", {
   actions: {
     async load() {
       try {
-        const rows = await db.plans.toArray();
+        const data = await apiFetch("/plans");
 
-        // normaliza/migra todos ao carregar
-        const normalized = rows.map((p) => normalizePlan(p));
+        const rows = Array.isArray(data.items)
+          ? data.items
+          : Array.isArray(data.plans)
+            ? data.plans
+            : [];
 
-        // ✅ persiste migração no Dexie (para não ficar migrando sempre)
-        for (let i = 0; i < rows.length; i++) {
-          const before = rows[i];
-          const after = normalized[i];
-
-          const changed =
-            before.boxQty !== after.boxQty ||
-            before.type !== after.type ||
-            before.n !== after.n ||
-            before.schemaVersion !== after.schemaVersion ||
-            JSON.stringify(before.chars || []) !== JSON.stringify(after.chars || []);
-
-          if (changed) {
-            await db.plans.put(deepClone(after));
-          }
-        }
-
-        this.items = normalized;
+        this.items = rows.map((p) => normalizePlan(p));
       } catch (error) {
         console.error("Erro ao carregar planos:", error);
+        this.items = [];
       }
     },
 
@@ -207,9 +224,28 @@ export const usePlansStore = defineStore("plans", {
       try {
         const payload = normalizePlan(plan);
 
-        await db.plans.put(deepClone(payload));
+        let data;
+
+        if (isPersistedId(payload.id)) {
+          data = await apiFetch(`/plans/${payload.id}`, {
+            method: "PUT",
+            body: JSON.stringify(payload),
+          });
+        } else {
+          const cleanPayload = deepClone(payload);
+          delete cleanPayload.id;
+
+          data = await apiFetch("/plans", {
+            method: "POST",
+            body: JSON.stringify(cleanPayload),
+          });
+        }
+
         await this.load();
-        return payload.id;
+
+        const savedPlan = data.item || data.plan || data.data || null;
+
+        return savedPlan?.id || payload.id;
       } catch (error) {
         console.error("Erro ao salvar plano:", error);
         throw error;
@@ -218,22 +254,37 @@ export const usePlansStore = defineStore("plans", {
 
     async remove(id) {
       try {
-        await db.plans.delete(id);
+        await apiFetch(`/plans/${id}`, {
+          method: "DELETE",
+        });
+
         await this.load();
       } catch (error) {
         console.error("Erro ao remover plano:", error);
+        throw error;
       }
     },
 
     async toggle(id) {
       try {
-        const p = await db.plans.get(id);
+        const p = this.items.find((item) => String(item.id) === String(id));
+
         if (!p) return;
-        p.active = !p.active;
-        await db.plans.put(p);
+
+        const payload = {
+          ...deepClone(p),
+          active: !p.active,
+        };
+
+        await apiFetch(`/plans/${id}`, {
+          method: "PUT",
+          body: JSON.stringify(payload),
+        });
+
         await this.load();
       } catch (error) {
         console.error("Erro ao alternar status:", error);
+        throw error;
       }
     },
   },
@@ -248,12 +299,24 @@ export const usePlansStore = defineStore("plans", {
         const modelHit = !m || (p.model || "").toLowerCase().includes(m);
         const clientHit = !c || (p.client || "").toLowerCase().includes(c);
 
-        const blob = [p.name, p.model, p.client, p.pn, p.resp, p.type, p.supplier]
+        const blob = [
+          p.name,
+          p.model,
+          p.client,
+          p.pn,
+          p.resp,
+          p.type,
+          p.supplier,
+          p.inspectionRegime,
+          p.switchingStatus,
+          p.suggestedRegime,
+        ]
           .filter(Boolean)
           .join(" ")
           .toLowerCase();
 
         const textHit = !t || blob.includes(t);
+
         return modelHit && clientHit && textHit;
       });
     },
