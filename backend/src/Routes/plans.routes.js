@@ -21,6 +21,26 @@ function mapPlan(row) {
     sampling: row.sampling || {},
     chars: row.chars || [],
 
+    inspection_regime: row.inspection_regime || "normal",
+    switching_status: row.switching_status || "sem_pendencia",
+    suggested_regime: row.suggested_regime || null,
+    switching_reason: row.switching_reason || null,
+    current_sample_n: row.current_sample_n,
+    suggested_sample_n: row.suggested_sample_n,
+    switching_suggested_at: row.switching_suggested_at,
+    switching_suggested_by: row.switching_suggested_by,
+    switching_updated_at: row.switching_updated_at,
+
+    inspectionRegime: row.inspection_regime || "normal",
+    switchingStatus: row.switching_status || "sem_pendencia",
+    suggestedRegime: row.suggested_regime || null,
+    switchingReason: row.switching_reason || null,
+    currentSampleN: row.current_sample_n,
+    suggestedSampleN: row.suggested_sample_n,
+    switchingSuggestedAt: row.switching_suggested_at,
+    switchingSuggestedBy: row.switching_suggested_by,
+    switchingUpdatedAt: row.switching_updated_at,
+
     createdAt: row.created_at,
     updatedAt: row.updated_at,
   };

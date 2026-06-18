@@ -16,8 +16,14 @@ const users = useUsersStore();
 const switchingPasswordForm = ref({
   password: "",
   confirmPassword: "",
-}); onMounted
+});
+onMounted;
 const switching = useSwitchingStore();
+const switchingAnalysis = ref(null);
+const switchingPlan = ref(null);
+const showSwitchingModal = ref(false);
+const switchingPassword = ref("");
+const switchingLoading = ref(false);
 
 const canEditSystem = computed(() => auth.canEditSystem);
 const canManageUsers = computed(() => auth.canManageUsers);
@@ -96,6 +102,7 @@ onMounted(async () => {
   await plans.load();
   await users.load();
   await switching.loadPasswordStatus();
+  await switching.loadHistory();
 
   currentPage.value = 1;
 });
@@ -106,6 +113,7 @@ watch(
     if (page === "management") {
       await users.load();
       await switching.loadPasswordStatus();
+      await switching.loadHistory();
     }
   }
 );
@@ -254,10 +262,10 @@ async function toggleUserActive(user) {
 
   const ok = confirm(
     `${nextActive ? "Ativar" : "Inativar"} este usuário?\n\n` +
-    `Nome: ${user.name || "-"}\n` +
-    `Usuário: ${user.username || "-"}\n` +
-    `Matrícula: ${user.matricula || "-"}\n` +
-    `Cargo: ${user.cargo || "-"}`
+      `Nome: ${user.name || "-"}\n` +
+      `Usuário: ${user.username || "-"}\n` +
+      `Matrícula: ${user.matricula || "-"}\n` +
+      `Cargo: ${user.cargo || "-"}`
   );
 
   if (!ok) return;
@@ -324,6 +332,136 @@ async function saveSwitchingPassword() {
     alert(error?.message || "Não foi possível salvar a senha de comutação.");
   }
 }
+
+async function analyzePlanSwitching(plan) {
+  if (!plan?.id) return;
+
+  switchingLoading.value = true;
+
+  try {
+    const data = await switching.analyzePlan(plan.id);
+
+    switchingAnalysis.value = data.analysis;
+    switchingPlan.value = data.plan;
+
+    if (!data.analysis?.hasSuggestion) {
+      alert(
+        data.analysis?.reason || "Histórico ainda não atende critério para comutação."
+      );
+      return;
+    }
+
+    const ok = confirm(
+      "Sugestão de comutação detectada:\n\n" +
+        `Plano: ${data.plan?.name || "-"}\n` +
+        `Regime atual: ${data.analysis.currentRegime || "-"}\n` +
+        `Regime sugerido: ${data.analysis.suggestedRegime || "-"}\n` +
+        `Motivo: ${data.analysis.reason || "-"}\n\n` +
+        "Deseja registrar esta sugestão como pendente?"
+    );
+
+    if (!ok) return;
+
+    await switching.suggestPlan(plan.id);
+    await plans.load();
+
+    alert("Sugestão de comutação registrada como pendente.");
+  } catch (error) {
+    console.error("Erro ao analisar comutação:", error);
+    alert(error?.message || "Não foi possível analisar a comutação.");
+  } finally {
+    switchingLoading.value = false;
+  }
+}
+
+function openApproveSwitching(plan) {
+  if (!plan?.id) return;
+
+  switchingPlan.value = plan;
+  switchingPassword.value = "";
+  showSwitchingModal.value = true;
+}
+
+async function approvePlanSwitching() {
+  if (!switchingPlan.value?.id) return;
+
+  if (!String(switchingPassword.value || "").trim()) {
+    alert("Informe a senha de comutação.");
+    return;
+  }
+
+  const approvedBy = {
+    id: auth.user?.id,
+    name: auth.user?.name,
+    username: auth.user?.username,
+    role: auth.user?.role,
+    accessLevel: auth.accessLevel,
+  };
+
+  switchingLoading.value = true;
+
+  try {
+    await switching.approvePlan(
+      switchingPlan.value.id,
+      switchingPassword.value,
+      approvedBy
+    );
+
+    showSwitchingModal.value = false;
+    switchingPassword.value = "";
+
+    await plans.load();
+    await switching.loadHistory();
+
+    alert("Comutação aprovada com sucesso.");
+  } catch (error) {
+    console.error("Erro ao aprovar comutação:", error);
+    alert(error?.message || "Não foi possível aprovar a comutação.");
+  } finally {
+    switchingLoading.value = false;
+  }
+}
+
+function regimeLabel(value) {
+  const regime = String(value || "normal").toLowerCase();
+
+  if (regime === "atenuada") return "Atenuada";
+  if (regime === "severa") return "Severa";
+
+  return "Normal";
+}
+
+function switchingStatusLabel(value) {
+  const status = String(value || "sem_pendencia").toLowerCase();
+
+  if (status === "pendente") return "Pendente de aprovação";
+  if (status === "aprovado") return "Aprovado";
+  if (status === "recusado") return "Recusado";
+
+  return "Sem pendência";
+}
+
+function formatDateTimeBR(value) {
+  if (!value) return "—";
+
+  const d = new Date(value);
+
+  if (Number.isNaN(d.getTime())) return "—";
+
+  return d.toLocaleString("pt-BR", {
+    dateStyle: "short",
+    timeStyle: "short",
+  });
+}
+
+function userLevelLabel(level) {
+  const n = Number(level || 3);
+
+  if (n === 1) return "Nível 1";
+  if (n === 2) return "Nível 2";
+
+  return "Nível 3";
+}
 </script>
 
 <template>
@@ -331,8 +469,12 @@ async function saveSwitchingPassword() {
 
   <div v-else class="layout" :class="{ 'layout-side-open': sideOpen }">
     <!-- SIDEBAR -->
-    <aside class="side" :class="{ 'side-hover-open': sideOpen }" @mouseenter="sideHover = true"
-      @mouseleave="sideHover = false">
+    <aside
+      class="side"
+      :class="{ 'side-hover-open': sideOpen }"
+      @mouseenter="sideHover = true"
+      @mouseleave="sideHover = false"
+    >
       <div class="brand">
         <img src="/logo.png" alt="Inventus Power" />
       </div>
@@ -350,7 +492,11 @@ async function saveSwitchingPassword() {
           📈<span class="mi-label">Análises</span>
         </div>
 
-        <div class="mi" :class="{ active: isManagement }" @click="ui.setPage('management')">
+        <div
+          class="mi"
+          :class="{ active: isManagement }"
+          @click="ui.setPage('management')"
+        >
           ⚙️<span class="mi-label">Gerenciamento</span>
         </div>
       </nav>
@@ -398,6 +544,8 @@ async function saveSwitchingPassword() {
                     <th>Plano</th>
                     <th>Cliente</th>
                     <th>Amostragem</th>
+                    <th>Regime</th>
+                    <th>Comutação</th>
                     <th>Responsável</th>
                     <th>Ações</th>
                   </tr>
@@ -424,26 +572,68 @@ async function saveSwitchingPassword() {
                     <td>{{ p.model }}</td>
                     <td>{{ p.name }}</td>
                     <td>{{ p.client }}</td>
-
                     <td>
                       <span class="sampling-pill" :class="samplingClass(p)">
                         {{ samplingLabel(p) }}
                       </span>
                     </td>
 
+                    <td>
+                      <span
+                        class="regime-pill"
+                        :class="`regime-${p.inspectionRegime || 'normal'}`"
+                      >
+                        {{ regimeLabel(p.inspectionRegime) }}
+                      </span>
+                    </td>
+
+                    <td>
+                      <span
+                        class="switching-pill"
+                        :class="p.switchingStatus === 'pendente' ? 'pending' : 'ok'"
+                      >
+                        {{ switchingStatusLabel(p.switchingStatus) }}
+                      </span>
+                    </td>
                     <td>{{ p.resp }}</td>
 
                     <td>
                       <div v-if="canEditSystem" class="actions-wrap">
-                        <button class="btn ghost" type="button" @click="
-                          editPlanId = p.id;
-                        showPlan = true;
-                        ">
+                        <button
+                          class="btn ghost"
+                          type="button"
+                          @click="
+                            editPlanId = p.id;
+                            showPlan = true;
+                          "
+                        >
                           Editar
                         </button>
 
-                        <button class="btn ghost danger" type="button" @click="plans.remove(p.id)">
+                        <button
+                          class="btn ghost danger"
+                          type="button"
+                          @click="plans.remove(p.id)"
+                        >
                           Excluir
+                        </button>
+                        <button
+                          class="btn ghost"
+                          type="button"
+                          :disabled="switchingLoading"
+                          @click="analyzePlanSwitching(p)"
+                        >
+                          Analisar comutação
+                        </button>
+
+                        <button
+                          v-if="canEditSystem && p.switchingStatus === 'pendente'"
+                          class="btn primary"
+                          type="button"
+                          :disabled="switchingLoading"
+                          @click="openApproveSwitching(p)"
+                        >
+                          Aprovar comutação
                         </button>
                       </div>
 
@@ -455,20 +645,33 @@ async function saveSwitchingPassword() {
             </div>
 
             <!-- PAGINAÇÃO -->
-            <div class="hstack" style="justify-content: space-between; padding: 8px 12px; font-size: 13px"
-              v-if="sourcePlans.length">
+            <div
+              class="hstack"
+              style="justify-content: space-between; padding: 8px 12px; font-size: 13px"
+              v-if="sourcePlans.length"
+            >
               <div>
                 Mostrando {{ paginatedPlans.length }} de {{ sourcePlans.length }} planos
               </div>
 
               <div class="hstack" style="gap: 8px">
-                <button class="btn ghost" type="button" :disabled="currentPage === 1" @click="currentPage--">
+                <button
+                  class="btn ghost"
+                  type="button"
+                  :disabled="currentPage === 1"
+                  @click="currentPage--"
+                >
                   Anterior
                 </button>
 
                 <span>Página {{ currentPage }} / {{ totalPages }}</span>
 
-                <button class="btn ghost" type="button" :disabled="currentPage === totalPages" @click="currentPage++">
+                <button
+                  class="btn ghost"
+                  type="button"
+                  :disabled="currentPage === totalPages"
+                  @click="currentPage++"
+                >
                   Próxima
                 </button>
               </div>
@@ -476,10 +679,15 @@ async function saveSwitchingPassword() {
           </div>
 
           <div class="card">
-            <button v-if="canEditSystem" class="btn" type="button" @click="
-              editPlanId = null;
-            showPlan = true;
-            ">
+            <button
+              v-if="canEditSystem"
+              class="btn"
+              type="button"
+              @click="
+                editPlanId = null;
+                showPlan = true;
+              "
+            >
               + Novo Plano
             </button>
           </div>
@@ -538,27 +746,47 @@ async function saveSwitchingPassword() {
                 </p>
               </div>
 
-              <span class="switching-password-status" :class="switching.hasPassword ? 'ok' : 'warn'">
+              <span
+                class="switching-password-status"
+                :class="switching.hasPassword ? 'ok' : 'warn'"
+              >
                 {{ switching.hasPassword ? "Senha cadastrada" : "Senha não cadastrada" }}
               </span>
             </div>
 
             <div class="switching-password-form">
               <label class="float-label">
-                <input v-model="switchingPasswordForm.password" type="password" placeholder=" "
-                  :disabled="!canEditSystem" />
+                <input
+                  v-model="switchingPasswordForm.password"
+                  type="password"
+                  placeholder=" "
+                  :disabled="!canEditSystem"
+                />
                 <span>
-                  {{ switching.hasPassword ? "Nova senha de comutação" : "Senha de comutação" }}
+                  {{
+                    switching.hasPassword
+                      ? "Nova senha de comutação"
+                      : "Senha de comutação"
+                  }}
                 </span>
               </label>
 
               <label class="float-label">
-                <input v-model="switchingPasswordForm.confirmPassword" type="password" placeholder=" "
-                  :disabled="!canEditSystem" />
+                <input
+                  v-model="switchingPasswordForm.confirmPassword"
+                  type="password"
+                  placeholder=" "
+                  :disabled="!canEditSystem"
+                />
                 <span>Confirmar senha</span>
               </label>
 
-              <button class="btn primary" type="button" :disabled="!canEditSystem" @click="saveSwitchingPassword">
+              <button
+                class="btn primary"
+                type="button"
+                :disabled="!canEditSystem"
+                @click="saveSwitchingPassword"
+              >
                 {{ switching.hasPassword ? "Alterar senha" : "Cadastrar senha" }}
               </button>
             </div>
@@ -569,14 +797,111 @@ async function saveSwitchingPassword() {
           </div>
 
           <div class="card tablecard">
-            <div class="hstack" style="
+            <div
+              class="hstack"
+              style="
                 justify-content: space-between;
                 align-items: center;
                 margin-bottom: 12px;
-              ">
+              "
+            >
+              <div>
+                <h3 style="margin: 0">Histórico de Comutação</h3>
+                <p class="muted-text" style="margin: 4px 0 0 0">
+                  Registro das alterações de regime aprovadas no sistema.
+                </p>
+              </div>
+
+              <button
+                class="btn ghost"
+                type="button"
+                :disabled="switching.loading"
+                @click="switching.loadHistory()"
+              >
+                Atualizar
+              </button>
+            </div>
+
+            <div class="tablewrap">
+              <table>
+                <thead>
+                  <tr>
+                    <th>Data</th>
+                    <th>Plano</th>
+                    <th>PN</th>
+                    <th>Modelo</th>
+                    <th>Anterior</th>
+                    <th>Novo</th>
+                    <th>Motivo</th>
+                    <th>Aprovado por</th>
+                    <th>Nível</th>
+                  </tr>
+                </thead>
+
+                <tbody>
+                  <tr v-if="switching.loading">
+                    <td colspan="9">Carregando histórico...</td>
+                  </tr>
+
+                  <tr v-else-if="!switching.history.length">
+                    <td colspan="9">Nenhuma comutação registrada ainda.</td>
+                  </tr>
+
+                  <tr v-else v-for="h in switching.history" :key="h.id">
+                    <td>{{ formatDateTimeBR(h.approvedAt) }}</td>
+
+                    <td>{{ h.planName || "—" }}</td>
+
+                    <td>{{ h.pn || "—" }}</td>
+
+                    <td>{{ h.model || "—" }}</td>
+
+                    <td>
+                      <span
+                        class="regime-pill"
+                        :class="`regime-${h.previousRegime || 'normal'}`"
+                      >
+                        {{ regimeLabel(h.previousRegime) }}
+                      </span>
+                    </td>
+
+                    <td>
+                      <span
+                        class="regime-pill"
+                        :class="`regime-${h.newRegime || 'normal'}`"
+                      >
+                        {{ regimeLabel(h.newRegime) }}
+                      </span>
+                    </td>
+
+                    <td>{{ h.reason || "—" }}</td>
+
+                    <td>{{ h.approvedByName || "—" }}</td>
+
+                    <td>{{ userLevelLabel(h.approvedByLevel) }}</td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+
+          <div class="card tablecard">
+            <div
+              class="hstack"
+              style="
+                justify-content: space-between;
+                align-items: center;
+                margin-bottom: 12px;
+              "
+            >
               <h3 style="margin: 0">Usuários cadastrados</h3>
 
-              <button v-if="canManageUsers" class="btn" type="button" @click="openNewUser">
+              <button
+                v-if="canManageUsers"
+                class="btn"
+                type="button"
+                @click="openNewUser"
+              >
                 + Novo usuário
               </button>
             </div>
@@ -627,8 +952,12 @@ async function saveSwitchingPassword() {
                           Editar
                         </button>
 
-                        <button class="btn ghost danger" type="button"
-                          :disabled="String(u.id) === String(auth.user?.id)" @click="toggleUserActive(u)">
+                        <button
+                          class="btn ghost danger"
+                          type="button"
+                          :disabled="String(u.id) === String(auth.user?.id)"
+                          @click="toggleUserActive(u)"
+                        >
                           {{ u.active ? "Inativar" : "Ativar" }}
                         </button>
                       </div>
@@ -645,10 +974,14 @@ async function saveSwitchingPassword() {
     </div>
   </div>
 
-  <PlanModal :show="showPlan" :id="editPlanId" @close="
-    showPlan = false;
-  editPlanId = null;
-  " />
+  <PlanModal
+    :show="showPlan"
+    :id="editPlanId"
+    @close="
+      showPlan = false;
+      editPlanId = null;
+    "
+  />
 
   <div class="modal" :class="{ show: showUserModal }" @click.self="showUserModal = false">
     <div class="sheet vstack user-sheet">
@@ -702,7 +1035,10 @@ async function saveSwitchingPassword() {
 
         <div class="span-2">
           <label class="float-label">
-            <select v-model.number="userForm.accessLevel" @change="syncUserRoleByAccessLevel">
+            <select
+              v-model.number="userForm.accessLevel"
+              @change="syncUserRoleByAccessLevel"
+            >
               <option :value="1">Nível 1 - Controle total</option>
               <option :value="2">Nível 2 - Controle total</option>
               <option :value="3">Nível 3 - Operacional</option>
@@ -729,8 +1065,80 @@ async function saveSwitchingPassword() {
           Cancelar
         </button>
 
-        <button class="btn" type="button" @click="saveUser">{{ editUserId ? "Salvar alterações" : "Salvar usuário"
-          }}</button>
+        <button class="btn" type="button" @click="saveUser">
+          {{ editUserId ? "Salvar alterações" : "Salvar usuário" }}
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <div
+    class="modal"
+    :class="{ show: showSwitchingModal }"
+    @click.self="showSwitchingModal = false"
+  >
+    <div class="sheet vstack switching-approval-modal">
+      <div class="hstack" style="justify-content: space-between; align-items: center">
+        <h3>Aprovar comutação</h3>
+
+        <button class="btn ghost" type="button" @click="showSwitchingModal = false">
+          Fechar
+        </button>
+      </div>
+
+      <div class="hr"></div>
+
+      <div class="switching-approval-body">
+        <p>Confirme a alteração do regime de inspeção usando a senha de comutação.</p>
+
+        <div class="switching-approval-summary">
+          <div>
+            <span>Plano</span>
+            <b>{{ switchingPlan?.name || "-" }}</b>
+          </div>
+
+          <div>
+            <span>Regime atual</span>
+            <b>{{ switchingPlan?.inspectionRegime || "-" }}</b>
+          </div>
+
+          <div>
+            <span>Regime sugerido</span>
+            <b>{{ switchingPlan?.suggestedRegime || "-" }}</b>
+          </div>
+
+          <div>
+            <span>Motivo</span>
+            <b>{{ switchingPlan?.switchingReason || "-" }}</b>
+          </div>
+        </div>
+
+        <label class="float-label">
+          <input
+            v-model="switchingPassword"
+            type="password"
+            placeholder=" "
+            @keyup.enter="approvePlanSwitching"
+          />
+          <span>Senha de comutação</span>
+        </label>
+      </div>
+
+      <div class="hr"></div>
+
+      <div class="hstack" style="justify-content: flex-end; gap: 8px">
+        <button class="btn ghost" type="button" @click="showSwitchingModal = false">
+          Cancelar
+        </button>
+
+        <button
+          class="btn"
+          type="button"
+          :disabled="switchingLoading"
+          @click="approvePlanSwitching"
+        >
+          Confirmar comutação
+        </button>
       </div>
     </div>
   </div>
@@ -917,5 +1325,92 @@ async function saveSwitchingPassword() {
   .switching-password-form {
     grid-template-columns: 1fr;
   }
+}
+
+.switching-approval-modal {
+  max-width: 640px;
+}
+
+.switching-approval-body {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.switching-approval-body p {
+  margin: 0;
+  color: var(--muted, #64748b);
+  font-size: 14px;
+}
+
+.switching-approval-summary {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+  padding: 12px;
+  border-radius: 14px;
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+}
+
+.switching-approval-summary div {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.switching-approval-summary span {
+  font-size: 11px;
+  font-weight: 800;
+  color: var(--muted, #64748b);
+}
+
+.switching-approval-summary b {
+  font-size: 13px;
+  color: var(--text, #111827);
+}
+
+.regime-pill,
+.switching-pill {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 78px;
+  padding: 5px 10px;
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 800;
+  line-height: 1;
+  white-space: nowrap;
+}
+
+.regime-normal {
+  color: #475569;
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+}
+
+.regime-atenuada {
+  color: #166534;
+  background: #f0fdf4;
+  border: 1px solid #bbf7d0;
+}
+
+.regime-severa {
+  color: #991b1b;
+  background: #fff1f2;
+  border: 1px solid #fecdd3;
+}
+
+.switching-pill.ok {
+  color: #475569;
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+}
+
+.switching-pill.pending {
+  color: #c2410c;
+  background: #fff7ed;
+  border: 1px solid #fdba74;
 }
 </style>

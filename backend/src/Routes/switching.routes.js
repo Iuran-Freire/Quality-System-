@@ -696,4 +696,75 @@ router.post("/plans/:planId/approve", async (req, res) => {
     });
   }
 });
+
+// listar histórico de comutação
+router.get("/history", async (req, res) => {
+  try {
+    const result = await db.query(
+      `
+      SELECT
+        h.id,
+        h.plan_id,
+        p.name AS plan_name,
+        p.pn,
+        p.model,
+        p.client,
+
+        h.previous_regime,
+        h.new_regime,
+        h.previous_sample_n,
+        h.new_sample_n,
+        h.switching_type,
+        h.switching_status,
+        h.reason,
+        h.approved_by_name,
+        h.approved_by_username,
+        h.approved_by_role,
+        h.approved_by_level,
+        h.approved_at,
+        h.created_at
+      FROM public.plan_switching_history h
+      LEFT JOIN public.plans p
+        ON p.id = h.plan_id
+      ORDER BY h.approved_at DESC, h.id DESC
+      LIMIT 100
+      `
+    );
+
+    res.json({
+      ok: true,
+      items: result.rows.map((r) => ({
+        id: r.id,
+        planId: r.plan_id,
+        planName: r.plan_name || "",
+        pn: r.pn || "",
+        model: r.model || "",
+        client: r.client || "",
+
+        previousRegime: r.previous_regime,
+        newRegime: r.new_regime,
+        previousSampleN: r.previous_sample_n,
+        newSampleN: r.new_sample_n,
+        switchingType: r.switching_type,
+        switchingStatus: r.switching_status,
+        reason: r.reason || "",
+
+        approvedByName: r.approved_by_name || "",
+        approvedByUsername: r.approved_by_username || "",
+        approvedByRole: r.approved_by_role || "",
+        approvedByLevel: r.approved_by_level,
+        approvedAt: r.approved_at,
+        createdAt: r.created_at,
+      })),
+    });
+  } catch (error) {
+    console.error("Erro ao listar histórico de comutação:", error);
+
+    res.status(500).json({
+      ok: false,
+      message: "Erro ao listar histórico de comutação.",
+      error: error.message,
+    });
+  }
+});
 export default router;
