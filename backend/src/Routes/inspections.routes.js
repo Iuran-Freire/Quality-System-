@@ -21,6 +21,11 @@ function mapInspection(row) {
     lotSize: row.lot_size,
     shift: row.shift,
     resp: row.resp,
+    inspection_regime_snapshot: row.inspection_regime_snapshot,
+    sample_n_snapshot: row.sample_n_snapshot,
+
+    inspectionRegimeSnapshot: row.inspection_regime_snapshot,
+    sampleNSnapshot: row.sample_n_snapshot,
     obs: row.obs,
 
     status: row.status,
@@ -120,6 +125,39 @@ router.post("/", async (req, res) => {
   try {
     const p = req.body || {};
 
+    let planSnapshot = null;
+
+if (p.plan_id || p.planId) {
+  const planResult = await db.query(
+    `
+    SELECT
+      id,
+      inspection_regime,
+      n
+    FROM public.plans
+    WHERE id = $1
+    `,
+    [p.plan_id || p.planId]
+  );
+
+  planSnapshot = planResult.rows[0] || null;
+}
+
+const inspectionRegimeSnapshot =
+  p.inspection_regime_snapshot ||
+  p.inspectionRegimeSnapshot ||
+  planSnapshot?.inspection_regime ||
+  "normal";
+
+const sampleNSnapshot =
+  Number(
+    p.sample_n_snapshot ||
+      p.sampleNSnapshot ||
+      planSnapshot?.n ||
+      p.n ||
+      0
+  ) || null;
+
     const result = await db.query(
       `
       INSERT INTO inspections (
@@ -161,6 +199,10 @@ router.post("/", async (req, res) => {
         inspection_cycle,
         created_at,
         updated_at
+        inspection_regime_snapshot,
+        sample_n_snapshot,
+        inspection_regime_snapshot,
+        sample_n_snapshot,
       )
       VALUES (
         $1, $2, $3, $4, $5, $6, $7, $8,
@@ -170,6 +212,7 @@ router.post("/", async (req, res) => {
         $31::jsonb, $32::jsonb, $33::jsonb,
         $34, $35, $36,
         $37, $38
+        $16,17
       )
       RETURNING *
       `,
@@ -217,6 +260,8 @@ router.post("/", async (req, res) => {
         JSON.stringify(p.sampling || null),
         JSON.stringify(p.chars || []),
         JSON.stringify(p.samples || {}),
+        inspectionRegimeSnapshot,
+        sampleNSnapshot,
 
         p.parentInspectionId || null,
         Boolean(p.isReinspection),
