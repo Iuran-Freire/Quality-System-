@@ -44,11 +44,16 @@ const form = reactive({
   // client  -> norma própria do cliente (por enquanto só guardamos os campos)
   sampling: {
     mode: "fixed", // "fixed" | "nbr5426" | "client"
-    standard: "NBR 5426", // só texto (pode usar no PDF)
-    level: "II", // "I" | "II" | "III" (NBR)
-    aql: 1.0, // NQA/AQL (NBR)
-    clientName: "", // quando mode="client"
-    note: "", // observação interna (opcional)
+    standard: "NBR 5426",
+    level: "II",
+    aql: 1.0,
+    clientName: "",
+    note: "",
+
+    // amostragem fixa por regime
+    fixedNormalN: 10,
+    fixedReducedN: 5,
+    fixedTightenedN: 15,
   },
 
   chars: [],
@@ -175,6 +180,26 @@ watch(
           s.aql != null && String(s.aql).trim() !== "" ? Number(s.aql) : 1.0;
         form.sampling.clientName = s.clientName || "";
         form.sampling.note = s.note || "";
+        form.sampling.fixedNormalN =
+          Number(s.fixedNormalN || s.normalN || p.n || 10) || 10;
+
+        form.sampling.fixedReducedN =
+          Number(
+            s.fixedReducedN ||
+              s.reducedN ||
+              s.atenuadaN ||
+              form.sampling.fixedNormalN ||
+              5
+          ) || 5;
+
+        form.sampling.fixedTightenedN =
+          Number(
+            s.fixedTightenedN ||
+              s.tightenedN ||
+              s.severaN ||
+              form.sampling.fixedNormalN ||
+              15
+          ) || 15;
 
         const rawChars = Array.isArray(p.chars) ? p.chars : [];
         form.chars = rawChars.map((c) => normalizeChar(JSON.parse(JSON.stringify(c))));
@@ -332,6 +357,15 @@ watch(
       form.sampling.level = form.sampling.level || "II";
       form.sampling.aql = Number(form.sampling.aql ?? 1.0) || 1.0;
       form.sampling.clientName = "";
+
+      form.sampling.fixedNormalN =
+        Number(form.sampling.fixedNormalN || form.n || 10) || 10;
+
+      form.sampling.fixedReducedN = Number(form.sampling.fixedReducedN || 5) || 5;
+
+      form.sampling.fixedTightenedN = Number(form.sampling.fixedTightenedN || 15) || 15;
+
+      form.n = Number(form.sampling.fixedNormalN || form.n || 10) || 10;
     }
     if (mode === "nbr5426") {
       form.sampling.standard = "NBR 5426";
@@ -374,13 +408,30 @@ async function save() {
   if (!form.resp.trim()) return alert("Preencha o Responsável.");
 
   // amostragem fixa exige n
+  // amostragem fixa exige n por regime
   if (isSamplingFixed.value) {
-    if (!form.n || Number(form.n) < 1) return alert("Amostras (n) precisa ser >= 1.");
-  } else {
-    // mesmo quando for NBR/cliente, mantemos n como fallback, mas não é obrigatório
-    if (form.n && Number(form.n) < 1) return alert("Amostras (n) precisa ser >= 1.");
-  }
+    const normalN = Number(form.sampling.fixedNormalN);
+    const reducedN = Number(form.sampling.fixedReducedN);
+    const tightenedN = Number(form.sampling.fixedTightenedN);
 
+    if (!Number.isFinite(normalN) || normalN < 1) {
+      return alert("Amostra Normal precisa ser >= 1.");
+    }
+
+    if (!Number.isFinite(reducedN) || reducedN < 1) {
+      return alert("Amostra Atenuada precisa ser >= 1.");
+    }
+
+    if (!Number.isFinite(tightenedN) || tightenedN < 1) {
+      return alert("Amostra Severa precisa ser >= 1.");
+    }
+
+    form.n = normalN;
+  } else {
+    if (form.n && Number(form.n) < 1) {
+      return alert("Amostras (n) precisa ser >= 1.");
+    }
+  }
   // NBR exige AQL + Level válidos
   if (isSamplingNBR.value) {
     const aql = Number(form.sampling.aql);
@@ -541,6 +592,14 @@ async function save() {
       aql: form.sampling.aql != null ? Number(form.sampling.aql) : null,
       clientName: String(form.sampling.clientName || "").trim(),
       note: String(form.sampling.note || "").trim(),
+
+      fixedNormalN: isSamplingFixed.value ? Number(form.sampling.fixedNormalN) : null,
+
+      fixedReducedN: isSamplingFixed.value ? Number(form.sampling.fixedReducedN) : null,
+
+      fixedTightenedN: isSamplingFixed.value
+        ? Number(form.sampling.fixedTightenedN)
+        : null,
     },
 
     active: true,
@@ -564,7 +623,8 @@ async function save() {
         <div class="clone-plan-text">
           <strong>Usar plano existente como base</strong>
           <span>
-            Importe a estrutura de características e testes de um plano existente, mantendo os limites em branco para nova parametrização.
+            Importe a estrutura de características e testes de um plano existente,
+            mantendo os limites em branco para nova parametrização.
           </span>
         </div>
 
@@ -663,28 +723,46 @@ async function save() {
           </label>
         </div>
 
-        <!-- n sempre aparece (é fallback), mas é obrigatório só no modo fixed -->
-        <div class="span-1">
-          <div class="field" v-if="form.sampling.mode === 'fixed'">
+        <template v-if="form.sampling.mode === 'fixed'">
+          <div class="span-1">
             <label class="float-label">
               <input
-                v-model.number="form.n"
+                v-model.number="form.sampling.fixedNormalN"
                 type="number"
                 min="1"
                 placeholder=" "
-                :disabled="form.sampling.mode === 'nbr5426'"
               />
-              <span>
-                {{
-                  form.sampling.mode === "nbr5426"
-                    ? "Amostras (n) - calculado pela NBR"
-                    : "Amostras (n)"
-                }}
-              </span>
+              <span>Amostra Normal</span>
             </label>
           </div>
 
-          <div class="field" v-else-if="form.sampling.mode === 'nbr5426'">
+          <div class="span-1">
+            <label class="float-label">
+              <input
+                v-model.number="form.sampling.fixedReducedN"
+                type="number"
+                min="1"
+                placeholder=" "
+              />
+              <span>Amostra Atenuada</span>
+            </label>
+          </div>
+
+          <div class="span-1">
+            <label class="float-label">
+              <input
+                v-model.number="form.sampling.fixedTightenedN"
+                type="number"
+                min="1"
+                placeholder=" "
+              />
+              <span>Amostra Severa</span>
+            </label>
+          </div>
+        </template>
+
+        <div class="span-1" v-else-if="form.sampling.mode === 'nbr5426'">
+          <div class="field">
             <label class="float-label">
               <input value="Calculado na inspeção" disabled placeholder=" " />
               <span>Amostras (n)</span>
@@ -748,9 +826,23 @@ async function save() {
 
         <div class="span-6" style="margin-top: -4px">
           <div style="font-size: 12.5px; color: var(--muted)">
-            <b>Dica:</b>
-            Se selecionar <b>NBR 5426</b>, o sistema vai calcular <b>n / Ac / Re</b> na
-            inspeção usando o <b>Tamanho do lote</b> (Lot Size) informado pelo inspetor.
+            <template v-if="form.sampling.mode === 'fixed'">
+              <b>Dica:</b>
+              Na amostragem fixa, a comutação altera automaticamente o n do plano:
+              <b>Normal</b>, <b>Atenuada</b> ou <b>Severa</b>.
+            </template>
+
+            <template v-else-if="form.sampling.mode === 'nbr5426'">
+              <b>Dica:</b>
+              Se selecionar <b>NBR 5426</b>, o sistema vai calcular <b>n / Ac / Re</b> na
+              inspeção usando o <b>Tamanho do lote</b> informado pelo inspetor.
+            </template>
+
+            <template v-else>
+              <b>Dica:</b>
+              Para norma do cliente, informe a identificação da regra e mantenha a
+              observação preenchida quando necessário.
+            </template>
           </div>
         </div>
       </div>

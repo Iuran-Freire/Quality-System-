@@ -155,14 +155,55 @@ function normalizePlan(plan = {}) {
 
   const note = String(s.note || "").trim();
 
-  p.sampling = {
-    mode,
-    standard,
-    level,
-    aql,
-    clientName,
-    note,
-  };
+  const fixedNormalN =
+  Number(s.fixedNormalN || s.normalN || p.n || 5) || 5;
+
+const fixedReducedN =
+  Number(
+    s.fixedReducedN ||
+      s.reducedN ||
+      s.atenuadaN ||
+      fixedNormalN ||
+      5
+  ) || 5;
+
+const fixedTightenedN =
+  Number(
+    s.fixedTightenedN ||
+      s.tightenedN ||
+      s.severaN ||
+      fixedNormalN ||
+      5
+  ) || 5;
+
+p.sampling = {
+  mode,
+  standard,
+  level,
+  aql,
+  clientName,
+  note,
+
+  fixedNormalN: mode === "fixed" ? fixedNormalN : null,
+  fixedReducedN: mode === "fixed" ? fixedReducedN : null,
+  fixedTightenedN: mode === "fixed" ? fixedTightenedN : null,
+};
+
+if (mode === "fixed") {
+  const currentRegimeForSample = String(
+    p.inspectionRegime || p.inspection_regime || "normal"
+  )
+    .trim()
+    .toLowerCase();
+
+  if (currentRegimeForSample === "atenuada") {
+    p.n = fixedReducedN;
+  } else if (currentRegimeForSample === "severa") {
+    p.n = fixedTightenedN;
+  } else {
+    p.n = fixedNormalN;
+  }
+}
 
   p.chars = charsRaw.map((c) => normalizeChar(c, p.n));
 

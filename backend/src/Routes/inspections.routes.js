@@ -127,36 +127,37 @@ router.post("/", async (req, res) => {
 
     let planSnapshot = null;
 
-if (p.plan_id || p.planId) {
-  const planResult = await db.query(
-    `
-    SELECT
-      id,
-      inspection_regime,
-      n
-    FROM public.plans
-    WHERE id = $1
-    `,
-    [p.plan_id || p.planId]
-  );
+    if (p.plan_id || p.planId) {
+      const planResult = await db.query(
+        `
+        SELECT
+          id,
+          inspection_regime,
+          n
+        FROM public.plans
+        WHERE id = $1
+        `,
+        [p.plan_id || p.planId]
+      );
 
-  planSnapshot = planResult.rows[0] || null;
-}
+      planSnapshot = planResult.rows[0] || null;
+    }
 
-const inspectionRegimeSnapshot =
-  p.inspection_regime_snapshot ||
-  p.inspectionRegimeSnapshot ||
-  planSnapshot?.inspection_regime ||
-  "normal";
+    const inspectionRegimeSnapshot =
+      p.inspection_regime_snapshot ||
+      p.inspectionRegimeSnapshot ||
+      planSnapshot?.inspection_regime ||
+      "normal";
 
-const sampleNSnapshot =
-  Number(
-    p.sample_n_snapshot ||
-      p.sampleNSnapshot ||
-      planSnapshot?.n ||
-      p.n ||
-      0
-  ) || null;
+    const sampleNSnapshot =
+      Number(
+        p.sample_n_snapshot ||
+          p.sampleNSnapshot ||
+          planSnapshot?.n ||
+          p.n ||
+          p.planSamples ||
+          0
+      ) || null;
 
     const result = await db.query(
       `
@@ -198,11 +199,9 @@ const sampleNSnapshot =
         is_reinspection,
         inspection_cycle,
         created_at,
-        updated_at
+        updated_at,
         inspection_regime_snapshot,
-        sample_n_snapshot,
-        inspection_regime_snapshot,
-        sample_n_snapshot,
+        sample_n_snapshot
       )
       VALUES (
         $1, $2, $3, $4, $5, $6, $7, $8,
@@ -211,15 +210,14 @@ const sampleNSnapshot =
         $25, $26, $27, $28, $29, $30,
         $31::jsonb, $32::jsonb, $33::jsonb,
         $34, $35, $36,
-        $37, $38
-        $16,17
+        $37, $38, $39, $40
       )
       RETURNING *
       `,
       [
         p.id || crypto.randomUUID(),
 
-        p.planId || null,
+        p.planId || p.plan_id || null,
         p.planName || "",
 
         p.type || "IQC",
@@ -253,15 +251,13 @@ const sampleNSnapshot =
         p.finishedByUser || "",
         p.finishedByRole || "",
 
-        Number(p.planSamples ?? 5),
+        Number(p.planSamples ?? sampleNSnapshot ?? 5),
         Number(p.planBoxQty ?? 2),
         Number(p.boxQty ?? p.planBoxQty ?? 2),
 
         JSON.stringify(p.sampling || null),
         JSON.stringify(p.chars || []),
         JSON.stringify(p.samples || {}),
-        inspectionRegimeSnapshot,
-        sampleNSnapshot,
 
         p.parentInspectionId || null,
         Boolean(p.isReinspection),
@@ -269,6 +265,9 @@ const sampleNSnapshot =
 
         p.createdAt || new Date().toISOString(),
         p.updatedAt || new Date().toISOString(),
+
+        inspectionRegimeSnapshot,
+        sampleNSnapshot,
       ]
     );
 

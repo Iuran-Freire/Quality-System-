@@ -179,6 +179,51 @@ function normalizeRegime(value) {
   return "normal";
 }
 
+function safeJson(value, fallback = {}) {
+  if (!value) return fallback;
+
+  if (typeof value === "object") return value;
+
+  try {
+    return JSON.parse(value);
+  } catch {
+    return fallback;
+  }
+}
+
+function getSampleNByRegime(plan, regime) {
+  const sampling = safeJson(plan?.sampling, {});
+  const targetRegime = normalizeRegime(regime);
+
+  const normalN =
+    Number(sampling.fixedNormalN || sampling.normalN || plan?.n || 0) || null;
+
+  const reducedN =
+    Number(
+      sampling.fixedReducedN ||
+        sampling.reducedN ||
+        sampling.atenuadaN ||
+        normalN ||
+        plan?.n ||
+        0
+    ) || null;
+
+  const tightenedN =
+    Number(
+      sampling.fixedTightenedN ||
+        sampling.tightenedN ||
+        sampling.severaN ||
+        normalN ||
+        plan?.n ||
+        0
+    ) || null;
+
+  if (targetRegime === "atenuada") return reducedN;
+  if (targetRegime === "severa") return tightenedN;
+
+  return normalN;
+}
+
 function analyzeSwitchingRule(currentRegime, inspections) {
   const regime = normalizeRegime(currentRegime);
 
@@ -272,19 +317,21 @@ router.get("/plans/:planId/analyze", async (req, res) => {
     const planResult = await db.query(
       `
       SELECT
-        id,
-        name,
-        pn,
-        model,
-        client,
-        inspection_regime,
-        switching_status,
-        suggested_regime,
-        switching_reason,
-        current_sample_n,
-        suggested_sample_n
-      FROM plans
-      WHERE id = $1
+  id,
+  name,
+  pn,
+  model,
+  client,
+  n,
+  sampling,
+  inspection_regime,
+  switching_status,
+  suggested_regime,
+  switching_reason,
+  current_sample_n,
+  suggested_sample_n
+FROM plans
+WHERE id = $1
       `,
       [planId]
     );
@@ -418,17 +465,22 @@ router.post("/plans/:planId/suggest", async (req, res) => {
       });
     }
 
+    const currentSampleN = getSampleNByRegime(plan, analysis.currentRegime);
+    const suggestedSampleN = getSampleNByRegime(plan, analysis.suggestedRegime);
+
     const updateResult = await db.query(
       `
       UPDATE plans
-      SET
-        switching_status = 'pendente',
-        suggested_regime = $1,
-        switching_reason = $2,
-        switching_suggested_at = NOW(),
-        switching_suggested_by = 'Sistema',
-        switching_updated_at = NOW()
-      WHERE id = $3
+SET
+  switching_status = 'pendente',
+  suggested_regime = $1,
+  switching_reason = $2,
+  current_sample_n = $3,
+  suggested_sample_n = $4,
+  switching_suggested_at = NOW(),
+  switching_suggested_by = 'Sistema',
+  switching_updated_at = NOW()
+WHERE id = $5
       RETURNING
         id,
         name,
@@ -445,7 +497,13 @@ router.post("/plans/:planId/suggest", async (req, res) => {
         switching_suggested_by,
         switching_updated_at
       `,
-      [analysis.suggestedRegime, analysis.reason, planId]
+      [
+  analysis.suggestedRegime,
+  analysis.reason,
+  currentSampleN,
+  suggestedSampleN,
+  planId,
+]
     );
 
     res.json({
@@ -532,19 +590,21 @@ router.post("/plans/:planId/approve", async (req, res) => {
     const planResult = await db.query(
       `
       SELECT
-        id,
-        name,
-        pn,
-        model,
-        client,
-        inspection_regime,
-        switching_status,
-        suggested_regime,
-        switching_reason,
-        current_sample_n,
-        suggested_sample_n
-      FROM plans
-      WHERE id = $1
+  id,
+  name,
+  pn,
+  model,
+  client,
+  n,
+  sampling,
+  inspection_regime,
+  switching_status,
+  suggested_regime,
+  switching_reason,
+  current_sample_n,
+  suggested_sample_n
+FROM plans
+WHERE id = $1
       `,
       [planId]
     );
@@ -568,20 +628,28 @@ router.post("/plans/:planId/approve", async (req, res) => {
     const previousRegime = normalizeRegime(plan.inspection_regime);
     const newRegime = normalizeRegime(plan.suggested_regime);
 
+    const previousSampleN =
+  Number(plan.current_sample_n || plan.n || 0) || null;
+
+const newSampleN =
+  Number(plan.suggested_sample_n || getSampleNByRegime(plan, newRegime) || previousSampleN || 0) ||
+  null;
+
     await db.query("BEGIN");
 
     const updateResult = await db.query(
       `
       UPDATE plans
-      SET
-        inspection_regime = $1,
-        switching_status = 'aprovado',
-        suggested_regime = NULL,
-        switching_reason = NULL,
-        current_sample_n = COALESCE(suggested_sample_n, current_sample_n),
-        suggested_sample_n = NULL,
-        switching_updated_at = NOW()
-      WHERE id = $2
+SET
+  inspection_regime = $1,
+  n = $2,
+  switching_status = 'aprovado',
+  suggested_regime = NULL,
+  switching_reason = NULL,
+  current_sample_n = $2,
+  suggested_sample_n = NULL,
+  switching_updated_at = NOW()
+WHERE id = $3
       RETURNING
         id,
         name,
@@ -596,7 +664,7 @@ router.post("/plans/:planId/approve", async (req, res) => {
         suggested_sample_n,
         switching_updated_at
       `,
-      [newRegime, planId]
+      [newRegime, newSampleN, planId]
     );
 
     await db.query(
@@ -642,8 +710,8 @@ router.post("/plans/:planId/approve", async (req, res) => {
         plan.id,
         previousRegime,
         newRegime,
-        plan.current_sample_n,
-        plan.suggested_sample_n || plan.current_sample_n,
+        previousSampleN,
+        newSampleN,
         plan.switching_reason,
         JSON.stringify({
           planId: plan.id,
