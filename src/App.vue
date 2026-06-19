@@ -22,6 +22,7 @@ const switching = useSwitchingStore();
 const switchingAnalysis = ref(null);
 const switchingPlan = ref(null);
 const showSwitchingModal = ref(false);
+const showSwitchingAnalysisModal = ref(false);
 const switchingPassword = ref("");
 const switchingLoading = ref(false);
 
@@ -262,10 +263,10 @@ async function toggleUserActive(user) {
 
   const ok = confirm(
     `${nextActive ? "Ativar" : "Inativar"} este usuário?\n\n` +
-      `Nome: ${user.name || "-"}\n` +
-      `Usuário: ${user.username || "-"}\n` +
-      `Matrícula: ${user.matricula || "-"}\n` +
-      `Cargo: ${user.cargo || "-"}`
+    `Nome: ${user.name || "-"}\n` +
+    `Usuário: ${user.username || "-"}\n` +
+    `Matrícula: ${user.matricula || "-"}\n` +
+    `Cargo: ${user.cargo || "-"}`
   );
 
   if (!ok) return;
@@ -344,28 +345,7 @@ async function analyzePlanSwitching(plan) {
     switchingAnalysis.value = data.analysis;
     switchingPlan.value = data.plan;
 
-    if (!data.analysis?.hasSuggestion) {
-      alert(
-        data.analysis?.reason || "Histórico ainda não atende critério para comutação."
-      );
-      return;
-    }
-
-    const ok = confirm(
-      "Sugestão de comutação detectada:\n\n" +
-        `Plano: ${data.plan?.name || "-"}\n` +
-        `Regime atual: ${data.analysis.currentRegime || "-"}\n` +
-        `Regime sugerido: ${data.analysis.suggestedRegime || "-"}\n` +
-        `Motivo: ${data.analysis.reason || "-"}\n\n` +
-        "Deseja registrar esta sugestão como pendente?"
-    );
-
-    if (!ok) return;
-
-    await switching.suggestPlan(plan.id);
-    await plans.load();
-
-    alert("Sugestão de comutação registrada como pendente.");
+    showSwitchingAnalysisModal.value = true;
   } catch (error) {
     console.error("Erro ao analisar comutação:", error);
     alert(error?.message || "Não foi possível analisar a comutação.");
@@ -462,6 +442,55 @@ function userLevelLabel(level) {
 
   return "Nível 3";
 }
+
+async function registerSwitchingSuggestion() {
+  if (!switchingPlan.value?.id) return;
+
+  if (!switchingAnalysis.value?.hasSuggestion) {
+    alert("Não existe sugestão de comutação para registrar.");
+    return;
+  }
+
+  const ok = confirm("Deseja registrar esta sugestão como pendente?");
+
+  if (!ok) return;
+
+  switchingLoading.value = true;
+
+  try {
+    await switching.suggestPlan(switchingPlan.value.id);
+
+    showSwitchingAnalysisModal.value = false;
+
+    await plans.load();
+    await switching.loadHistory();
+
+    alert("Sugestão de comutação registrada como pendente.");
+  } catch (error) {
+    console.error("Erro ao registrar sugestão de comutação:", error);
+    alert(error?.message || "Não foi possível registrar a sugestão de comutação.");
+  } finally {
+    switchingLoading.value = false;
+  }
+}
+
+function resultLabel(value) {
+  const result = String(value || "").toUpperCase();
+
+  if (result === "PASS") return "PASS";
+  if (result === "FAIL") return "FAIL";
+
+  return result || "—";
+}
+
+function resultClass(value) {
+  const result = String(value || "").toUpperCase();
+
+  if (result === "PASS") return "pass";
+  if (result === "FAIL") return "fail";
+
+  return "neutral";
+}
 </script>
 
 <template>
@@ -469,12 +498,8 @@ function userLevelLabel(level) {
 
   <div v-else class="layout" :class="{ 'layout-side-open': sideOpen }">
     <!-- SIDEBAR -->
-    <aside
-      class="side"
-      :class="{ 'side-hover-open': sideOpen }"
-      @mouseenter="sideHover = true"
-      @mouseleave="sideHover = false"
-    >
+    <aside class="side" :class="{ 'side-hover-open': sideOpen }" @mouseenter="sideHover = true"
+      @mouseleave="sideHover = false">
       <div class="brand">
         <img src="/logo.png" alt="Inventus Power" />
       </div>
@@ -492,11 +517,7 @@ function userLevelLabel(level) {
           📈<span class="mi-label">Análises</span>
         </div>
 
-        <div
-          class="mi"
-          :class="{ active: isManagement }"
-          @click="ui.setPage('management')"
-        >
+        <div class="mi" :class="{ active: isManagement }" @click="ui.setPage('management')">
           ⚙️<span class="mi-label">Gerenciamento</span>
         </div>
       </nav>
@@ -579,19 +600,13 @@ function userLevelLabel(level) {
                     </td>
 
                     <td>
-                      <span
-                        class="regime-pill"
-                        :class="`regime-${p.inspectionRegime || 'normal'}`"
-                      >
+                      <span class="regime-pill" :class="`regime-${p.inspectionRegime || 'normal'}`">
                         {{ regimeLabel(p.inspectionRegime) }}
                       </span>
                     </td>
 
                     <td>
-                      <span
-                        class="switching-pill"
-                        :class="p.switchingStatus === 'pendente' ? 'pending' : 'ok'"
-                      >
+                      <span class="switching-pill" :class="p.switchingStatus === 'pendente' ? 'pending' : 'ok'">
                         {{ switchingStatusLabel(p.switchingStatus) }}
                       </span>
                     </td>
@@ -599,40 +614,23 @@ function userLevelLabel(level) {
 
                     <td>
                       <div v-if="canEditSystem" class="actions-wrap">
-                        <button
-                          class="btn ghost"
-                          type="button"
-                          @click="
-                            editPlanId = p.id;
-                            showPlan = true;
-                          "
-                        >
+                        <button class="btn ghost" type="button" @click="
+                          editPlanId = p.id;
+                        showPlan = true;
+                        ">
                           Editar
                         </button>
 
-                        <button
-                          class="btn ghost danger"
-                          type="button"
-                          @click="plans.remove(p.id)"
-                        >
+                        <button class="btn ghost danger" type="button" @click="plans.remove(p.id)">
                           Excluir
                         </button>
-                        <button
-                          class="btn ghost"
-                          type="button"
-                          :disabled="switchingLoading"
-                          @click="analyzePlanSwitching(p)"
-                        >
+                        <button class="btn ghost" type="button" :disabled="switchingLoading"
+                          @click="analyzePlanSwitching(p)">
                           Analisar comutação
                         </button>
 
-                        <button
-                          v-if="canEditSystem && p.switchingStatus === 'pendente'"
-                          class="btn primary"
-                          type="button"
-                          :disabled="switchingLoading"
-                          @click="openApproveSwitching(p)"
-                        >
+                        <button v-if="canEditSystem && p.switchingStatus === 'pendente'" class="btn primary"
+                          type="button" :disabled="switchingLoading" @click="openApproveSwitching(p)">
                           Aprovar comutação
                         </button>
                       </div>
@@ -645,33 +643,20 @@ function userLevelLabel(level) {
             </div>
 
             <!-- PAGINAÇÃO -->
-            <div
-              class="hstack"
-              style="justify-content: space-between; padding: 8px 12px; font-size: 13px"
-              v-if="sourcePlans.length"
-            >
+            <div class="hstack" style="justify-content: space-between; padding: 8px 12px; font-size: 13px"
+              v-if="sourcePlans.length">
               <div>
                 Mostrando {{ paginatedPlans.length }} de {{ sourcePlans.length }} planos
               </div>
 
               <div class="hstack" style="gap: 8px">
-                <button
-                  class="btn ghost"
-                  type="button"
-                  :disabled="currentPage === 1"
-                  @click="currentPage--"
-                >
+                <button class="btn ghost" type="button" :disabled="currentPage === 1" @click="currentPage--">
                   Anterior
                 </button>
 
                 <span>Página {{ currentPage }} / {{ totalPages }}</span>
 
-                <button
-                  class="btn ghost"
-                  type="button"
-                  :disabled="currentPage === totalPages"
-                  @click="currentPage++"
-                >
+                <button class="btn ghost" type="button" :disabled="currentPage === totalPages" @click="currentPage++">
                   Próxima
                 </button>
               </div>
@@ -679,15 +664,10 @@ function userLevelLabel(level) {
           </div>
 
           <div class="card">
-            <button
-              v-if="canEditSystem"
-              class="btn"
-              type="button"
-              @click="
-                editPlanId = null;
-                showPlan = true;
-              "
-            >
+            <button v-if="canEditSystem" class="btn" type="button" @click="
+              editPlanId = null;
+            showPlan = true;
+            ">
               + Novo Plano
             </button>
           </div>
@@ -746,22 +726,15 @@ function userLevelLabel(level) {
                 </p>
               </div>
 
-              <span
-                class="switching-password-status"
-                :class="switching.hasPassword ? 'ok' : 'warn'"
-              >
+              <span class="switching-password-status" :class="switching.hasPassword ? 'ok' : 'warn'">
                 {{ switching.hasPassword ? "Senha cadastrada" : "Senha não cadastrada" }}
               </span>
             </div>
 
             <div class="switching-password-form">
               <label class="float-label">
-                <input
-                  v-model="switchingPasswordForm.password"
-                  type="password"
-                  placeholder=" "
-                  :disabled="!canEditSystem"
-                />
+                <input v-model="switchingPasswordForm.password" type="password" placeholder=" "
+                  :disabled="!canEditSystem" />
                 <span>
                   {{
                     switching.hasPassword
@@ -772,21 +745,12 @@ function userLevelLabel(level) {
               </label>
 
               <label class="float-label">
-                <input
-                  v-model="switchingPasswordForm.confirmPassword"
-                  type="password"
-                  placeholder=" "
-                  :disabled="!canEditSystem"
-                />
+                <input v-model="switchingPasswordForm.confirmPassword" type="password" placeholder=" "
+                  :disabled="!canEditSystem" />
                 <span>Confirmar senha</span>
               </label>
 
-              <button
-                class="btn primary"
-                type="button"
-                :disabled="!canEditSystem"
-                @click="saveSwitchingPassword"
-              >
+              <button class="btn primary" type="button" :disabled="!canEditSystem" @click="saveSwitchingPassword">
                 {{ switching.hasPassword ? "Alterar senha" : "Cadastrar senha" }}
               </button>
             </div>
@@ -797,14 +761,11 @@ function userLevelLabel(level) {
           </div>
 
           <div class="card tablecard">
-            <div
-              class="hstack"
-              style="
+            <div class="hstack" style="
                 justify-content: space-between;
                 align-items: center;
                 margin-bottom: 12px;
-              "
-            >
+              ">
               <div>
                 <h3 style="margin: 0">Histórico de Comutação</h3>
                 <p class="muted-text" style="margin: 4px 0 0 0">
@@ -812,12 +773,7 @@ function userLevelLabel(level) {
                 </p>
               </div>
 
-              <button
-                class="btn ghost"
-                type="button"
-                :disabled="switching.loading"
-                @click="switching.loadHistory()"
-              >
+              <button class="btn ghost" type="button" :disabled="switching.loading" @click="switching.loadHistory()">
                 Atualizar
               </button>
             </div>
@@ -857,19 +813,13 @@ function userLevelLabel(level) {
                     <td>{{ h.model || "—" }}</td>
 
                     <td>
-                      <span
-                        class="regime-pill"
-                        :class="`regime-${h.previousRegime || 'normal'}`"
-                      >
+                      <span class="regime-pill" :class="`regime-${h.previousRegime || 'normal'}`">
                         {{ regimeLabel(h.previousRegime) }}
                       </span>
                     </td>
 
                     <td>
-                      <span
-                        class="regime-pill"
-                        :class="`regime-${h.newRegime || 'normal'}`"
-                      >
+                      <span class="regime-pill" :class="`regime-${h.newRegime || 'normal'}`">
                         {{ regimeLabel(h.newRegime) }}
                       </span>
                     </td>
@@ -886,22 +836,14 @@ function userLevelLabel(level) {
           </div>
 
           <div class="card tablecard">
-            <div
-              class="hstack"
-              style="
+            <div class="hstack" style="
                 justify-content: space-between;
                 align-items: center;
                 margin-bottom: 12px;
-              "
-            >
+              ">
               <h3 style="margin: 0">Usuários cadastrados</h3>
 
-              <button
-                v-if="canManageUsers"
-                class="btn"
-                type="button"
-                @click="openNewUser"
-              >
+              <button v-if="canManageUsers" class="btn" type="button" @click="openNewUser">
                 + Novo usuário
               </button>
             </div>
@@ -952,12 +894,8 @@ function userLevelLabel(level) {
                           Editar
                         </button>
 
-                        <button
-                          class="btn ghost danger"
-                          type="button"
-                          :disabled="String(u.id) === String(auth.user?.id)"
-                          @click="toggleUserActive(u)"
-                        >
+                        <button class="btn ghost danger" type="button"
+                          :disabled="String(u.id) === String(auth.user?.id)" @click="toggleUserActive(u)">
                           {{ u.active ? "Inativar" : "Ativar" }}
                         </button>
                       </div>
@@ -974,14 +912,10 @@ function userLevelLabel(level) {
     </div>
   </div>
 
-  <PlanModal
-    :show="showPlan"
-    :id="editPlanId"
-    @close="
-      showPlan = false;
-      editPlanId = null;
-    "
-  />
+  <PlanModal :show="showPlan" :id="editPlanId" @close="
+    showPlan = false;
+  editPlanId = null;
+  " />
 
   <div class="modal" :class="{ show: showUserModal }" @click.self="showUserModal = false">
     <div class="sheet vstack user-sheet">
@@ -1035,10 +969,7 @@ function userLevelLabel(level) {
 
         <div class="span-2">
           <label class="float-label">
-            <select
-              v-model.number="userForm.accessLevel"
-              @change="syncUserRoleByAccessLevel"
-            >
+            <select v-model.number="userForm.accessLevel" @change="syncUserRoleByAccessLevel">
               <option :value="1">Nível 1 - Controle total</option>
               <option :value="2">Nível 2 - Controle total</option>
               <option :value="3">Nível 3 - Operacional</option>
@@ -1072,11 +1003,7 @@ function userLevelLabel(level) {
     </div>
   </div>
 
-  <div
-    class="modal"
-    :class="{ show: showSwitchingModal }"
-    @click.self="showSwitchingModal = false"
-  >
+  <div class="modal" :class="{ show: showSwitchingModal }" @click.self="showSwitchingModal = false">
     <div class="sheet vstack switching-approval-modal">
       <div class="hstack" style="justify-content: space-between; align-items: center">
         <h3>Aprovar comutação</h3>
@@ -1114,12 +1041,7 @@ function userLevelLabel(level) {
         </div>
 
         <label class="float-label">
-          <input
-            v-model="switchingPassword"
-            type="password"
-            placeholder=" "
-            @keyup.enter="approvePlanSwitching"
-          />
+          <input v-model="switchingPassword" type="password" placeholder=" " @keyup.enter="approvePlanSwitching" />
           <span>Senha de comutação</span>
         </label>
       </div>
@@ -1131,13 +1053,144 @@ function userLevelLabel(level) {
           Cancelar
         </button>
 
-        <button
-          class="btn"
-          type="button"
-          :disabled="switchingLoading"
-          @click="approvePlanSwitching"
-        >
+        <button class="btn" type="button" :disabled="switchingLoading" @click="approvePlanSwitching">
           Confirmar comutação
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <div class="modal" :class="{ show: showSwitchingAnalysisModal }" @click.self="showSwitchingAnalysisModal = false">
+    <div class="sheet vstack switching-analysis-modal">
+      <div class="hstack" style="justify-content: space-between; align-items: center">
+        <div>
+          <h3>Análise de Comutação</h3>
+          <p class="muted-text" style="margin: 4px 0 0 0">
+            Verificação do histórico de lotes para sugestão de regime de inspeção.
+          </p>
+        </div>
+
+        <button class="btn ghost" type="button" @click="showSwitchingAnalysisModal = false">
+          Fechar
+        </button>
+      </div>
+
+      <div class="hr"></div>
+
+      <div class="switching-analysis-summary">
+        <div>
+          <span>Plano</span>
+          <b>{{ switchingPlan?.name || "-" }}</b>
+        </div>
+
+        <div>
+          <span>PN</span>
+          <b>{{ switchingPlan?.pn || "-" }}</b>
+        </div>
+
+        <div>
+          <span>Modelo</span>
+          <b>{{ switchingPlan?.model || "-" }}</b>
+        </div>
+
+        <div>
+          <span>Cliente</span>
+          <b>{{ switchingPlan?.client || "-" }}</b>
+        </div>
+
+        <div>
+          <span>Regime atual</span>
+          <b>
+            <span class="regime-pill" :class="`regime-${switchingAnalysis?.currentRegime || 'normal'}`">
+              {{ regimeLabel(switchingAnalysis?.currentRegime) }}
+            </span>
+          </b>
+        </div>
+
+        <div>
+          <span>Regime sugerido</span>
+          <b v-if="switchingAnalysis?.hasSuggestion">
+            <span class="regime-pill" :class="`regime-${switchingAnalysis?.suggestedRegime || 'normal'}`">
+              {{ regimeLabel(switchingAnalysis?.suggestedRegime) }}
+            </span>
+          </b>
+
+          <b v-else>Sem sugestão</b>
+        </div>
+      </div>
+
+      <div class="switching-analysis-message"
+        :class="switchingAnalysis?.hasSuggestion ? 'has-suggestion' : 'no-suggestion'">
+        <strong>
+          {{
+            switchingAnalysis?.hasSuggestion
+              ? "Sugestão encontrada"
+              : "Sem critério de comutação"
+          }}
+        </strong>
+
+        <span>
+          {{
+            switchingAnalysis?.reason ||
+            "Histórico ainda não atende critério para comutação."
+          }}
+        </span>
+      </div>
+
+      <div class="switching-history-preview">
+        <div class="hstack" style="justify-content: space-between; align-items: center">
+          <h4 style="margin: 0">Lotes considerados na análise</h4>
+
+          <span class="muted-text">
+            {{ switchingAnalysis?.history?.length || 0 }} registro(s)
+          </span>
+        </div>
+
+        <div class="tablewrap">
+          <table>
+            <thead>
+              <tr>
+                <th>Lote</th>
+                <th>NF</th>
+                <th>Resultado</th>
+                <th>Finalizado em</th>
+              </tr>
+            </thead>
+
+            <tbody>
+              <tr v-if="!switchingAnalysis?.history?.length">
+                <td colspan="4">Nenhum histórico encontrado para este plano.</td>
+              </tr>
+
+              <tr v-else v-for="h in switchingAnalysis.history" :key="h.id">
+                <td>{{ h.lot || "—" }}</td>
+                <td>{{ h.invoice || "—" }}</td>
+                <td>
+                  <span class="result-pill" :class="resultClass(h.result)">
+                    {{ resultLabel(h.result) }}
+                  </span>
+                </td>
+                <td>{{ formatDateTimeBR(h.finishedAt) }}</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <div class="hr"></div>
+
+      <div class="hstack" style="justify-content: flex-end; gap: 8px">
+        <button class="btn ghost" type="button" @click="showSwitchingAnalysisModal = false">
+          Cancelar
+        </button>
+
+        <button v-if="switchingAnalysis?.hasSuggestion" class="btn" type="button" :disabled="switchingLoading"
+          @click="registerSwitchingSuggestion">
+          Registrar sugestão
+        </button>
+
+        <button v-else class="btn ghost" type="button" disabled>
+          Sem sugestão disponível
         </button>
       </div>
     </div>
@@ -1412,5 +1465,108 @@ function userLevelLabel(level) {
   color: #c2410c;
   background: #fff7ed;
   border: 1px solid #fdba74;
+}
+
+.switching-analysis-modal {
+  max-width: 980px;
+}
+
+.switching-analysis-summary {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.switching-analysis-summary>div {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 12px;
+  border-radius: 14px;
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+}
+
+.switching-analysis-summary span {
+  font-size: 11px;
+  font-weight: 800;
+  color: var(--muted, #64748b);
+}
+
+.switching-analysis-summary b {
+  font-size: 13px;
+  color: var(--text, #111827);
+}
+
+.switching-analysis-message {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 14px;
+  border-radius: 16px;
+  border: 1px solid #e2e8f0;
+}
+
+.switching-analysis-message strong {
+  font-size: 14px;
+  font-weight: 900;
+}
+
+.switching-analysis-message span {
+  font-size: 13px;
+}
+
+.switching-analysis-message.has-suggestion {
+  background: #fff7ed;
+  border-color: #fdba74;
+  color: #9a3412;
+}
+
+.switching-analysis-message.no-suggestion {
+  background: #f8fafc;
+  border-color: #e2e8f0;
+  color: #475569;
+}
+
+.switching-history-preview {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.result-pill {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 58px;
+  padding: 5px 9px;
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 900;
+  line-height: 1;
+}
+
+.result-pill.pass {
+  color: #166534;
+  background: #f0fdf4;
+  border: 1px solid #bbf7d0;
+}
+
+.result-pill.fail {
+  color: #991b1b;
+  background: #fff1f2;
+  border: 1px solid #fecdd3;
+}
+
+.result-pill.neutral {
+  color: #475569;
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+}
+
+@media (max-width: 900px) {
+  .switching-analysis-summary {
+    grid-template-columns: 1fr;
+  }
 }
 </style>
