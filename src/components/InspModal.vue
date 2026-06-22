@@ -5,6 +5,7 @@ import { useInspectionsStore } from "../stores/inspections";
 import { getSamplingPlan } from "../utils/sampling/nbr5426";
 import { resolveSamplingSnapshot } from "../utils/sampling/resolveSamplingSnapshot";
 import { useAuthStore } from "../stores/auth";
+import { useSwitchingStore } from "../stores/switching";
 
 /*async function createInspectionFromPlan(plan) {
   // lotSize vem do input do usuário (principalmente para NBR)
@@ -40,6 +41,16 @@ const emit = defineEmits(["close"]);
 const plans = usePlansStore();
 const insps = useInspectionsStore();
 const auth = useAuthStore();
+
+const switching = useSwitchingStore();
+
+const switchingAnalysis = ref(null);
+const switchingChecking = ref(false);
+const switchingCheckError = ref("");
+
+const showSwitchingApprovalModal = ref(false);
+const switchingPassword = ref("");
+const switchingActionLoading = ref(false);
 
 // ----------------- CAMPOS -----------------
 const planId = ref("");
@@ -142,8 +153,60 @@ const selectedPlan = computed(
   () => planList.value.find((p) => String(p.id) === String(planId.value)) || null
 );
 
+const canManageSwitching = computed(() => {
+  return Number(auth.accessLevel || 3) <= 2;
+});
+
+const hasPendingSwitching = computed(() => {
+  return selectedPlan.value?.switchingStatus === "pendente";
+});
+
+const inspectionBlockedBySwitching = computed(() => {
+  if (!selectedPlan.value) return false;
+
+  return Boolean(
+    switchingChecking.value ||
+      switchingCheckError.value ||
+      hasPendingSwitching.value ||
+      switchingAnalysis.value?.hasSuggestion
+  );
+});
+
+function regimeLabel(value) {
+  const regime = String(value || "normal").toLowerCase();
+
+  if (regime === "atenuada") return "Atenuada";
+  if (regime === "severa") return "Severa";
+
+  return "Normal";
+}
+
 function planOptionLabel(p) {
   return `${p.pn || "SEM PN"} — ${p.model || "-"} — ${p.name || "-"}`;
+}
+
+async function refreshSwitchingAnalysis() {
+  const p = selectedPlan.value;
+
+  switchingAnalysis.value = null;
+  switchingCheckError.value = "";
+
+  if (!p?.id) return;
+
+  switchingChecking.value = true;
+
+  try {
+    const data = await switching.analyzePlan(p.id);
+
+    switchingAnalysis.value = data.analysis || null;
+  } catch (error) {
+    console.error("Erro ao analisar comutação do plano:", error);
+
+    switchingCheckError.value =
+      error?.message || "Não foi possível validar a situação de comutação deste plano.";
+  } finally {
+    switchingChecking.value = false;
+  }
 }
 
 function selectPlanBySearch() {
@@ -697,9 +760,15 @@ function computePlanSamplingFromSelectedPlan() {
 }
 
 // recalcula quando muda plano/lotSize (apenas em criação)
-watch([planId, lotSize], () => {
-  if (isEdit.value) return;
+watch([planId, lotSize], async () => {
   computePlanSamplingFromSelectedPlan();
+
+  if (planId.value) {
+    await refreshSwitchingAnalysis();
+  } else {
+    switchingAnalysis.value = null;
+    switchingCheckError.value = "";
+  }
 });
 
 // ----------------- ABRIR MODAL -----------------
@@ -926,9 +995,87 @@ async function createReinspection() {
   }
 }
 
+async function registerSwitchingSuggestion() {
+  const p = selectedPlan.value;
+
+  if (!p?.id || !switchingAnalysis.value?.hasSuggestion) return;
+
+  const ok = confirm("Registrar esta sugestão de comutação como pendente de aprovação?");
+
+  if (!ok) return;
+
+  switchingActionLoading.value = true;
+
+  try {
+    await switching.suggestPlan(p.id);
+
+    await plans.load();
+    await refreshSwitchingAnalysis();
+
+    alert(
+      "Sugestão registrada.\n\n" +
+        "Agora é necessário informar a senha de comutação para liberar o plano."
+    );
+  } catch (error) {
+    console.error("Erro ao registrar sugestão de comutação:", error);
+    alert(error?.message || "Não foi possível registrar a sugestão.");
+  } finally {
+    switchingActionLoading.value = false;
+  }
+}
+
+async function approveSwitchingFromInspection() {
+  const p = selectedPlan.value;
+
+  if (!p?.id) return;
+
+  if (!String(switchingPassword.value || "").trim()) {
+    return alert("Informe a senha de comutação.");
+  }
+
+  const approvedBy = {
+    id: auth.user?.id,
+    name: auth.userName || "",
+    username: auth.user?.username || "",
+    role: auth.role || "",
+    accessLevel: auth.accessLevel,
+  };
+
+  switchingActionLoading.value = true;
+
+  try {
+    await switching.approvePlan(p.id, switchingPassword.value, approvedBy);
+
+    switchingPassword.value = "";
+    showSwitchingApprovalModal.value = false;
+
+    await plans.load();
+    await refreshSwitchingAnalysis();
+
+    computePlanSamplingFromSelectedPlan();
+
+    alert(
+      "Comutação aprovada com sucesso.\n\n" +
+        "O plano foi liberado com o novo regime de inspeção."
+    );
+  } catch (error) {
+    console.error("Erro ao aprovar comutação:", error);
+    alert(error?.message || "Não foi possível aprovar a comutação.");
+  } finally {
+    switchingActionLoading.value = false;
+  }
+}
+
 // ----------------- AÇÕES -----------------
 async function createDraft() {
   const p = selectedPlan.value;
+
+  if (inspectionBlockedBySwitching.value) {
+    return alert(
+      "Esta inspeção está bloqueada por necessidade de comutação.\n\n" +
+        "Solicite a confirmação da liderança antes de continuar."
+    );
+  }
   if (!p) return alert("Selecione um plano");
   if (!lot.value.trim()) return alert("Preencha o lote");
   if (!resp.value.trim()) return alert("Preencha o responsável");
@@ -1307,6 +1454,85 @@ Motivo: ${p.reason}`;
         </div>
       </div>
 
+      <div v-if="selectedPlan && switchingChecking" class="switching-gate checking">
+        <strong>Validando comutação do plano...</strong>
+        <span>Aguarde antes de iniciar a inspeção.</span>
+      </div>
+
+      <div v-else-if="selectedPlan && switchingCheckError" class="switching-gate blocked">
+        <strong>Não foi possível validar a comutação deste plano.</strong>
+        <span>
+          A inspeção foi bloqueada por segurança. Solicite suporte da liderança.
+        </span>
+      </div>
+
+      <div v-else-if="selectedPlan && hasPendingSwitching" class="switching-gate blocked">
+        <strong>Comutação pendente de aprovação</strong>
+
+        <span> Este plano está bloqueado até a confirmação da liderança. </span>
+
+        <div class="switching-gate-details">
+          <span>
+            Regime atual:
+            <b>{{ regimeLabel(selectedPlan.inspectionRegime) }}</b>
+          </span>
+
+          <span>
+            Regime sugerido:
+            <b>{{ regimeLabel(selectedPlan.suggestedRegime) }}</b>
+          </span>
+        </div>
+
+        <button
+          v-if="canManageSwitching"
+          class="btn"
+          type="button"
+          @click="showSwitchingApprovalModal = true"
+        >
+          Aprovar comutação
+        </button>
+
+        <small v-else>
+          Solicite a aprovação da liderança para continuar esta inspeção.
+        </small>
+      </div>
+
+      <div
+        v-else-if="selectedPlan && switchingAnalysis?.hasSuggestion"
+        class="switching-gate suggestion"
+      >
+        <strong>Comutação necessária para este plano</strong>
+
+        <span>
+          {{ switchingAnalysis.reason }}
+        </span>
+
+        <div class="switching-gate-details">
+          <span>
+            Regime atual:
+            <b>{{ regimeLabel(switchingAnalysis.currentRegime) }}</b>
+          </span>
+
+          <span>
+            Regime sugerido:
+            <b>{{ regimeLabel(switchingAnalysis.suggestedRegime) }}</b>
+          </span>
+        </div>
+
+        <button
+          v-if="canManageSwitching"
+          class="btn"
+          type="button"
+          @click="registerSwitchingSuggestion"
+        >
+          Registrar sugestão para aprovação
+        </button>
+
+        <small v-else>
+          Solicite a confirmação da liderança antes de iniciar esta inspeção.
+        </small>
+      </div>
+
       <div class="hr"></div>
 
       <h4 class="insp-section-title">Características e amostras</h4>
@@ -1527,8 +1753,19 @@ Motivo: ${p.reason}`;
       <div class="hstack" style="justify-content: flex-end; gap: 8px">
         <button class="btn ghost" type="button" @click="emit('close')">Cancelar</button>
 
-        <button v-if="!isEdit" class="btn" type="button" @click="createDraft">
-          Criar inspeção (rascunho)
+        <button
+          v-if="!isEdit"
+          class="btn"
+          :class="{ 'btn-switching-blocked': inspectionBlockedBySwitching }"
+          type="button"
+          :disabled="inspectionBlockedBySwitching"
+          @click="createDraft"
+        >
+          {{
+            inspectionBlockedBySwitching
+              ? "Bloqueado: aprovação necessária"
+              : "Criar inspeção (rascunho)"
+          }}
         </button>
 
         <template v-else>
@@ -1544,6 +1781,60 @@ Motivo: ${p.reason}`;
             Inspeção finalizada. Somente leitura.
           </span>
         </template>
+      </div>
+    </div>
+  </div>
+  <div
+    v-if="showSwitchingApprovalModal"
+    class="modal show"
+    @click.self="showSwitchingApprovalModal = false"
+  >
+    <div class="sheet vstack switching-password-modal">
+      <div class="hstack" style="justify-content: space-between; align-items: center">
+        <h3>Aprovar comutação</h3>
+
+        <button
+          class="btn ghost"
+          type="button"
+          @click="showSwitchingApprovalModal = false"
+        >
+          Fechar
+        </button>
+      </div>
+
+      <div class="hr"></div>
+
+      <p class="switching-password-text">
+        Confirme a comutação do plano usando a senha cadastrada pela liderança.
+      </p>
+
+      <label class="float-label">
+        <input
+          v-model="switchingPassword"
+          type="password"
+          placeholder=" "
+          @keyup.enter="approveSwitchingFromInspection"
+        />
+        <span>Senha de comutação</span>
+      </label>
+
+      <div class="hstack" style="justify-content: flex-end; gap: 8px">
+        <button
+          class="btn ghost"
+          type="button"
+          @click="showSwitchingApprovalModal = false"
+        >
+          Cancelar
+        </button>
+
+        <button
+          class="btn"
+          type="button"
+          :disabled="switchingActionLoading"
+          @click="approveSwitchingFromInspection"
+        >
+          Confirmar e liberar plano
+        </button>
       </div>
     </div>
   </div>
@@ -1725,5 +2016,77 @@ Motivo: ${p.reason}`;
   font-size: 12px;
   color: var(--text, #111827);
   font-weight: 700;
+}
+
+.switching-gate {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-top: 12px;
+  padding: 14px;
+  border-radius: 14px;
+  border: 1px solid #e2e8f0;
+}
+
+.switching-gate strong {
+  font-size: 14px;
+  font-weight: 900;
+}
+
+.switching-gate span {
+  font-size: 13px;
+  line-height: 1.4;
+}
+
+.switching-gate small {
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.switching-gate.checking {
+  background: #f8fafc;
+  color: #475569;
+}
+
+.switching-gate.suggestion {
+  background: #fff7ed;
+  border-color: #fdba74;
+  color: #9a3412;
+}
+
+.switching-gate.blocked {
+  background: #fff1f2;
+  border-color: #fecdd3;
+  color: #991b1b;
+}
+
+.switching-gate-details {
+  display: flex;
+  gap: 14px;
+  flex-wrap: wrap;
+  font-size: 13px;
+}
+
+.switching-password-modal {
+  max-width: 520px;
+}
+
+.switching-password-text {
+  margin: 0;
+  font-size: 14px;
+  color: var(--muted, #64748b);
+}
+
+.btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+  filter: grayscale(0.35);
+  pointer-events: none;
+}
+
+.btn-switching-blocked {
+  background: #e5e7eb !important;
+  border-color: #d1d5db !important;
+  color: #6b7280 !important;
 }
 </style>

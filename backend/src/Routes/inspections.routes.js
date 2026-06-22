@@ -3,6 +3,90 @@ import { db } from "../db.js";
 
 const router = express.Router();
 
+function normalizeResult(value) {
+  const result = String(value || "").trim().toUpperCase();
+
+  if (["PASS", "APROVADO", "OK"].includes(result)) return "PASS";
+  if (["FAIL", "REPROVADO", "NG"].includes(result)) return "FAIL";
+
+  return result;
+}
+
+function normalizeRegime(value) {
+  const regime = String(value || "normal").trim().toLowerCase();
+
+  if (regime === "atenuada") return "atenuada";
+  if (regime === "severa") return "severa";
+
+  return "normal";
+}
+
+function needsSwitching(currentRegime, inspections = []) {
+  const regime = normalizeRegime(currentRegime);
+
+  const history = inspections.map((item) => ({
+    result: normalizeResult(item.result),
+  }));
+
+  const last10 = history.slice(0, 10);
+  const last5 = history.slice(0, 5);
+  const last1 = history.slice(0, 1);
+
+  if (
+    regime === "normal" &&
+    last10.length >= 10 &&
+    last10.every((item) => item.result === "PASS")
+  ) {
+    return {
+      blocked: true,
+      suggestedRegime: "atenuada",
+      reason: "10 lotes consecutivos aprovados.",
+    };
+  }
+
+  if (regime === "normal") {
+    const failCount = last5.filter((item) => item.result === "FAIL").length;
+
+    if (last5.length >= 5 && failCount >= 2) {
+      return {
+        blocked: true,
+        suggestedRegime: "severa",
+        reason: "2 lotes reprovados dentro dos últimos 5 lotes consecutivos.",
+      };
+    }
+  }
+
+  if (
+    regime === "atenuada" &&
+    last1.length >= 1 &&
+    last1[0].result === "FAIL"
+  ) {
+    return {
+      blocked: true,
+      suggestedRegime: "normal",
+      reason: "1 lote reprovado em inspeção atenuada.",
+    };
+  }
+
+  if (
+    regime === "severa" &&
+    last5.length >= 5 &&
+    last5.every((item) => item.result === "PASS")
+  ) {
+    return {
+      blocked: true,
+      suggestedRegime: "normal",
+      reason: "5 lotes consecutivos aprovados em inspeção severa.",
+    };
+  }
+
+  return {
+    blocked: false,
+    suggestedRegime: null,
+    reason: "",
+  };
+}
+
 function mapInspection(row) {
   return {
     id: String(row.id),
@@ -131,11 +215,14 @@ router.post("/", async (req, res) => {
       const planResult = await db.query(
         `
         SELECT
-          id,
-          inspection_regime,
-          n
-        FROM public.plans
-        WHERE id = $1
+  id,
+  inspection_regime,
+  switching_status,
+  suggested_regime,
+  switching_reason,
+  n
+FROM public.plans
+WHERE id = $1
         `,
         [p.plan_id || p.planId]
       );
@@ -158,6 +245,50 @@ router.post("/", async (req, res) => {
           p.planSamples ||
           0
       ) || null;
+
+      if (planSnapshot?.switching_status === "pendente") {
+  return res.status(409).json({
+    ok: false,
+    message:
+      "Inspeção bloqueada. Este plano possui comutação pendente de aprovação da liderança.",
+    switching: {
+      suggestedRegime: planSnapshot.suggested_regime || null,
+      reason: planSnapshot.switching_reason || "",
+    },
+  });
+}
+
+if (planSnapshot?.id) {
+  const historyResult = await db.query(
+    `
+    SELECT
+      result,
+      finished_at,
+      created_at
+    FROM public.inspections
+    WHERE plan_id = $1
+      AND finished_at IS NOT NULL
+      AND result IS NOT NULL
+    ORDER BY finished_at DESC, created_at DESC
+    LIMIT 10
+    `,
+    [planSnapshot.id]
+  );
+
+  const switchingCheck = needsSwitching(
+    planSnapshot.inspection_regime,
+    historyResult.rows
+  );
+
+  if (switchingCheck.blocked) {
+    return res.status(409).json({
+      ok: false,
+      message:
+        "Inspeção bloqueada. Este plano atende critério para comutação e precisa de confirmação da liderança.",
+      switching: switchingCheck,
+    });
+  }
+}
 
     const result = await db.query(
       `
