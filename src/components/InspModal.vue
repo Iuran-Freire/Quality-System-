@@ -716,7 +716,14 @@ function computePlanSamplingFromSelectedPlan() {
   }
 
   try {
-    const sp = getSamplingPlan({ lotSize: ls, aql, level });
+    const regime = selectedPlan.value?.inspectionRegime || "normal";
+
+    const sp = getSamplingPlan({
+      lotSize: ls,
+      aql,
+      level,
+      regime,
+    });
 
     samplingSnapRef.value = {
       mode: "nbr5426",
@@ -724,6 +731,8 @@ function computePlanSamplingFromSelectedPlan() {
       level,
       inspectionLevel: sp.inspectionLevel ?? level,
       aql: sp.aql ?? aql,
+      inspectionRegime: sp.inspectionRegime ?? regime,
+      returnToNormalOnDelta: Boolean(sp.returnToNormalOnDelta),
 
       // código inicial da tabela 1
       codeLetter: sp.codeLetter,
@@ -1269,7 +1278,19 @@ Motivo: ${p.reason}`;
 
       <div class="hr"></div>
 
-      <h4 class="insp-section-title">Dados da inspeção</h4>
+      <div class="inspection-section-heading">
+        <h4 class="insp-section-title">Dados da inspeção</h4>
+
+        <span
+          v-if="selectedPlan"
+          class="regime-badge"
+          :class="`regime-${String(selectedPlan?.inspectionRegime || 'normal')
+            .toLowerCase()
+            .trim()}`"
+        >
+          Regime: {{ regimeLabel(selectedPlan?.inspectionRegime) }}
+        </span>
+      </div>
 
       <div
         v-if="hasLinkedReinspection && !insp?.isReinspection"
@@ -1425,6 +1446,9 @@ Motivo: ${p.reason}`;
         <div class="span-6" v-if="isNbrPlan && !isEdit" style="margin-top: -6px">
           <div style="font-size: 13px; color: var(--muted)">
             <b>NBR 5426:</b>
+
+            <!-- Regime exibido no título da seção acima -->
+
             <template v-if="samplingSnapRef?.error">
               {{ samplingSnapRef.error }}
             </template>
@@ -2088,5 +2112,80 @@ Motivo: ${p.reason}`;
   background: #e5e7eb !important;
   border-color: #d1d5db !important;
   color: #6b7280 !important;
+}
+
+.regime-badge {
+  display: inline-flex;
+  align-items: center;
+  margin-left: 8px;
+  padding: 3px 9px;
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 0.2px;
+  vertical-align: middle;
+}
+
+.regime-normal {
+  color: #1d4ed8;
+  background: #dbeafe;
+  border: 1px solid #93c5fd;
+}
+
+.regime-atenuada {
+  color: #166534;
+  background: #dcfce7;
+  border: 1px solid #86efac;
+}
+
+.regime-severa {
+  color: #991b1b;
+  background: #fee2e2;
+  border: 1px solid #fca5a5;
+}
+.nbr-summary {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  padding: 10px 12px;
+  border-left: 3px solid #f59e0b;
+  border-radius: 8px;
+  background: #fffbeb;
+}
+
+.nbr-summary-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.nbr-summary-header b {
+  color: #92400e;
+  font-size: 13px;
+}
+
+.nbr-summary-result {
+  font-size: 13px;
+  color: var(--muted);
+}
+
+.inspection-section-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 12px;
+}
+
+.inspection-section-heading .insp-section-title {
+  margin: 0;
+}
+
+.inspection-section-heading .regime-badge {
+  margin-left: 0;
+  padding: 6px 12px;
+  font-size: 12px;
+  box-shadow: 0 1px 2px rgb(0 0 0 / 8%);
 }
 </style>

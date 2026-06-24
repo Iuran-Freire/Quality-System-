@@ -1,5 +1,9 @@
 import { getCodeLetter } from "./nbr5426_levels";
-import { AQL_TABLE, SAMPLE_SIZE_BY_CODE } from "./nbr5426_table";
+import {
+  getAqlTableByRegime,
+  getSampleSizeByRegime,
+  NBR_REGIME_TABLES_READY,
+} from "./nbr5426_table";
 
 function normalizeAql(aql) {
   const value = Number(String(aql ?? "").replace(",", "."));
@@ -11,55 +15,78 @@ function normalizeAql(aql) {
   return value;
 }
 
-function findPlan(code, aql) {
-  const row = AQL_TABLE[code];
-
-  if (!row) {
-    throw new Error(`Código ${code} não encontrado na tabela AQL`);
-  }
+function findPlan(code, aql, regime = "normal") {
+  const aqlTable = getAqlTableByRegime(regime);
+  const sampleSizeTable = getSampleSizeByRegime(regime);
 
   const aqlValue = normalizeAql(aql);
 
-  const keys = Object.keys(row)
-    .map(Number)
-    .sort((a, b) => a - b);
+  const codeOrder = [
+    "A", "B", "C", "D", "E", "F", "G", "H",
+    "J", "K", "L", "M", "N", "P", "Q", "R", "S",
+  ];
 
-  const selectedAql = keys.find((k) => aqlValue <= k) ?? keys[keys.length - 1];
+  const currentIndex = codeOrder.indexOf(code);
 
-  let effectiveCodeLetter = code;
-  let entry = AQL_TABLE[effectiveCodeLetter]?.[selectedAql];
+  if (currentIndex === -1) {
+    throw new Error(`Código de amostragem inválido: ${code}`);
+  }
 
-  if (!entry) {
+  const availableCodes = codeOrder.filter((letter) => {
+    const row = aqlTable[letter];
+
+    if (!row) return false;
+
+    return row[aqlValue]?.ac != null && row[aqlValue]?.re != null;
+  });
+
+  if (!availableCodes.length) {
     throw new Error(
-      `Plano não encontrado para código ${code} e AQL ${selectedAql}`
+      `Não existe plano disponível para AQL ${aqlValue} no regime ${regime}`
     );
   }
 
-  // Resolve setas da Tabela 2.
-  // Exemplo: J + AQL 0.4 => { use: "K" }
-  let guard = 0;
-  const switchPath = [code];
+  let effectiveCodeLetter = code;
+  let entry = aqlTable[effectiveCodeLetter]?.[aqlValue];
 
-  while (entry?.use) {
-    effectiveCodeLetter = entry.use;
-    switchPath.push(effectiveCodeLetter);
+  if (!entry || entry.arrow) {
+    const requestedIndex = codeOrder.indexOf(code);
 
-    entry = AQL_TABLE[effectiveCodeLetter]?.[selectedAql];
+    const codesBelow = availableCodes.filter(
+      (letter) => codeOrder.indexOf(letter) > requestedIndex
+    );
 
-    guard++;
+    const codesAbove = availableCodes.filter(
+      (letter) => codeOrder.indexOf(letter) < requestedIndex
+    );
 
-    if (guard > 20) {
-      throw new Error("Loop detectado ao resolver seta da NBR 5426");
+    const firstBelow = codesBelow[0] || null;
+    const firstAbove = codesAbove[codesAbove.length - 1] || null;
+
+    if (entry?.arrow === "up") {
+      effectiveCodeLetter = firstAbove;
+    } else if (entry?.arrow === "down") {
+      effectiveCodeLetter = firstBelow;
+    } else {
+      effectiveCodeLetter = firstBelow || firstAbove;
     }
 
-    if (!entry) {
+    if (!effectiveCodeLetter) {
       throw new Error(
-        `Código indicado pela seta não encontrado: ${effectiveCodeLetter}, AQL ${selectedAql}`
+        `Não foi possível resolver a seta para código ${code}, AQL ${aqlValue}`
       );
     }
+
+    entry = aqlTable[effectiveCodeLetter]?.[aqlValue];
   }
 
-  const sampleN = SAMPLE_SIZE_BY_CODE[effectiveCodeLetter];
+  if (!entry || entry.ac == null || entry.re == null) {
+    throw new Error(
+      `Plano não encontrado para código ${code}, AQL ${aqlValue} e regime ${regime}`
+    );
+  }
+
+  const sampleN = sampleSizeTable[effectiveCodeLetter];
 
   if (!sampleN) {
     throw new Error(
@@ -67,21 +94,16 @@ function findPlan(code, aql) {
     );
   }
 
-  if (entry.ac == null || entry.re == null) {
-    throw new Error(
-      `Ac/Re não encontrado para código ${effectiveCodeLetter} e AQL ${selectedAql}`
-    );
-  }
-
   return {
     initialCodeLetter: code,
     effectiveCodeLetter,
-    selectedAql,
+    selectedAql: aqlValue,
     sampleN,
     ac: entry.ac,
     re: entry.re,
+    returnToNormalOnDelta: Boolean(entry.returnToNormalOnDelta),
     switched: code !== effectiveCodeLetter,
-    switchPath,
+    switchPath: [code, effectiveCodeLetter],
   };
 }
 
@@ -90,19 +112,30 @@ export function getSamplingPlan({
   aql = 1.0,
   level,
   inspectionLevel,
+  regime = "normal",
 } = {}) {
+  if (
+  regime !== "normal" &&
+  !NBR_REGIME_TABLES_READY
+) {
+  throw new Error(
+    "Tabela NBR 5426 para inspeção Atenuada/Severa ainda está em validação."
+  );
+}
   const finalLevel = level || inspectionLevel || "II";
 
-  const { codeLetter, sampleN: initialSampleN } = getCodeLetter(
-    lotSize,
-    finalLevel
-  );
+  const { codeLetter } = getCodeLetter(lotSize, finalLevel);
+
+  const sampleSizeTable = getSampleSizeByRegime(regime);
+
+  const initialSampleN = sampleSizeTable[codeLetter];
 
   const finalAql = normalizeAql(aql);
-const plan = findPlan(codeLetter, finalAql);
+const plan = findPlan(codeLetter, finalAql, regime);
 
 return {
   mode: "nbr5426",
+  inspectionRegime: regime,
   lotSize: Number(lotSize),
   level: finalLevel,
   inspectionLevel: finalLevel,
@@ -121,6 +154,7 @@ return {
     re: plan.re,
     accept: plan.ac,
     reject: plan.re,
+    returnToNormalOnDelta: plan.returnToNormalOnDelta,
 
     switchPath: plan.switchPath,
     switched: plan.initialCodeLetter !== plan.effectiveCodeLetter,
