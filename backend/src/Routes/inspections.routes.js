@@ -328,118 +328,117 @@ if (planSnapshot?.id) {
   }
 }
 
-    const result = await db.query(
-      `
-      INSERT INTO inspections (
-        id,
-        plan_id,
-        plan_name,
-        type,
-        pn,
-        model,
-        client,
-        supplier,
-        lot,
-        invoice,
-        lot_size,
-        shift,
-        resp,
-        obs,
-        status,
-        result,
-        sampling,
-        started_at,
-        finished_at,
-        created_by,
-        created_by_user,
-        created_by_role,
-        updated_by,
-        updated_by_user,
-        updated_by_role,
-        finished_by,
-        finished_by_user,
-        finished_by_role,
-        plan_samples,
-        plan_box_qty,
-        box_qty,
-        sampling,
-        chars,
-        samples,
-        parent_inspection_id,
-        is_reinspection,
-        inspection_cycle,
-        created_at,
-        updated_at,
-        inspection_regime_snapshot,
-        sample_n_snapshot
-      )
-      VALUES (
-        $1, $2, $3, $4, $5, $6, $7, $8,
-        $9, $10, $11, $12, $13, $14, $15, $16,
-        $17, $18, $19, $20, $21, $22, $23, $24,
-        $25, $26, $27, $28, $29, $30,
-        $31::jsonb, $32::jsonb, $33::jsonb,
-        $34, $35, $36,
-        $37, $38, $39, $40
-      )
-      RETURNING *
-      `,
-      [
-        p.id || crypto.randomUUID(),
+   const result = await db.query(
+  `
+  INSERT INTO inspections (
+    id,
+    plan_id,
+    plan_name,
+    type,
+    pn,
+    model,
+    client,
+    supplier,
+    lot,
+    invoice,
+    lot_size,
+    shift,
+    resp,
+    obs,
+    status,
+    result,
+    started_at,
+    finished_at,
+    created_by,
+    created_by_user,
+    created_by_role,
+    updated_by,
+    updated_by_user,
+    updated_by_role,
+    finished_by,
+    finished_by_user,
+    finished_by_role,
+    plan_samples,
+    plan_box_qty,
+    box_qty,
+    sampling,
+    chars,
+    samples,
+    parent_inspection_id,
+    is_reinspection,
+    inspection_cycle,
+    created_at,
+    updated_at,
+    inspection_regime_snapshot,
+    sample_n_snapshot
+  )
+  VALUES (
+    $1, $2, $3, $4, $5, $6, $7, $8,
+    $9, $10, $11, $12, $13, $14, $15, $16,
+    $17, $18, $19, $20, $21, $22, $23, $24,
+    $25, $26, $27, $28, $29, $30,
+    $31::jsonb, $32::jsonb, $33::jsonb,
+    $34, $35, $36,
+    $37, $38, $39, $40
+  )
+  RETURNING *
+  `,
+  [
+    p.id || crypto.randomUUID(),
 
-        p.planId || p.plan_id || null,
-        p.planName || "",
+    p.planId || p.plan_id || null,
+    p.planName || "",
 
-        p.type || "IQC",
-        p.pn || "",
-        p.model || "",
-        p.client || "",
-        p.supplier || "",
+    p.type || "IQC",
+    p.pn || "",
+    p.model || "",
+    p.client || "",
+    p.supplier || "",
 
-        p.lot || "",
-        p.invoice || "",
-        p.lotSize == null || p.lotSize === "" ? null : Number(p.lotSize),
-        p.shift || "",
-        p.resp || "",
-        p.obs || "",
+    p.lot || "",
+    p.invoice || "",
+    p.lotSize == null || p.lotSize === "" ? null : Number(p.lotSize),
+    p.shift || "",
+    p.resp || "",
+    p.obs || "",
 
-        p.status || "draft",
-        p.result || null,
+    p.status || "draft",
+    p.result || null,
 
-        p.startedAt || new Date().toISOString(),
-        p.finishedAt || null,
+    p.startedAt || new Date().toISOString(),
+    p.finishedAt || null,
 
-        p.createdBy || "",
-        p.createdByUser || "",
-        p.createdByRole || "",
+    p.createdBy || "",
+    p.createdByUser || "",
+    p.createdByRole || "",
 
-        p.updatedBy || "",
-        p.updatedByUser || "",
-        p.updatedByRole || "",
+    p.updatedBy || "",
+    p.updatedByUser || "",
+    p.updatedByRole || "",
 
-        p.finishedBy || "",
-        p.finishedByUser || "",
-        p.finishedByRole || "",
+    p.finishedBy || "",
+    p.finishedByUser || "",
+    p.finishedByRole || "",
 
-        Number(p.planSamples ?? sampleNSnapshot ?? 5),
-        Number(p.planBoxQty ?? 2),
-        Number(p.boxQty ?? p.planBoxQty ?? 2),
+    Number(p.planSamples ?? sampleNSnapshot ?? 5),
+    Number(p.planBoxQty ?? 2),
+    Number(p.boxQty ?? p.planBoxQty ?? 2),
 
-        JSON.stringify(p.sampling || null),
-        JSON.stringify(p.chars || []),
-        JSON.stringify(p.samples || {}),
+    JSON.stringify(p.sampling || null),
+    JSON.stringify(p.chars || []),
+    JSON.stringify(p.samples || {}),
 
-        p.parentInspectionId || null,
-        Boolean(p.isReinspection),
-        Number(p.inspectionCycle ?? 1),
+    p.parentInspectionId || null,
+    Boolean(p.isReinspection),
+    Number(p.inspectionCycle ?? 1),
 
-        p.createdAt || new Date().toISOString(),
-        p.updatedAt || new Date().toISOString(),
+    p.createdAt || new Date().toISOString(),
+    p.updatedAt || new Date().toISOString(),
 
-        inspectionRegimeSnapshot,
-        sampleNSnapshot,
-      ]
-    );
+    inspectionRegimeSnapshot,
+    sampleNSnapshot,
+  ]
+);
 
     res.status(201).json({
       ok: true,

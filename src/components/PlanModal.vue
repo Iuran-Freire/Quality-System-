@@ -105,6 +105,20 @@ function normalizeChar(raw) {
   c.usl = c.usl ?? "";
   c.unit = c.unit ?? "";
   c.method = c.method ?? "";
+  c.traceOnly = false;
+
+  if (c.kind === "scanner") {
+    c.resultMode = null;
+    c.sampleN = null;
+    c.traceOnly = true;
+    c.lsl = "";
+    c.usl = "";
+    c.unit = "";
+    c.category =
+      c.category && c.category !== "Dimensional" ? c.category : "Rastreabilidade";
+
+    return c;
+  }
 
   if (c.kind === "visual_caixa") {
     c.resultMode = null;
@@ -270,6 +284,8 @@ function cloneCharacteristicsFromPlan() {
 }
 
 function addChar(kind = "variavel") {
+  const isScanner = kind === "scanner";
+
   form.chars.push({
     id: cid(),
     kind,
@@ -278,16 +294,21 @@ function addChar(kind = "variavel") {
     usl: "",
     unit: "",
     method: "",
-    category:
-      kind === "visual_produto" || kind === "visual_caixa"
-        ? "Visual"
-        : kind === "teste_especial"
-        ? "Funcional"
-        : "Dimensional",
+
+    category: isScanner
+      ? "Rastreabilidade"
+      : kind === "visual_produto" || kind === "visual_caixa"
+      ? "Visual"
+      : kind === "teste_especial"
+      ? "Funcional"
+      : "Dimensional",
 
     resultMode: kind === "teste_especial" ? "visual" : null,
 
+    // Scanner não tem N próprio: seguirá a amostragem do plano.
     sampleN: kind === "teste_especial" ? 1 : kind === "visual_caixa" ? 2 : null,
+
+    traceOnly: isScanner,
   });
 }
 
@@ -296,7 +317,30 @@ function removeChar(id) {
   if (i >= 0) form.chars.splice(i, 1);
 }
 
+function moveChar(index, direction) {
+  const targetIndex = index + direction;
+
+  if (targetIndex < 0 || targetIndex >= form.chars.length) return;
+
+  const current = form.chars[index];
+
+  form.chars.splice(index, 1);
+  form.chars.splice(targetIndex, 0, current);
+}
+
 function onKindChange(c) {
+  c.traceOnly = c.kind === "scanner";
+
+  if (c.kind === "scanner") {
+    c.resultMode = null;
+    c.sampleN = null;
+    c.lsl = "";
+    c.usl = "";
+    c.unit = "";
+    c.category = "Rastreabilidade";
+    return;
+  }
+
   if (c.kind === "visual_caixa") {
     c.resultMode = null;
 
@@ -382,6 +426,7 @@ watch(
 
 function charBadgeLabel(c) {
   if (c.kind === "variavel") return "Variável Numérica";
+  if (c.kind === "scanner") return "Scanner — Rastreabilidade";
   if (c.kind === "visual_caixa") return "Visual (Caixa)";
   if (c.kind === "visual_produto") return "Visual (Produto)";
 
@@ -476,6 +521,8 @@ async function save() {
             : kind === "visual_caixa"
             ? Math.max(1, Number(c.sampleN ?? 2) || 2)
             : null,
+
+        traceOnly: kind === "scanner",
       };
     })
     .filter((c) => c.name.length > 0)
@@ -856,6 +903,7 @@ async function save() {
           <button @click="addChar('variavel')">+ Variável (CPK)</button>
           <button @click="addChar('visual_produto')">+ Visual Produto</button>
           <button @click="addChar('visual_caixa')">+ Visual Caixa</button>
+          <button @click="addChar('scanner')">+ Scanner</button>
           <button @click="addChar('teste_especial')">+ Teste Especial</button>
         </div>
       </div>
@@ -866,7 +914,7 @@ async function save() {
       </div>
 
       <div
-        v-for="c in form.chars"
+        v-for="(c, index) in form.chars"
         :key="c.id"
         class="card"
         style="box-shadow: var(--shadow-min)"
@@ -875,9 +923,32 @@ async function save() {
           <div class="badge dot warn">
             {{ charBadgeLabel(c) }}
           </div>
-          <button class="btn ghost danger" type="button" @click="removeChar(c.id)">
-            Remover
-          </button>
+
+          <div class="hstack" style="gap: 6px">
+            <button
+              class="btn ghost move-char-btn"
+              type="button"
+              title="Mover para cima"
+              :disabled="index === 0"
+              @click="moveChar(index, -1)"
+            >
+              ↑
+            </button>
+
+            <button
+              class="btn ghost move-char-btn"
+              type="button"
+              title="Mover para baixo"
+              :disabled="index === form.chars.length - 1"
+              @click="moveChar(index, 1)"
+            >
+              ↓
+            </button>
+
+            <button class="btn ghost danger" type="button" @click="removeChar(c.id)">
+              Remover
+            </button>
+          </div>
         </div>
 
         <div class="row" style="margin-top: 10px">
@@ -885,7 +956,13 @@ async function save() {
             <label class="float-label">
               <input v-model="c.name" placeholder=" " />
               <span>
-                {{ c.kind === "teste_especial" ? "Nome do teste *" : "Característica *" }}
+                {{
+                  c.kind === "teste_especial"
+                    ? "Nome do teste *"
+                    : c.kind === "scanner"
+                    ? "Nome do campo de leitura *"
+                    : "Característica *"
+                }}
               </span>
             </label>
           </div>
@@ -961,6 +1038,7 @@ async function save() {
                 <option value="Funcional">Funcional</option>
                 <option value="Aparência">Aparência</option>
                 <option value="Outros">Outros</option>
+                <option value="Rastreabilidade">Rastreabilidade</option>
               </select>
               <span>Categoria</span>
             </label>
@@ -1049,5 +1127,18 @@ async function save() {
     flex-direction: column;
     align-items: stretch;
   }
+}
+
+.move-char-btn {
+  min-width: 38px;
+  padding: 6px 10px;
+  font-size: 18px;
+  font-weight: 800;
+  line-height: 1;
+}
+
+.move-char-btn:disabled {
+  opacity: 0.35;
+  cursor: not-allowed;
 }
 </style>

@@ -291,6 +291,65 @@ function shouldShowCpk(c) {
   return getCharKind(c) === "variavel";
 }
 
+function isScannerChar(c) {
+  return getCharKind(c) === "scanner";
+}
+
+function normalizeScannerCode(value) {
+  return String(value ?? "")
+    .trim()
+    .toUpperCase();
+}
+
+function scannerInputId(charId, index) {
+  return `scanner-${charId}-${index}`;
+}
+
+function isScannerDuplicate(values = [], index) {
+  const current = normalizeScannerCode(values[index]);
+
+  if (!current) return false;
+
+  return values.filter((value) => normalizeScannerCode(value) === current).length > 1;
+}
+
+function getScannerDuplicateCodes(values = []) {
+  const seen = new Set();
+  const duplicates = new Set();
+
+  for (const value of values) {
+    const code = normalizeScannerCode(value);
+
+    if (!code) continue;
+
+    if (seen.has(code)) {
+      duplicates.add(code);
+    } else {
+      seen.add(code);
+    }
+  }
+
+  return [...duplicates];
+}
+
+function handleScannerEnter(char, index) {
+  const currentValue = normalizeScannerCode(localSamples.value?.[char.id]?.[index]);
+
+  if (!currentValue) return;
+
+  localSamples.value[char.id][index] = currentValue;
+  markCharTrace(char);
+
+  const nextIndex = index + 1;
+
+  requestAnimationFrame(() => {
+    const nextInput = document.getElementById(scannerInputId(char.id, nextIndex));
+
+    nextInput?.focus();
+    nextInput?.select();
+  });
+}
+
 function isVisualChar(c) {
   const kind = getCharKind(c);
   const mode = getResultMode(c);
@@ -645,6 +704,7 @@ function kindLabel(c) {
 
   if (k === "variavel") return "Variável (CPK)";
   if (k === "visual_caixa") return "Visual – Caixa";
+  if (k === "scanner") return "Scanner - Rastreabilidade";
 
   if (k === "teste_especial") {
     return isNumericChar(c) ? "Teste Especial – Numérico" : "Teste Especial – OK/NG";
@@ -894,6 +954,18 @@ watch(
 
 // ----------------- RESULTADO (PASS/FAIL) -----------------
 function checkChar(c, vals = []) {
+  // SCANNER: obrigatório para rastreabilidade,
+  // mas não influencia PASS/FAIL.
+  if (isScannerChar(c)) {
+    const values = vals || [];
+
+    if (!values.length) return "EMPTY";
+
+    const allFilled = values.every((value) => Boolean(normalizeScannerCode(value)));
+
+    return allFilled ? "OK" : "EMPTY";
+  }
+
   // VISUAL PRODUTO / VISUAL CAIXA / TESTE ESPECIAL OK-NG
   if (isVisualChar(c)) {
     const total = (vals || []).length;
@@ -955,6 +1027,11 @@ function findInspectionProblems(chars, samples) {
 
   for (const c of chars || []) {
     const vals = samples?.[c.id] || [];
+    const scannerCodes = isScannerChar(c) ? vals.map(normalizeScannerCode) : [];
+
+    const duplicateScannerCodes = new Set(
+      scannerCodes.filter((code, index) => code && scannerCodes.indexOf(code) !== index)
+    );
 
     if (!vals.length) {
       problems.push({
@@ -983,6 +1060,22 @@ function findInspectionProblems(chars, samples) {
 
       const numeric = isNumericChar(c);
       const visual = isVisualChar(c);
+
+      if (isScannerChar(c)) {
+        const scannerCode = normalizeScannerCode(raw);
+
+        if (duplicateScannerCodes.has(scannerCode)) {
+          problems.push({
+            charName: c.name || "Scanner",
+            sample: idx + 1,
+            sampleLabel: `Amostra ${idx + 1}`,
+            value: raw,
+            reason: "código duplicado em outra amostra",
+          });
+        }
+
+        return;
+      }
 
       if (numeric) {
         const num = toNumber(raw);
@@ -1645,6 +1738,10 @@ Motivo: ${p.reason}`;
                   — Qtd. Caixas: {{ c.sampleN || 2 }}
                 </template>
 
+                <template v-else-if="isScannerChar(c)">
+                  — Rastreabilidade por leitura: {{ planSamplesRef }} peça(s)
+                </template>
+
                 <template v-else-if="getCharKind(c) === 'teste_especial'">
                   — Amostras: {{ c.sampleN || 1 }}
                 </template>
@@ -1675,6 +1772,10 @@ Motivo: ${p.reason}`;
               <template v-else-if="isNumericChar(c)">
                 <span class="cpk-pill cpk-warn">Numérico</span>
               </template>
+              <template v-else-if="isScannerChar(c)">
+                <span class="cpk-pill scanner-pill">Scanner</span>
+              </template>
+
               <template v-else>
                 <span class="cpk-pill cpk-warn">Visual</span>
               </template>
@@ -1720,6 +1821,28 @@ Motivo: ${p.reason}`;
                     <span class="char-stats-muted">
                       Numérico: preencha os valores dentro do mínimo e máximo definidos.
                     </span>
+                  </template>
+
+                  <template v-else-if="isScannerChar(c)">
+                    <div class="char-stats-muted scanner-summary">
+                      Scanner: bipa o código de cada peça da amostragem.
+
+                      <div class="visual-summary">
+                        <span class="total">
+                          Códigos lidos: {{ filledCount(c.id) }} / {{ totalCount(c.id) }}
+                        </span>
+
+                        <span
+                          v-if="getScannerDuplicateCodes(localSamples[c.id] || []).length"
+                          class="ng"
+                        >
+                          Duplicados:
+                          {{ getScannerDuplicateCodes(localSamples[c.id] || []).length }}
+                        </span>
+
+                        <span v-else class="ok"> Sem duplicidade </span>
+                      </div>
+                    </div>
                   </template>
 
                   <template v-else>
@@ -1791,8 +1914,44 @@ Motivo: ${p.reason}`;
                     :key="idx"
                     class="sample-cell"
                   >
+                    <!-- SCANNER / RASTREABILIDADE -->
+                    <template v-if="isScannerChar(c)">
+                      <label class="float-label scanner-input-wrap">
+                        <input
+                          :id="scannerInputId(c.id, idx)"
+                          v-model="localSamples[c.id][idx]"
+                          placeholder=" "
+                          autocomplete="off"
+                          :disabled="isDone"
+                          :class="{
+                            'scanner-duplicate': isScannerDuplicate(
+                              localSamples[c.id] || [],
+                              idx
+                            ),
+                          }"
+                          @input="markCharTrace(c)"
+                          @blur="
+                            localSamples[c.id][idx] = normalizeScannerCode(
+                              localSamples[c.id][idx]
+                            );
+                            markCharTrace(c);
+                          "
+                          @keyup.enter="handleScannerEnter(c, idx)"
+                        />
+
+                        <span>{{ visualLabel(c, idx) }} - Código bipado</span>
+                      </label>
+
+                      <small
+                        v-if="isScannerDuplicate(localSamples[c.id] || [], idx)"
+                        class="scanner-duplicate-text"
+                      >
+                        Código duplicado
+                      </small>
+                    </template>
+
                     <!-- VARIÁVEL OU TESTE ESPECIAL NUMÉRICO -->
-                    <template v-if="isNumericChar(c)">
+                    <template v-else-if="isNumericChar(c)">
                       <label class="float-label">
                         <input
                           v-model="localSamples[c.id][idx]"
@@ -2168,6 +2327,30 @@ Motivo: ${p.reason}`;
   cursor: not-allowed;
   filter: grayscale(0.35);
   pointer-events: none;
+}
+
+.scanner-pill {
+  color: #7c3aed;
+  background: #f3e8ff;
+  border: 1px solid #d8b4fe;
+}
+
+.scanner-input-wrap input {
+  font-family: monospace;
+  letter-spacing: 0.4px;
+}
+
+.scanner-duplicate {
+  border-color: #ef4444 !important;
+  background: #fff1f2 !important;
+}
+
+.scanner-duplicate-text {
+  display: block;
+  margin-top: 4px;
+  color: #b91c1c;
+  font-size: 11px;
+  font-weight: 800;
 }
 
 .btn-switching-blocked {
