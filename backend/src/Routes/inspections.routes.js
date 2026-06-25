@@ -21,16 +21,45 @@ function normalizeRegime(value) {
   return "normal";
 }
 
+function safeJson(value, fallback = {}) {
+  if (!value) return fallback;
+
+  if (typeof value === "object") return value;
+
+  try {
+    return JSON.parse(value);
+  } catch {
+    return fallback;
+  }
+}
+
 function needsSwitching(currentRegime, inspections = []) {
   const regime = normalizeRegime(currentRegime);
 
-  const history = inspections.map((item) => ({
-    result: normalizeResult(item.result),
-  }));
+ const history = inspections.map((item) => {
+  const sampling = safeJson(item.sampling, {});
 
-  const last10 = history.slice(0, 10);
-  const last5 = history.slice(0, 5);
-  const last1 = history.slice(0, 1);
+  return {
+  result: normalizeResult(item.result),
+  deltaTriggered: Boolean(sampling?.deltaTriggered),
+  inspectionRegimeSnapshot: String(
+    item.inspection_regime_snapshot || ""
+  )
+    .trim()
+    .toLowerCase(),
+};
+});
+  // Só considera lotes consecutivos feitos no regime atual.
+const consecutiveHistory = [];
+
+for (const item of history) {
+  if (item.inspectionRegimeSnapshot !== regime) break;
+  consecutiveHistory.push(item);
+}
+
+const last10 = consecutiveHistory.slice(0, 10);
+const last5 = consecutiveHistory.slice(0, 5);
+const last1 = consecutiveHistory.slice(0, 1);
 
   if (
     regime === "normal" &&
@@ -56,17 +85,24 @@ function needsSwitching(currentRegime, inspections = []) {
     }
   }
 
-  if (
-    regime === "atenuada" &&
-    last1.length >= 1 &&
-    last1[0].result === "FAIL"
-  ) {
+  if (regime === "atenuada" && last1.length >= 1) {
+  if (last1[0].deltaTriggered) {
+    return {
+      blocked: true,
+      suggestedRegime: "normal",
+      reason:
+        "Condição Δ identificada: retorno para inspeção Normal obrigatório nos lotes seguintes.",
+    };
+  }
+
+  if (last1[0].result === "FAIL") {
     return {
       blocked: true,
       suggestedRegime: "normal",
       reason: "1 lote reprovado em inspeção atenuada.",
     };
   }
+}
 
   if (
     regime === "severa" &&
@@ -263,6 +299,8 @@ if (planSnapshot?.id) {
     `
     SELECT
       result,
+      sampling,
+      inspection_regime_snapshot,
       finished_at,
       created_at
     FROM public.inspections
@@ -309,6 +347,7 @@ if (planSnapshot?.id) {
         obs,
         status,
         result,
+        sampling,
         started_at,
         finished_at,
         created_by,

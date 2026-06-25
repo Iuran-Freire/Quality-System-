@@ -13,7 +13,7 @@
 
 import { AQL_TABLE_REDUCED } from "./nbr5426_atenuada_table";
 import { AQL_TABLE_TIGHTENED } from "./nbr5426_severa_table";
-export const NBR_REGIME_TABLES_READY = false;
+export const NBR_REGIME_TABLES_READY = true;
 
 export const CODE_ORDER = [
   "A", "B", "C", "D", "E", "F", "G", "H",

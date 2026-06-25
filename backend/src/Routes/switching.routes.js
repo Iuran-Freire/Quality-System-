@@ -227,18 +227,39 @@ function getSampleNByRegime(plan, regime) {
 function analyzeSwitchingRule(currentRegime, inspections) {
   const regime = normalizeRegime(currentRegime);
 
-  const history = inspections.map((insp) => ({
+  const history = inspections.map((insp) => {
+  const sampling = safeJson(insp.sampling, {});
+
+  return {
     id: insp.id,
     lot: insp.lot,
     invoice: insp.invoice,
     result: normalizeResult(insp.result),
     finishedAt: insp.finished_at,
-  }));
+    deltaTriggered: Boolean(sampling?.deltaTriggered),
+    deltaDetails: Array.isArray(sampling?.deltaDetails)
+      ? sampling.deltaDetails
+      : [],
+      inspectionRegimeSnapshot: String(
+  insp.inspection_regime_snapshot || ""
+)
+  .trim()
+  .toLowerCase(),
+  };
+});
 
-  const last10 = history.slice(0, 10);
-  const last5 = history.slice(0, 5);
-  const last1 = history.slice(0, 1);
+ // Considera somente lotes consecutivos executados
+// no mesmo regime atual do plano.
+const consecutiveHistory = [];
 
+for (const item of history) {
+  if (item.inspectionRegimeSnapshot !== regime) break;
+  consecutiveHistory.push(item);
+}
+
+const last10 = consecutiveHistory.slice(0, 10);
+const last5 = consecutiveHistory.slice(0, 5);
+const last1 = consecutiveHistory.slice(0, 1);
   if (regime === "normal") {
     const has10Pass =
       last10.length >= 10 && last10.every((i) => i.result === "PASS");
@@ -269,19 +290,33 @@ function analyzeSwitchingRule(currentRegime, inspections) {
   }
 
   if (regime === "atenuada") {
-    const has1Fail = last1.length >= 1 && last1[0].result === "FAIL";
+  const lastInspection = last1[0] || null;
 
-    if (has1Fail) {
-      return {
-        hasSuggestion: true,
-        currentRegime: "atenuada",
-        suggestedRegime: "normal",
-        reason: "1 lote reprovado em inspeção atenuada.",
-        rule: "ATENUADA_TO_NORMAL",
-        history,
-      };
-    }
+  if (lastInspection?.deltaTriggered) {
+    return {
+      hasSuggestion: true,
+      currentRegime: "atenuada",
+      suggestedRegime: "normal",
+      reason:
+        "Condição Δ: lote aceito com defeitos acima de Ac e abaixo de Re. Retorno para inspeção Normal obrigatório nos lotes seguintes.",
+      rule: "ATENUADA_TO_NORMAL_DELTA",
+      history,
+    };
   }
+
+  const has1Fail = lastInspection?.result === "FAIL";
+
+  if (has1Fail) {
+    return {
+      hasSuggestion: true,
+      currentRegime: "atenuada",
+      suggestedRegime: "normal",
+      reason: "1 lote reprovado em inspeção atenuada.",
+      rule: "ATENUADA_TO_NORMAL",
+      history,
+    };
+  }
+}
 
   if (regime === "severa") {
     const has5Pass =
@@ -353,6 +388,8 @@ WHERE id = $1
         lot,
         invoice,
         result,
+        sampling,
+        inspection_regime_snapshot,
         finished_at,
         created_at
       FROM inspections
@@ -440,6 +477,8 @@ router.post("/plans/:planId/suggest", async (req, res) => {
         lot,
         invoice,
         result,
+        sampling,
+        inspection_regime_snapshot,
         finished_at,
         created_at
       FROM inspections

@@ -670,7 +670,15 @@ function countFilledVisual(vals = []) {
   return (vals || []).map(normVisual).filter(Boolean).length;
 }
 
-function evalAql({ filled, total, ng, ac, re, strict = true }) {
+function evalAql({
+  filled,
+  total,
+  ng,
+  ac,
+  re,
+  strict = true,
+  returnToNormalOnDelta = false,
+}) {
   if (!filled) return "EMPTY";
   if (strict && filled < total) return "EMPTY";
 
@@ -678,7 +686,58 @@ function evalAql({ filled, total, ng, ac, re, strict = true }) {
 
   if (ng >= re) return "NG";
   if (ng <= ac) return "OK";
-  return "NG";
+
+  // Condição Δ:
+  // aceita o lote, mas sinaliza retorno obrigatório para Normal.
+  return returnToNormalOnDelta ? "OK" : "NG";
+}
+
+function getDeltaDetails(chars = [], samples = {}) {
+  const sampling = samplingSnapRef.value || insp.value?.sampling || null;
+
+  if (!sampling?.returnToNormalOnDelta) return [];
+  if (sampling?.ac == null || sampling?.re == null) return [];
+
+  const ac = Number(sampling.ac);
+  const re = Number(sampling.re);
+
+  if (!Number.isFinite(ac) || !Number.isFinite(re)) return [];
+
+  return (chars || []).flatMap((c) => {
+    // AQL é aplicado somente nas características visuais de produto.
+    if (getCharKind(c) !== "visual_produto") return [];
+
+    const values = samples?.[c.id] || [];
+    const filled = countFilledVisual(values);
+    const ng = countNG(values);
+
+    if (!values.length || filled < values.length) return [];
+
+    if (ng > ac && ng < re) {
+      return [
+        {
+          charId: c.id,
+          charName: c.name || "Característica visual",
+          ng,
+          ac,
+          re,
+        },
+      ];
+    }
+
+    return [];
+  });
+}
+
+function buildSamplingWithDelta(chars = [], samples = {}) {
+  const baseSampling = samplingSnapRef.value || insp.value?.sampling || {};
+  const deltaDetails = getDeltaDetails(chars, samples);
+
+  return {
+    ...baseSampling,
+    deltaTriggered: deltaDetails.length > 0,
+    deltaDetails,
+  };
 }
 
 // ----------------- NBR: calcula amostragem do plano (se aplicável) -----------------
@@ -863,6 +922,7 @@ function checkChar(c, vals = []) {
       ac,
       re,
       strict: true,
+      returnToNormalOnDelta: Boolean(s?.returnToNormalOnDelta),
     });
   }
 
@@ -1159,6 +1219,7 @@ async function saveDraft() {
 
   const chars = applyCharTraceability(currentChars.value, localSamples.value);
   const res = calcResult(chars, localSamples.value);
+  const samplingWithDelta = buildSamplingWithDelta(chars, localSamples.value);
 
   await insps.update(props.id, {
     lot: lot.value.trim(),
@@ -1176,7 +1237,7 @@ async function saveDraft() {
     updatedByRole: auth.role || "",
     updatedAt: nowLocalISO(),
     boxQty: Number(boxQtyRef.value ?? 2),
-    sampling: samplingSnapRef.value || insp.value?.sampling || null, // ✅ mantém snapshot
+    sampling: samplingWithDelta,
     createdAt: date.value
       ? new Date(`${date.value}T00:00:00`).toISOString()
       : nowLocalISO(),
@@ -1190,6 +1251,7 @@ async function finalizeInspection() {
 
   const chars = applyCharTraceability(currentChars.value, localSamples.value);
   const res = calcResult(chars, localSamples.value);
+  const samplingWithDelta = buildSamplingWithDelta(chars, localSamples.value);
 
   const problems = findInspectionProblems(chars, localSamples.value);
 
@@ -1237,7 +1299,7 @@ Motivo: ${p.reason}`;
     finishedByRole: auth.role || "",
 
     boxQty: Number(boxQtyRef.value ?? 2),
-    sampling: samplingSnapRef.value || insp.value?.sampling || null,
+    sampling: samplingWithDelta,
     createdAt: date.value
       ? new Date(`${date.value}T00:00:00`).toISOString()
       : nowLocalISO(),
