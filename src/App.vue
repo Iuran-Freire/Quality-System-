@@ -263,10 +263,10 @@ async function toggleUserActive(user) {
 
   const ok = confirm(
     `${nextActive ? "Ativar" : "Inativar"} este usuário?\n\n` +
-    `Nome: ${user.name || "-"}\n` +
-    `Usuário: ${user.username || "-"}\n` +
-    `Matrícula: ${user.matricula || "-"}\n` +
-    `Cargo: ${user.cargo || "-"}`
+      `Nome: ${user.name || "-"}\n` +
+      `Usuário: ${user.username || "-"}\n` +
+      `Matrícula: ${user.matricula || "-"}\n` +
+      `Cargo: ${user.cargo || "-"}`
   );
 
   if (!ok) return;
@@ -491,6 +491,36 @@ function resultClass(value) {
 
   return "neutral";
 }
+
+function getConsecutiveValidLots() {
+  const history = switchingAnalysis.value?.history || [];
+  const currentRegime = String(switchingAnalysis.value?.currentRegime || "normal")
+    .trim()
+    .toLowerCase();
+
+  const validLots = [];
+
+  for (const item of history) {
+    const inspectionRegime = String(item.inspectionRegimeSnapshot || "")
+      .trim()
+      .toLowerCase();
+
+    if (inspectionRegime !== currentRegime) break;
+
+    validLots.push(item);
+  }
+
+  return validLots;
+}
+
+function getSwitchingTarget() {
+  const regime = String(switchingAnalysis.value?.currentRegime || "normal").toLowerCase();
+
+  if (regime === "normal") return 10;
+  if (regime === "severa") return 5;
+
+  return 1;
+}
 </script>
 
 <template>
@@ -498,8 +528,12 @@ function resultClass(value) {
 
   <div v-else class="layout" :class="{ 'layout-side-open': sideOpen }">
     <!-- SIDEBAR -->
-    <aside class="side" :class="{ 'side-hover-open': sideOpen }" @mouseenter="sideHover = true"
-      @mouseleave="sideHover = false">
+    <aside
+      class="side"
+      :class="{ 'side-hover-open': sideOpen }"
+      @mouseenter="sideHover = true"
+      @mouseleave="sideHover = false"
+    >
       <div class="brand">
         <img src="/logo.png" alt="Inventus Power" />
       </div>
@@ -517,7 +551,11 @@ function resultClass(value) {
           📈<span class="mi-label">Análises</span>
         </div>
 
-        <div class="mi" :class="{ active: isManagement }" @click="ui.setPage('management')">
+        <div
+          class="mi"
+          :class="{ active: isManagement }"
+          @click="ui.setPage('management')"
+        >
           ⚙️<span class="mi-label">Gerenciamento</span>
         </div>
       </nav>
@@ -600,13 +638,19 @@ function resultClass(value) {
                     </td>
 
                     <td>
-                      <span class="regime-pill" :class="`regime-${p.inspectionRegime || 'normal'}`">
+                      <span
+                        class="regime-pill"
+                        :class="`regime-${p.inspectionRegime || 'normal'}`"
+                      >
                         {{ regimeLabel(p.inspectionRegime) }}
                       </span>
                     </td>
 
                     <td>
-                      <span class="switching-pill" :class="p.switchingStatus === 'pendente' ? 'pending' : 'ok'">
+                      <span
+                        class="switching-pill"
+                        :class="p.switchingStatus === 'pendente' ? 'pending' : 'ok'"
+                      >
                         {{ switchingStatusLabel(p.switchingStatus) }}
                       </span>
                     </td>
@@ -614,23 +658,40 @@ function resultClass(value) {
 
                     <td>
                       <div v-if="canEditSystem" class="actions-wrap">
-                        <button class="btn ghost" type="button" @click="
-                          editPlanId = p.id;
-                        showPlan = true;
-                        ">
+                        <button
+                          class="btn ghost"
+                          type="button"
+                          @click="
+                            editPlanId = p.id;
+                            showPlan = true;
+                          "
+                        >
                           Editar
                         </button>
 
-                        <button class="btn ghost danger" type="button" @click="plans.remove(p.id)">
+                        <button
+                          class="btn ghost danger"
+                          type="button"
+                          @click="plans.remove(p.id)"
+                        >
                           Excluir
                         </button>
-                        <button class="btn ghost" type="button" :disabled="switchingLoading"
-                          @click="analyzePlanSwitching(p)">
+                        <button
+                          class="btn ghost"
+                          type="button"
+                          :disabled="switchingLoading"
+                          @click="analyzePlanSwitching(p)"
+                        >
                           Analisar comutação
                         </button>
 
-                        <button v-if="canEditSystem && p.switchingStatus === 'pendente'" class="btn primary"
-                          type="button" :disabled="switchingLoading" @click="openApproveSwitching(p)">
+                        <button
+                          v-if="canEditSystem && p.switchingStatus === 'pendente'"
+                          class="btn primary"
+                          type="button"
+                          :disabled="switchingLoading"
+                          @click="openApproveSwitching(p)"
+                        >
                           Aprovar comutação
                         </button>
                       </div>
@@ -643,20 +704,33 @@ function resultClass(value) {
             </div>
 
             <!-- PAGINAÇÃO -->
-            <div class="hstack" style="justify-content: space-between; padding: 8px 12px; font-size: 13px"
-              v-if="sourcePlans.length">
+            <div
+              class="hstack"
+              style="justify-content: space-between; padding: 8px 12px; font-size: 13px"
+              v-if="sourcePlans.length"
+            >
               <div>
                 Mostrando {{ paginatedPlans.length }} de {{ sourcePlans.length }} planos
               </div>
 
               <div class="hstack" style="gap: 8px">
-                <button class="btn ghost" type="button" :disabled="currentPage === 1" @click="currentPage--">
+                <button
+                  class="btn ghost"
+                  type="button"
+                  :disabled="currentPage === 1"
+                  @click="currentPage--"
+                >
                   Anterior
                 </button>
 
                 <span>Página {{ currentPage }} / {{ totalPages }}</span>
 
-                <button class="btn ghost" type="button" :disabled="currentPage === totalPages" @click="currentPage++">
+                <button
+                  class="btn ghost"
+                  type="button"
+                  :disabled="currentPage === totalPages"
+                  @click="currentPage++"
+                >
                   Próxima
                 </button>
               </div>
@@ -664,10 +738,15 @@ function resultClass(value) {
           </div>
 
           <div class="card">
-            <button v-if="canEditSystem" class="btn" type="button" @click="
-              editPlanId = null;
-            showPlan = true;
-            ">
+            <button
+              v-if="canEditSystem"
+              class="btn"
+              type="button"
+              @click="
+                editPlanId = null;
+                showPlan = true;
+              "
+            >
               + Novo Plano
             </button>
           </div>
@@ -726,15 +805,22 @@ function resultClass(value) {
                 </p>
               </div>
 
-              <span class="switching-password-status" :class="switching.hasPassword ? 'ok' : 'warn'">
+              <span
+                class="switching-password-status"
+                :class="switching.hasPassword ? 'ok' : 'warn'"
+              >
                 {{ switching.hasPassword ? "Senha cadastrada" : "Senha não cadastrada" }}
               </span>
             </div>
 
             <div class="switching-password-form">
               <label class="float-label">
-                <input v-model="switchingPasswordForm.password" type="password" placeholder=" "
-                  :disabled="!canEditSystem" />
+                <input
+                  v-model="switchingPasswordForm.password"
+                  type="password"
+                  placeholder=" "
+                  :disabled="!canEditSystem"
+                />
                 <span>
                   {{
                     switching.hasPassword
@@ -745,12 +831,21 @@ function resultClass(value) {
               </label>
 
               <label class="float-label">
-                <input v-model="switchingPasswordForm.confirmPassword" type="password" placeholder=" "
-                  :disabled="!canEditSystem" />
+                <input
+                  v-model="switchingPasswordForm.confirmPassword"
+                  type="password"
+                  placeholder=" "
+                  :disabled="!canEditSystem"
+                />
                 <span>Confirmar senha</span>
               </label>
 
-              <button class="btn primary" type="button" :disabled="!canEditSystem" @click="saveSwitchingPassword">
+              <button
+                class="btn primary"
+                type="button"
+                :disabled="!canEditSystem"
+                @click="saveSwitchingPassword"
+              >
                 {{ switching.hasPassword ? "Alterar senha" : "Cadastrar senha" }}
               </button>
             </div>
@@ -761,11 +856,14 @@ function resultClass(value) {
           </div>
 
           <div class="card tablecard">
-            <div class="hstack" style="
+            <div
+              class="hstack"
+              style="
                 justify-content: space-between;
                 align-items: center;
                 margin-bottom: 12px;
-              ">
+              "
+            >
               <div>
                 <h3 style="margin: 0">Histórico de Comutação</h3>
                 <p class="muted-text" style="margin: 4px 0 0 0">
@@ -773,7 +871,12 @@ function resultClass(value) {
                 </p>
               </div>
 
-              <button class="btn ghost" type="button" :disabled="switching.loading" @click="switching.loadHistory()">
+              <button
+                class="btn ghost"
+                type="button"
+                :disabled="switching.loading"
+                @click="switching.loadHistory()"
+              >
                 Atualizar
               </button>
             </div>
@@ -813,13 +916,19 @@ function resultClass(value) {
                     <td>{{ h.model || "—" }}</td>
 
                     <td>
-                      <span class="regime-pill" :class="`regime-${h.previousRegime || 'normal'}`">
+                      <span
+                        class="regime-pill"
+                        :class="`regime-${h.previousRegime || 'normal'}`"
+                      >
                         {{ regimeLabel(h.previousRegime) }}
                       </span>
                     </td>
 
                     <td>
-                      <span class="regime-pill" :class="`regime-${h.newRegime || 'normal'}`">
+                      <span
+                        class="regime-pill"
+                        :class="`regime-${h.newRegime || 'normal'}`"
+                      >
                         {{ regimeLabel(h.newRegime) }}
                       </span>
                     </td>
@@ -836,14 +945,22 @@ function resultClass(value) {
           </div>
 
           <div class="card tablecard">
-            <div class="hstack" style="
+            <div
+              class="hstack"
+              style="
                 justify-content: space-between;
                 align-items: center;
                 margin-bottom: 12px;
-              ">
+              "
+            >
               <h3 style="margin: 0">Usuários cadastrados</h3>
 
-              <button v-if="canManageUsers" class="btn" type="button" @click="openNewUser">
+              <button
+                v-if="canManageUsers"
+                class="btn"
+                type="button"
+                @click="openNewUser"
+              >
                 + Novo usuário
               </button>
             </div>
@@ -894,8 +1011,12 @@ function resultClass(value) {
                           Editar
                         </button>
 
-                        <button class="btn ghost danger" type="button"
-                          :disabled="String(u.id) === String(auth.user?.id)" @click="toggleUserActive(u)">
+                        <button
+                          class="btn ghost danger"
+                          type="button"
+                          :disabled="String(u.id) === String(auth.user?.id)"
+                          @click="toggleUserActive(u)"
+                        >
                           {{ u.active ? "Inativar" : "Ativar" }}
                         </button>
                       </div>
@@ -912,10 +1033,14 @@ function resultClass(value) {
     </div>
   </div>
 
-  <PlanModal :show="showPlan" :id="editPlanId" @close="
-    showPlan = false;
-  editPlanId = null;
-  " />
+  <PlanModal
+    :show="showPlan"
+    :id="editPlanId"
+    @close="
+      showPlan = false;
+      editPlanId = null;
+    "
+  />
 
   <div class="modal" :class="{ show: showUserModal }" @click.self="showUserModal = false">
     <div class="sheet vstack user-sheet">
@@ -969,7 +1094,10 @@ function resultClass(value) {
 
         <div class="span-2">
           <label class="float-label">
-            <select v-model.number="userForm.accessLevel" @change="syncUserRoleByAccessLevel">
+            <select
+              v-model.number="userForm.accessLevel"
+              @change="syncUserRoleByAccessLevel"
+            >
               <option :value="1">Nível 1 - Controle total</option>
               <option :value="2">Nível 2 - Controle total</option>
               <option :value="3">Nível 3 - Operacional</option>
@@ -1003,7 +1131,11 @@ function resultClass(value) {
     </div>
   </div>
 
-  <div class="modal" :class="{ show: showSwitchingModal }" @click.self="showSwitchingModal = false">
+  <div
+    class="modal"
+    :class="{ show: showSwitchingModal }"
+    @click.self="showSwitchingModal = false"
+  >
     <div class="sheet vstack switching-approval-modal">
       <div class="hstack" style="justify-content: space-between; align-items: center">
         <h3>Aprovar comutação</h3>
@@ -1041,7 +1173,12 @@ function resultClass(value) {
         </div>
 
         <label class="float-label">
-          <input v-model="switchingPassword" type="password" placeholder=" " @keyup.enter="approvePlanSwitching" />
+          <input
+            v-model="switchingPassword"
+            type="password"
+            placeholder=" "
+            @keyup.enter="approvePlanSwitching"
+          />
           <span>Senha de comutação</span>
         </label>
       </div>
@@ -1053,14 +1190,23 @@ function resultClass(value) {
           Cancelar
         </button>
 
-        <button class="btn" type="button" :disabled="switchingLoading" @click="approvePlanSwitching">
+        <button
+          class="btn"
+          type="button"
+          :disabled="switchingLoading"
+          @click="approvePlanSwitching"
+        >
           Confirmar comutação
         </button>
       </div>
     </div>
   </div>
 
-  <div class="modal" :class="{ show: showSwitchingAnalysisModal }" @click.self="showSwitchingAnalysisModal = false">
+  <div
+    class="modal"
+    :class="{ show: showSwitchingAnalysisModal }"
+    @click.self="showSwitchingAnalysisModal = false"
+  >
     <div class="sheet vstack switching-analysis-modal">
       <div class="hstack" style="justify-content: space-between; align-items: center">
         <div>
@@ -1070,7 +1216,11 @@ function resultClass(value) {
           </p>
         </div>
 
-        <button class="btn ghost" type="button" @click="showSwitchingAnalysisModal = false">
+        <button
+          class="btn ghost"
+          type="button"
+          @click="showSwitchingAnalysisModal = false"
+        >
           Fechar
         </button>
       </div>
@@ -1101,7 +1251,10 @@ function resultClass(value) {
         <div>
           <span>Regime atual</span>
           <b>
-            <span class="regime-pill" :class="`regime-${switchingAnalysis?.currentRegime || 'normal'}`">
+            <span
+              class="regime-pill"
+              :class="`regime-${switchingAnalysis?.currentRegime || 'normal'}`"
+            >
               {{ regimeLabel(switchingAnalysis?.currentRegime) }}
             </span>
           </b>
@@ -1110,7 +1263,10 @@ function resultClass(value) {
         <div>
           <span>Regime sugerido</span>
           <b v-if="switchingAnalysis?.hasSuggestion">
-            <span class="regime-pill" :class="`regime-${switchingAnalysis?.suggestedRegime || 'normal'}`">
+            <span
+              class="regime-pill"
+              :class="`regime-${switchingAnalysis?.suggestedRegime || 'normal'}`"
+            >
               {{ regimeLabel(switchingAnalysis?.suggestedRegime) }}
             </span>
           </b>
@@ -1119,8 +1275,10 @@ function resultClass(value) {
         </div>
       </div>
 
-      <div class="switching-analysis-message"
-        :class="switchingAnalysis?.hasSuggestion ? 'has-suggestion' : 'no-suggestion'">
+      <div
+        class="switching-analysis-message"
+        :class="switchingAnalysis?.hasSuggestion ? 'has-suggestion' : 'no-suggestion'"
+      >
         <strong>
           {{
             switchingAnalysis?.hasSuggestion
@@ -1138,8 +1296,28 @@ function resultClass(value) {
       </div>
 
       <div class="switching-history-preview">
+        <div class="switching-valid-lots">
+          <div>
+            <span>Regime em análise</span>
+
+            <b>
+              {{ regimeLabel(switchingAnalysis?.currentRegime) }}
+            </b>
+          </div>
+
+          <div>
+            <span>Lotes consecutivos válidos</span>
+
+            <b>
+              {{ getConsecutiveValidLots().length }}
+              de
+              {{ getSwitchingTarget() }}
+            </b>
+          </div>
+        </div>
+
         <div class="hstack" style="justify-content: space-between; align-items: center">
-          <h4 style="margin: 0">Lotes considerados na análise</h4>
+          <h4 style="margin: 0">Últimos registros do histórico</h4>
 
           <span class="muted-text">
             {{ switchingAnalysis?.history?.length || 0 }} registro(s)
@@ -1153,6 +1331,7 @@ function resultClass(value) {
                 <th>Lote</th>
                 <th>NF</th>
                 <th>Resultado</th>
+                <th>Regime executado</th>
                 <th>Finalizado em</th>
               </tr>
             </thead>
@@ -1170,6 +1349,16 @@ function resultClass(value) {
                     {{ resultLabel(h.result) }}
                   </span>
                 </td>
+
+                <td>
+                  <span
+                    class="regime-pill"
+                    :class="`regime-${h.inspectionRegimeSnapshot || 'normal'}`"
+                  >
+                    {{ regimeLabel(h.inspectionRegimeSnapshot) }}
+                  </span>
+                </td>
+
                 <td>{{ formatDateTimeBR(h.finishedAt) }}</td>
               </tr>
             </tbody>
@@ -1180,12 +1369,21 @@ function resultClass(value) {
       <div class="hr"></div>
 
       <div class="hstack" style="justify-content: flex-end; gap: 8px">
-        <button class="btn ghost" type="button" @click="showSwitchingAnalysisModal = false">
+        <button
+          class="btn ghost"
+          type="button"
+          @click="showSwitchingAnalysisModal = false"
+        >
           Cancelar
         </button>
 
-        <button v-if="switchingAnalysis?.hasSuggestion" class="btn" type="button" :disabled="switchingLoading"
-          @click="registerSwitchingSuggestion">
+        <button
+          v-if="switchingAnalysis?.hasSuggestion"
+          class="btn"
+          type="button"
+          :disabled="switchingLoading"
+          @click="registerSwitchingSuggestion"
+        >
           Registrar sugestão
         </button>
 
@@ -1477,7 +1675,7 @@ function resultClass(value) {
   gap: 10px;
 }
 
-.switching-analysis-summary>div {
+.switching-analysis-summary > div {
   display: flex;
   flex-direction: column;
   gap: 4px;
@@ -1526,6 +1724,39 @@ function resultClass(value) {
   background: #f8fafc;
   border-color: #e2e8f0;
   color: #475569;
+}
+
+.switching-valid-lots {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.switching-valid-lots > div {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 12px;
+  border: 1px solid #dbeafe;
+  border-radius: 14px;
+  background: #eff6ff;
+}
+
+.switching-valid-lots span {
+  font-size: 11px;
+  font-weight: 800;
+  color: #64748b;
+}
+
+.switching-valid-lots b {
+  font-size: 15px;
+  color: #1e3a8a;
+}
+
+@media (max-width: 900px) {
+  .switching-valid-lots {
+    grid-template-columns: 1fr;
+  }
 }
 
 .switching-history-preview {

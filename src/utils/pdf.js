@@ -219,7 +219,7 @@ function charTraceSummary(c) {
   const finishedAt = c.finishedAt ? fmtTime(c.finishedAt) : "-";
 
   if (startedUser === finishedUser) {
-    return `Resp.: ${startedUser} ${startedAt} - ${finishedAt}`; q
+    return `Resp.: ${startedUser} ${startedAt} - ${finishedAt}`;
   }
 
   return `Resp.: ${startedUser} ${startedAt} - ${finishedUser} ${finishedAt}`;
@@ -274,6 +274,82 @@ function getBoxQty(insp) {
 function getPlanSamples(insp) {
   const raw = Number(insp?.planSamples ?? 5);
   return Number.isFinite(raw) && raw > 0 ? raw : 5;
+}
+
+function regimePdfLabel(value) {
+  const regime = String(value || "normal").trim().toLowerCase();
+
+  if (regime === "atenuada") return "Atenuada";
+  if (regime === "severa") return "Severa";
+
+  return "Normal";
+}
+
+function formatAqlPdf(value) {
+  const n = Number(value);
+
+  if (!Number.isFinite(n)) return "-";
+
+  return n === 1 ? "1.0" : String(n).replace(".", ",");
+}
+
+function getSamplingPdfRows(insp) {
+  const sampling =
+    insp?.sampling && typeof insp.sampling === "object"
+      ? insp.sampling
+      : {};
+
+  const mode = String(sampling?.mode || "").trim().toLowerCase();
+
+  const regime =
+    insp?.inspectionRegimeSnapshot ||
+    insp?.inspection_regime_snapshot ||
+    sampling?.inspectionRegime ||
+    "normal";
+
+  const sampleN =
+    sampling?.sampleN ??
+    insp?.sampleNSnapshot ??
+    insp?.sample_n_snapshot ??
+    insp?.planSamples ??
+    "-";
+
+  const rows = [
+    [
+      "Método de amostragem",
+      mode === "nbr5426" ? "NBR 5426" : "Amostragem fixa",
+    ],
+    ["Regime aplicado", regimePdfLabel(regime)],
+    ["Amostra aplicada", String(sampleN)],
+  ];
+
+  if (mode === "nbr5426") {
+    const level = sampling?.inspectionLevel || sampling?.level || "-";
+    const aql = formatAqlPdf(sampling?.aql ?? sampling?.selectedAql);
+
+    const initialCode =
+      sampling?.initialCodeLetter || sampling?.codeLetter || "-";
+
+    const effectiveCode =
+      sampling?.effectiveCodeLetter || initialCode;
+
+    const code =
+      initialCode !== effectiveCode
+        ? `${initialCode} → ${effectiveCode}`
+        : initialCode;
+
+    rows.push(
+      ["Nível / AQL", `${level} / ${aql}`],
+      ["Código", code],
+      ["Ac / Re", `${sampling?.ac ?? "-"} / ${sampling?.re ?? "-"}`]
+    );
+  }
+
+  if (Boolean(sampling?.deltaTriggered)) {
+    rows.push(["Retorno obrigatório", "Lote aceito pela condição Delta. Retorno à inspeção Normal obrigatório."]);
+  }
+
+  return rows;
 }
 
 // -------- Logo sem distorção --------
@@ -544,7 +620,9 @@ const right = [
   ["Invoice / NF", insp.invoice || "-"],
   ["Turno", insp.shift || "-"],
   ["Responsável", insp.resp || "-"],
-  ["Amostras (plano)", String(planSamples)],
+
+  ...getSamplingPdfRows(insp),
+
   ...(hasVisualCaixa
     ? [["Qtd. Caixas (plano)", String(boxQty)]]
     : []),
@@ -975,7 +1053,7 @@ const specialVisuals = chars.filter(
 ).replaceAll("/", "-")}.pdf`;
 
    const totalPages = doc.getNumberOfPages();
-3
+
 for (let i = 1; i <= totalPages; i++) {
   doc.setPage(i);
   doc.setFontSize(8);
