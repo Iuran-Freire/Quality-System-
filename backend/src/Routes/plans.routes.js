@@ -3,6 +3,22 @@ import { db } from "../db.js";
 
 const router = express.Router();
 
+function normalizeInspectionArea(value) {
+  const area = String(value || "").trim().toUpperCase();
+
+  return ["IQC", "OQC", "ALL"].includes(area) ? area : null;
+}
+
+function normalizePlanType(value) {
+  const type = String(value || "").trim().toUpperCase();
+
+  return ["IQC", "OQC"].includes(type) ? type : null;
+}
+
+function getUserArea(req) {
+  return normalizeInspectionArea(req.user?.inspectionArea);
+}
+
 function mapPlan(row) {
   return {
     id: String(row.id),
@@ -46,13 +62,34 @@ function mapPlan(row) {
   };
 }
 
+// Lista somente os planos permitidos para a área do usuário.
 router.get("/", async (req, res) => {
   try {
-    const result = await db.query(`
-      SELECT *
-      FROM plans
-      ORDER BY created_at DESC, id DESC
-    `);
+    const userArea = getUserArea(req);
+
+    if (!userArea) {
+      return res.status(403).json({
+        ok: false,
+        message: "Usuário sem área de inspeção válida.",
+      });
+    }
+
+    const result =
+      userArea === "ALL"
+        ? await db.query(`
+            SELECT *
+            FROM plans
+            ORDER BY created_at DESC, id DESC
+          `)
+        : await db.query(
+            `
+            SELECT *
+            FROM plans
+            WHERE UPPER(TRIM(type)) = $1
+            ORDER BY created_at DESC, id DESC
+            `,
+            [userArea]
+          );
 
     res.json({
       ok: true,
@@ -69,9 +106,103 @@ router.get("/", async (req, res) => {
   }
 });
 
+// Protege acesso direto a um plano pelo ID.
+router.get("/:id", async (req, res) => {
+  try {
+    const { id } = req.params;
+    const userArea = getUserArea(req);
+
+    if (!userArea) {
+      return res.status(403).json({
+        ok: false,
+        message: "Usuário sem área de inspeção válida.",
+      });
+    }
+
+    const result = await db.query(
+      `
+      SELECT *
+      FROM plans
+      WHERE id = $1
+      `,
+      [id]
+    );
+
+    const plan = result.rows[0];
+
+    if (!plan) {
+      return res.status(404).json({
+        ok: false,
+        message: "Plano não encontrado.",
+      });
+    }
+
+    const planType = normalizePlanType(plan.type);
+
+    if (userArea !== "ALL" && planType !== userArea) {
+      return res.status(403).json({
+        ok: false,
+        message: "Você não possui acesso a este plano.",
+      });
+    }
+
+    res.json({
+      ok: true,
+      item: mapPlan(plan),
+    });
+  } catch (error) {
+    console.error("Erro ao buscar plano:", error);
+
+    res.status(500).json({
+      ok: false,
+      message: "Erro ao buscar plano.",
+      error: error.message,
+    });
+  }
+});
+
+// Cria plano somente na área permitida.
 router.post("/", async (req, res) => {
   try {
     const p = req.body || {};
+    const userArea = getUserArea(req);
+
+    if (!userArea) {
+      return res.status(403).json({
+        ok: false,
+        message: "Usuário sem área de inspeção válida.",
+      });
+    }
+
+    const rawRequestedType = String(p.type || "").trim();
+    const requestedType = normalizePlanType(p.type);
+
+    if (rawRequestedType && !requestedType) {
+      return res.status(400).json({
+        ok: false,
+        message: "Tipo de plano inválido. Use IQC ou OQC.",
+      });
+    }
+
+    if (userArea === "ALL" && !requestedType) {
+      return res.status(400).json({
+        ok: false,
+        message: "Selecione o tipo do plano: IQC ou OQC.",
+      });
+    }
+
+    if (
+      userArea !== "ALL" &&
+      requestedType &&
+      requestedType !== userArea
+    ) {
+      return res.status(403).json({
+        ok: false,
+        message: `Seu usuário pertence à área ${userArea} e não pode criar plano ${requestedType}.`,
+      });
+    }
+
+    const planType = userArea === "ALL" ? requestedType : userArea;
 
     const result = await db.query(
       `
@@ -87,7 +218,7 @@ router.post("/", async (req, res) => {
       `,
       [
         p.name || "",
-        p.type || "IQC",
+        planType,
         p.pn || "",
         p.model || "",
         p.client || "",
@@ -116,10 +247,72 @@ router.post("/", async (req, res) => {
   }
 });
 
+// Edita plano somente dentro da área permitida.
 router.put("/:id", async (req, res) => {
   try {
     const { id } = req.params;
     const p = req.body || {};
+    const userArea = getUserArea(req);
+
+    if (!userArea) {
+      return res.status(403).json({
+        ok: false,
+        message: "Usuário sem área de inspeção válida.",
+      });
+    }
+
+    const existingResult = await db.query(
+      `
+      SELECT id, type
+      FROM plans
+      WHERE id = $1
+      `,
+      [id]
+    );
+
+    const existingPlan = existingResult.rows[0];
+
+    if (!existingPlan) {
+      return res.status(404).json({
+        ok: false,
+        message: "Plano não encontrado.",
+      });
+    }
+
+    const existingType = normalizePlanType(existingPlan.type);
+
+    if (userArea !== "ALL" && existingType !== userArea) {
+      return res.status(403).json({
+        ok: false,
+        message: "Você não possui acesso para editar este plano.",
+      });
+    }
+
+    const rawRequestedType = String(p.type || "").trim();
+    const requestedType = normalizePlanType(p.type);
+
+    if (rawRequestedType && !requestedType) {
+      return res.status(400).json({
+        ok: false,
+        message: "Tipo de plano inválido. Use IQC ou OQC.",
+      });
+    }
+
+    const planType = requestedType || existingType;
+
+    if (!planType) {
+      return res.status(400).json({
+        ok: false,
+        message: "Tipo de plano inválido. Use IQC ou OQC.",
+      });
+    }
+
+    if (userArea !== "ALL" && planType !== userArea) {
+      return res.status(403).json({
+        ok: false,
+        message: `Seu usuário pertence à área ${userArea} e não pode alterar este plano para ${planType}.`,
+      });
+    }
 
     const result = await db.query(
       `
@@ -143,7 +336,7 @@ router.put("/:id", async (req, res) => {
       `,
       [
         p.name || "",
-        p.type || "IQC",
+        planType,
         p.pn || "",
         p.model || "",
         p.client || "",
@@ -157,13 +350,6 @@ router.put("/:id", async (req, res) => {
         id,
       ]
     );
-
-    if (!result.rows[0]) {
-      return res.status(404).json({
-        ok: false,
-        message: "Plano não encontrado.",
-      });
-    }
 
     res.json({
       ok: true,
@@ -180,25 +366,53 @@ router.put("/:id", async (req, res) => {
   }
 });
 
+// Exclui plano somente dentro da área permitida.
 router.delete("/:id", async (req, res) => {
   try {
     const { id } = req.params;
+    const userArea = getUserArea(req);
 
-    const result = await db.query(
+    if (!userArea) {
+      return res.status(403).json({
+        ok: false,
+        message: "Usuário sem área de inspeção válida.",
+      });
+    }
+
+    const existingResult = await db.query(
       `
-      DELETE FROM plans
+      SELECT id, type
+      FROM plans
       WHERE id = $1
-      RETURNING id
       `,
       [id]
     );
 
-    if (!result.rows[0]) {
+    const existingPlan = existingResult.rows[0];
+
+    if (!existingPlan) {
       return res.status(404).json({
         ok: false,
         message: "Plano não encontrado.",
       });
     }
+
+    const planType = normalizePlanType(existingPlan.type);
+
+    if (userArea !== "ALL" && planType !== userArea) {
+      return res.status(403).json({
+        ok: false,
+        message: "Você não possui acesso para excluir este plano.",
+      });
+    }
+
+    await db.query(
+      `
+      DELETE FROM plans
+      WHERE id = $1
+      `,
+      [id]
+    );
 
     res.json({
       ok: true,

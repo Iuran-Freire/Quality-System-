@@ -5,6 +5,16 @@ import { db } from "../db.js";
 
 const router = express.Router();
 
+function normalizeInspectionArea(value) {
+  const area = String(value || "").trim().toUpperCase();
+
+  if (["IQC", "OQC", "ALL"].includes(area)) {
+    return area;
+  }
+
+  return null;
+}
+
 router.post("/seed-admin", async (req, res) => {
   try {
     const name = "Iuran";
@@ -14,6 +24,7 @@ router.post("/seed-admin", async (req, res) => {
     const matricula = "8919";
     const cargo = "Admin";
     const accessLevel = 1;
+    const inspectionArea = "ALL";
 
     const existing = await db.query(
       "SELECT id FROM users WHERE username = $1",
@@ -31,19 +42,29 @@ router.post("/seed-admin", async (req, res) => {
 
     await db.query(
       `
-  INSERT INTO users (
-    name,
-    username,
-    password_hash,
-    matricula,
-    cargo,
-    role,
-    access_level,
-    active
-  )
-  VALUES ($1, $2, $3, $4, $5, $6, $7, true)
-  `,
-      [name, username, passwordHash, matricula, cargo, role, accessLevel]
+      INSERT INTO users (
+        name,
+        username,
+        password_hash,
+        matricula,
+        cargo,
+        role,
+        access_level,
+        inspection_area,
+        active
+      )
+      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, true)
+      `,
+      [
+        name,
+        username,
+        passwordHash,
+        matricula,
+        cargo,
+        role,
+        accessLevel,
+        inspectionArea,
+      ]
     );
 
     res.json({
@@ -56,6 +77,7 @@ router.post("/seed-admin", async (req, res) => {
         cargo,
         role,
         accessLevel,
+        inspectionArea,
       },
     });
   } catch (error) {
@@ -76,17 +98,18 @@ router.post("/login", async (req, res) => {
     const result = await db.query(
       `
       SELECT
-  id,
-  name,
-  username,
-  password_hash,
-  matricula,
-  cargo,
-  role,
-  access_level,
-  active
-FROM users
-WHERE username = $1
+        id,
+        name,
+        username,
+        password_hash,
+        matricula,
+        cargo,
+        role,
+        access_level,
+        inspection_area,
+        active
+      FROM users
+      WHERE username = $1
       `,
       [String(username || "").trim().toLowerCase()]
     );
@@ -112,6 +135,16 @@ WHERE username = $1
       });
     }
 
+    const inspectionArea = normalizeInspectionArea(user.inspection_area);
+
+    if (!inspectionArea) {
+      return res.status(403).json({
+        ok: false,
+        message:
+          "Usuário sem área de inspeção definida. Solicite a classificação como IQC, OQC ou Ambos.",
+      });
+    }
+
     const safeUser = {
       id: user.id,
       name: user.name,
@@ -120,6 +153,7 @@ WHERE username = $1
       cargo: user.cargo || "",
       role: user.role,
       accessLevel: Number(user.access_level || 3),
+      inspectionArea,
       active: Boolean(user.active),
     };
 
@@ -151,8 +185,9 @@ router.post("/seed-inspector", async (req, res) => {
     const password = "1234";
     const role = "inspetor";
     const matricula = "0003";
-    const cargo = "Inspetor OQC";
+    const cargo = "Inspetor IQC";
     const accessLevel = 3;
+    const inspectionArea = "IQC";
 
     const existing = await db.query(
       "SELECT id FROM users WHERE username = $1",
@@ -170,32 +205,43 @@ router.post("/seed-inspector", async (req, res) => {
 
     await db.query(
       `
-  INSERT INTO users (
-    name,
-    username,
-    password_hash,
-    matricula,
-    cargo,
-    role,
-    access_level,
-    active
-  )
-  VALUES ($1, $2, $3, $4, $5, $6, $7, true)
-  `,
-      [name, username, passwordHash, matricula, cargo, role, accessLevel]
+      INSERT INTO users (
+        name,
+        username,
+        password_hash,
+        matricula,
+        cargo,
+        role,
+        access_level,
+        inspection_area,
+        active
+      )
+      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, true)
+      `,
+      [
+        name,
+        username,
+        passwordHash,
+        matricula,
+        cargo,
+        role,
+        accessLevel,
+        inspectionArea,
+      ]
     );
 
     res.json({
       ok: true,
       message: "Usuário inspetor criado com sucesso.",
       user: {
-  name,
-  username,
-  matricula,
-  cargo,
-  role,
-  accessLevel,
-},
+        name,
+        username,
+        matricula,
+        cargo,
+        role,
+        accessLevel,
+        inspectionArea,
+      },
     });
   } catch (error) {
     console.error("Erro ao criar inspetor:", error);

@@ -5,17 +5,80 @@ import { db } from "../db.js";
 const router = express.Router();
 
 function normalizeAccessLevel(role, accessLevel) {
-  if (accessLevel) return Number(accessLevel);
+  const level = Number(accessLevel);
 
-  const r = String(role || "").toLowerCase();
+  if ([1, 2, 3].includes(level)) {
+    return level;
+  }
 
-  if (r === "admin") return 1;
-  if (["lider", "líder", "supervisor", "analista"].includes(r)) return 2;
+  const normalizedRole = String(role || "").trim().toLowerCase();
+
+  if (normalizedRole === "admin") return 1;
+
+  if (
+    ["lider", "líder", "supervisor", "analista"].includes(normalizedRole)
+  ) {
+    return 2;
+  }
 
   return 3;
 }
 
-// listar usuários
+function roleFromAccessLevel(accessLevel) {
+  const level = Number(accessLevel);
+
+  if (level === 1) return "admin";
+  if (level === 2) return "lider";
+
+  return "inspetor";
+}
+
+function normalizeInspectionArea(value) {
+  const area = String(value || "").trim().toUpperCase();
+
+  if (["IQC", "OQC", "ALL"].includes(area)) {
+    return area;
+  }
+
+  return null;
+}
+
+function normalizeActive(value, fallback = true) {
+  if (value === undefined || value === null || value === "") {
+    return fallback;
+  }
+
+  if (value === false) return false;
+
+  const normalized = String(value).trim().toLowerCase();
+
+  if (["false", "0", "no", "não"].includes(normalized)) {
+    return false;
+  }
+
+  return true;
+}
+
+function mapUser(user) {
+  return {
+    id: user.id,
+    name: user.name,
+    username: user.username,
+    matricula: user.matricula || "",
+    cargo: user.cargo || "",
+    role: user.role || "",
+    accessLevel: normalizeAccessLevel(user.role, user.access_level),
+
+    // IQC | OQC | ALL
+    inspectionArea: normalizeInspectionArea(user.inspection_area),
+
+    active: Boolean(user.active),
+    createdAt: user.created_at,
+    updatedAt: user.updated_at,
+  };
+}
+
+// Listar usuários
 router.get("/", async (req, res) => {
   try {
     const result = await db.query(`
@@ -27,6 +90,7 @@ router.get("/", async (req, res) => {
         cargo,
         role,
         access_level,
+        inspection_area,
         active,
         created_at,
         updated_at
@@ -36,18 +100,7 @@ router.get("/", async (req, res) => {
 
     res.json({
       ok: true,
-      users: result.rows.map((u) => ({
-        id: u.id,
-        name: u.name,
-        username: u.username,
-        matricula: u.matricula || "",
-        cargo: u.cargo || "",
-        role: u.role || "",
-        accessLevel: normalizeAccessLevel(u.role, u.access_level),
-        active: Boolean(u.active),
-        createdAt: u.created_at,
-        updatedAt: u.updated_at,
-      })),
+      users: result.rows.map(mapUser),
     });
   } catch (error) {
     console.error("Erro ao listar usuários:", error);
@@ -60,7 +113,7 @@ router.get("/", async (req, res) => {
   }
 });
 
-// criar usuário
+// Criar usuário
 router.post("/", async (req, res) => {
   try {
     const {
@@ -71,25 +124,53 @@ router.post("/", async (req, res) => {
       cargo,
       role,
       accessLevel,
+      inspectionArea,
+      inspection_area,
       active,
-    } = req.body;
+    } = req.body || {};
 
     if (!String(name || "").trim()) {
-      return res.status(400).json({ ok: false, message: "Informe o nome." });
+      return res.status(400).json({
+        ok: false,
+        message: "Informe o nome.",
+      });
     }
 
     if (!String(username || "").trim()) {
-      return res.status(400).json({ ok: false, message: "Informe o usuário." });
+      return res.status(400).json({
+        ok: false,
+        message: "Informe o usuário.",
+      });
     }
 
     if (!String(password || "").trim()) {
-      return res.status(400).json({ ok: false, message: "Informe a senha." });
+      return res.status(400).json({
+        ok: false,
+        message: "Informe a senha.",
+      });
+    }
+
+    const requestedArea =
+      inspectionArea !== undefined ? inspectionArea : inspection_area;
+
+    const normalizedInspectionArea =
+      normalizeInspectionArea(requestedArea);
+
+    if (!normalizedInspectionArea) {
+      return res.status(400).json({
+        ok: false,
+        message: "Selecione a área do usuário: IQC, OQC ou Ambos.",
+      });
     }
 
     const cleanUsername = String(username).trim().toLowerCase();
 
     const existing = await db.query(
-      "SELECT id FROM users WHERE username = $1",
+      `
+      SELECT id
+      FROM users
+      WHERE username = $1
+      `,
       [cleanUsername]
     );
 
@@ -99,6 +180,9 @@ router.post("/", async (req, res) => {
         message: "Já existe um usuário com este login.",
       });
     }
+
+    const level = normalizeAccessLevel(role, accessLevel);
+    const finalRole = roleFromAccessLevel(level);
 
     const passwordHash = await bcrypt.hash(String(password), 10);
 
@@ -112,11 +196,16 @@ router.post("/", async (req, res) => {
         cargo,
         role,
         access_level,
+        inspection_area,
         active,
         created_at,
         updated_at
       )
-      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, NOW(), NOW())
+      VALUES (
+        $1, $2, $3, $4, $5,
+        $6, $7, $8, $9,
+        NOW(), NOW()
+      )
       RETURNING
         id,
         name,
@@ -125,6 +214,7 @@ router.post("/", async (req, res) => {
         cargo,
         role,
         access_level,
+        inspection_area,
         active,
         created_at,
         updated_at
@@ -135,29 +225,17 @@ router.post("/", async (req, res) => {
         passwordHash,
         String(matricula || "").trim(),
         String(cargo || "").trim(),
-        String(role || "inspetor").trim().toLowerCase(),
-        Number(accessLevel || 3),
-        active !== false,
+        finalRole,
+        level,
+        normalizedInspectionArea,
+        normalizeActive(active),
       ]
     );
-
-    const u = result.rows[0];
 
     res.status(201).json({
       ok: true,
       message: "Usuário criado com sucesso.",
-      user: {
-        id: u.id,
-        name: u.name,
-        username: u.username,
-        matricula: u.matricula || "",
-        cargo: u.cargo || "",
-        role: u.role || "",
-        accessLevel: Number(u.access_level || 3),
-        active: Boolean(u.active),
-        createdAt: u.created_at,
-        updatedAt: u.updated_at,
-      },
+      user: mapUser(result.rows[0]),
     });
   } catch (error) {
     console.error("Erro ao criar usuário:", error);
@@ -170,11 +248,13 @@ router.post("/", async (req, res) => {
   }
 });
 
-// ativar / inativar usuário
+// Ativar / inativar usuário
 router.patch("/:id/active", async (req, res) => {
   try {
     const { id } = req.params;
-    const { active } = req.body;
+    const { active } = req.body || {};
+
+    const activeValue = normalizeActive(active);
 
     const result = await db.query(
       `
@@ -191,11 +271,12 @@ router.patch("/:id/active", async (req, res) => {
         cargo,
         role,
         access_level,
+        inspection_area,
         active,
         created_at,
         updated_at
       `,
-      [Boolean(active), id]
+      [activeValue, id]
     );
 
     if (!result.rows.length) {
@@ -205,25 +286,12 @@ router.patch("/:id/active", async (req, res) => {
       });
     }
 
-    const u = result.rows[0];
-
     res.json({
       ok: true,
-      message: active
+      message: activeValue
         ? "Usuário ativado com sucesso."
         : "Usuário inativado com sucesso.",
-      user: {
-        id: u.id,
-        name: u.name,
-        username: u.username,
-        matricula: u.matricula || "",
-        cargo: u.cargo || "",
-        role: u.role || "",
-        accessLevel: Number(u.access_level || 3),
-        active: Boolean(u.active),
-        createdAt: u.created_at,
-        updatedAt: u.updated_at,
-      },
+      user: mapUser(result.rows[0]),
     });
   } catch (error) {
     console.error("Erro ao alterar status do usuário:", error);
@@ -236,7 +304,7 @@ router.patch("/:id/active", async (req, res) => {
   }
 });
 
-// editar usuário
+// Editar usuário
 router.put("/:id", async (req, res) => {
   try {
     const { id } = req.params;
@@ -249,8 +317,10 @@ router.put("/:id", async (req, res) => {
       cargo,
       role,
       accessLevel,
+      inspectionArea,
+      inspection_area,
       active,
-    } = req.body;
+    } = req.body || {};
 
     if (!String(name || "").trim()) {
       return res.status(400).json({
@@ -280,6 +350,19 @@ router.put("/:id", async (req, res) => {
       });
     }
 
+    const requestedArea =
+      inspectionArea !== undefined ? inspectionArea : inspection_area;
+
+    const normalizedInspectionArea =
+      normalizeInspectionArea(requestedArea);
+
+    if (!normalizedInspectionArea) {
+      return res.status(400).json({
+        ok: false,
+        message: "Selecione a área do usuário: IQC, OQC ou Ambos.",
+      });
+    }
+
     const cleanUsername = String(username).trim().toLowerCase();
 
     const existing = await db.query(
@@ -299,15 +382,9 @@ router.put("/:id", async (req, res) => {
       });
     }
 
-    const level = Number(accessLevel || 3);
-
-    let finalRole = "inspetor";
-
-    if (level === 1) {
-      finalRole = "admin";
-    } else if (level === 2) {
-      finalRole = "lider";
-    }
+    const level = normalizeAccessLevel(role, accessLevel);
+    const finalRole = roleFromAccessLevel(level);
+    const activeValue = normalizeActive(active);
 
     let result;
 
@@ -325,9 +402,10 @@ router.put("/:id", async (req, res) => {
           cargo = $5,
           role = $6,
           access_level = $7,
-          active = $8,
+          inspection_area = $8,
+          active = $9,
           updated_at = NOW()
-        WHERE id = $9
+        WHERE id = $10
         RETURNING
           id,
           name,
@@ -336,6 +414,7 @@ router.put("/:id", async (req, res) => {
           cargo,
           role,
           access_level,
+          inspection_area,
           active,
           created_at,
           updated_at
@@ -344,11 +423,12 @@ router.put("/:id", async (req, res) => {
           String(name).trim(),
           cleanUsername,
           passwordHash,
-          String(matricula || "").trim(),
-          String(cargo || "").trim(),
+          String(matricula).trim(),
+          String(cargo).trim(),
           finalRole,
           level,
-          active !== false,
+          normalizedInspectionArea,
+          activeValue,
           id,
         ]
       );
@@ -363,9 +443,10 @@ router.put("/:id", async (req, res) => {
           cargo = $4,
           role = $5,
           access_level = $6,
-          active = $7,
+          inspection_area = $7,
+          active = $8,
           updated_at = NOW()
-        WHERE id = $8
+        WHERE id = $9
         RETURNING
           id,
           name,
@@ -374,6 +455,7 @@ router.put("/:id", async (req, res) => {
           cargo,
           role,
           access_level,
+          inspection_area,
           active,
           created_at,
           updated_at
@@ -381,11 +463,12 @@ router.put("/:id", async (req, res) => {
         [
           String(name).trim(),
           cleanUsername,
-          String(matricula || "").trim(),
-          String(cargo || "").trim(),
+          String(matricula).trim(),
+          String(cargo).trim(),
           finalRole,
           level,
-          active !== false,
+          normalizedInspectionArea,
+          activeValue,
           id,
         ]
       );
@@ -398,23 +481,10 @@ router.put("/:id", async (req, res) => {
       });
     }
 
-    const u = result.rows[0];
-
     res.json({
       ok: true,
       message: "Usuário atualizado com sucesso.",
-      user: {
-        id: u.id,
-        name: u.name,
-        username: u.username,
-        matricula: u.matricula || "",
-        cargo: u.cargo || "",
-        role: u.role || "",
-        accessLevel: Number(u.access_level || 3),
-        active: Boolean(u.active),
-        createdAt: u.created_at,
-        updatedAt: u.updated_at,
-      },
+      user: mapUser(result.rows[0]),
     });
   } catch (error) {
     console.error("Erro ao editar usuário:", error);

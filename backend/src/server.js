@@ -1,7 +1,9 @@
 import express from "express";
 import cors from "cors";
 import dotenv from "dotenv";
+import jwt from "jsonwebtoken";
 import { testConnection } from "./db.js";
+
 import setupRoutes from "./routes/setup.routes.js";
 import authRoutes from "./routes/auth.routes.js";
 import usersRoutes from "./routes/users.routes.js";
@@ -16,12 +18,87 @@ const app = express();
 app.use(cors());
 app.use(express.json());
 
+function normalizeInspectionArea(value) {
+  const area = String(value || "").trim().toUpperCase();
+
+  if (["IQC", "OQC", "ALL"].includes(area)) {
+    return area;
+  }
+
+  return null;
+}
+
+function requireAuth(req, res, next) {
+  const authorization = String(req.headers.authorization || "").trim();
+
+  if (!authorization.startsWith("Bearer ")) {
+    return res.status(401).json({
+      ok: false,
+      message: "Acesso não autorizado. Faça login novamente.",
+    });
+  }
+
+  const token = authorization.slice(7).trim();
+
+  if (!token) {
+    return res.status(401).json({
+      ok: false,
+      message: "Token de acesso não informado.",
+    });
+  }
+
+  try {
+    const payload = jwt.verify(token, process.env.JWT_SECRET);
+
+    const inspectionArea = normalizeInspectionArea(
+      payload?.inspectionArea
+    );
+
+    if (!inspectionArea) {
+      return res.status(403).json({
+        ok: false,
+        message:
+          "Usuário sem área de inspeção válida. Solicite classificação como IQC, OQC ou Ambos.",
+      });
+    }
+
+    req.user = {
+      ...payload,
+      inspectionArea,
+    };
+
+    next();
+  } catch (error) {
+    return res.status(401).json({
+      ok: false,
+      message: "Sessão expirada ou inválida. Faça login novamente.",
+    });
+  }
+}
+
+function requireSystemManager(req, res, next) {
+  const level = Number(req.user?.accessLevel || 3);
+
+  if (level > 2) {
+    return res.status(403).json({
+      ok: false,
+      message:
+        "Você não possui permissão para administrar usuários do sistema.",
+    });
+  }
+
+  next();
+}
+
+// Rotas sem login
 app.use("/setup", setupRoutes);
 app.use("/auth", authRoutes);
-app.use("/api/users", usersRoutes);
-app.use("/plans", plansRoutes);
-app.use("/inspections", inspectionsRoutes);
-app.use("/api/switching", switchingRoutes);
+
+// Rotas protegidas por login
+app.use("/api/users", requireAuth, requireSystemManager, usersRoutes);
+app.use("/plans", requireAuth, plansRoutes);
+app.use("/inspections", requireAuth, inspectionsRoutes);
+app.use("/api/switching", requireAuth, switchingRoutes);
 
 app.get("/", (req, res) => {
   res.json({

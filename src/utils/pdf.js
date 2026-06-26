@@ -45,6 +45,10 @@ function isSpecialNumeric(c) {
   return isSpecialChar(c) && getSpecialMode(c) === "numerico";
 }
 
+function isScannerChar(c) {
+  return getCharKind(c) === "scanner";
+}
+
 function isNumericChar(c) {
   return getCharKind(c) === "variavel" || isSpecialNumeric(c);
 }
@@ -666,12 +670,26 @@ const rightTableFinalY = doc.lastAutoTable?.finalY || 90;;
 
   const characteristicRows = [];
   const specialRows = [];
+  const scannerRows = [];
 
 for (const c of chars) {
   const rawSamples = samplesObj[c.id] || [];
   const expectedN = getCharSampleCount(c, insp);
   const cpk = calcCpkForChar(c, samplesObj);
   const isSpecial = isSpecialChar(c);
+
+  if(isScannerChar(c)) {
+    for (let index = 0; index < expectedN; index +=1){
+      scannerRows.push([
+        c.name || "Scanner",
+        c.method || "Scanner",
+        `Amostra ${index +1}`,
+        String(rawSamples[index] ?? "").trim() || "-",
+      ])
+    }
+    
+    continue;
+  }
 
  if (isSpecial) {
   if (isSpecialNumeric(c)) {
@@ -798,40 +816,151 @@ if (specialRows.length) {
   yAfterMainTables = doc.lastAutoTable?.finalY || yAfterMainTables;
 }
 
- // Observações
-const yAfterChars = yAfterMainTables;
-sectionTitle(doc, "Observações", M, yAfterChars + 12);
-  autoTable(doc, {
-    ...commonTableStyle(9),
-    startY: yAfterChars + 16,
-    margin: { left: M, right: M },
-    body: [[insp.obs?.trim() ? insp.obs.trim() : "—"]],
-    columnStyles: { 0: { cellWidth: "auto" } },
-  });
+ if (scannerRows.length) {
+  // Evita iniciar a tabela muito próxima ao rodapé.
+  if (yAfterMainTables > 245) {
+    doc.addPage();
 
-  // Assinaturas
-  const yAfterObs = doc.lastAutoTable?.finalY || 240;
-  sectionTitle(doc, "Assinaturas", M, yAfterObs + 12);
+    if (opts.logoDataUrl) {
+      try {
+        addLogo(doc, opts.logoDataUrl, M, 8, 30, 12);
+      } catch {}
+    }
+
+    doc.setFont("helvetica", "bold");
+    doc.setFontSize(13);
+    doc.setTextColor(...COLORS.text);
+    doc.text(
+      "RELATÓRIO DE INSPEÇÃO - CONTINUAÇÃO",
+      pageWidth / 2,
+      16,
+      { align: "center" }
+    );
+
+    doc.setDrawColor(...COLORS.grid);
+    doc.setLineWidth(0.3);
+    doc.line(M, 24, pageWidth - M, 24);
+
+    yAfterMainTables = 30;
+  }
+
+  sectionTitle(doc, "Rastreabilidade - Scanner", M, yAfterMainTables + 10);
+
   autoTable(doc, {
-    ...commonTableStyle(9),
-    startY: yAfterObs + 16,
+    ...commonTableStyle(8),
+    startY: yAfterMainTables + 14,
     margin: { left: M, right: M },
-    head: [["Responsável", "Qualidade", "Data"]],
-    body: [[
-  insp.resp || "—",
-  "__________________",
-  fmtDate(
-    finishedDateTime ||
-      startedDateTime
-  ),
-]],
+    head: [[
+      "Campo de leitura",
+      "Equipamento",
+      "Amostra",
+      "Código bipado",
+    ]],
+    body: scannerRows,
+    styles: {
+      ...commonTableStyle(8).styles,
+      cellPadding: 2,
+      overflow: "linebreak",
+    },
     columnStyles: {
-      0: { cellWidth: 70 },
-      1: { cellWidth: 70 },
-      2: { cellWidth: "auto" },
+      0: { cellWidth: 42 },
+      1: { cellWidth: 34 },
+      2: { cellWidth: 22 },
+      3: { cellWidth: "auto" },
     },
   });
 
+  yAfterMainTables = doc.lastAutoTable?.finalY || yAfterMainTables;
+}
+
+// Observações + assinaturas
+const obsText = insp.obs?.trim() ? insp.obs.trim() : "—";
+
+const pageHeight = doc.internal.pageSize.getHeight();
+const contentBottom = pageHeight - 18;
+
+// Estimativa conservadora para evitar título isolado no fim da página.
+const obsLines = doc.splitTextToSize(
+  obsText,
+  pageWidth - M * 2 - 8
+);
+
+const closeoutEstimatedHeight = Math.max(
+  72,
+  46 + obsLines.length * 5
+);
+
+function addReportContinuationHeader() {
+  doc.addPage();
+
+  if (opts.logoDataUrl) {
+    try {
+      addLogo(doc, opts.logoDataUrl, M, 8, 30, 12);
+    } catch {}
+  }
+
+  doc.setFont("helvetica", "bold");
+  doc.setFontSize(13);
+  doc.setTextColor(...COLORS.text);
+  doc.text(
+    "RELATÓRIO DE INSPEÇÃO - CONTINUAÇÃO",
+    pageWidth / 2,
+    16,
+    { align: "center" }
+  );
+
+  doc.setDrawColor(...COLORS.grid);
+  doc.setLineWidth(0.3);
+  doc.line(M, 24, pageWidth - M, 24);
+}
+
+// Mantém Observações e Assinaturas juntas.
+// Se não houver espaço, inicia ambas em uma página nova.
+if (yAfterMainTables + closeoutEstimatedHeight > contentBottom) {
+  addReportContinuationHeader();
+  yAfterMainTables = 30;
+}
+
+sectionTitle(doc, "Observações", M, yAfterMainTables + 10);
+
+autoTable(doc, {
+  ...commonTableStyle(9),
+  startY: yAfterMainTables + 14,
+  margin: { left: M, right: M },
+  body: [[obsText]],
+  columnStyles: {
+    0: { cellWidth: "auto" },
+  },
+});
+
+let yAfterObs = doc.lastAutoTable?.finalY || yAfterMainTables + 30;
+
+// Proteção extra para observações muito longas.
+const signaturesEstimatedHeight = 32;
+
+if (yAfterObs + signaturesEstimatedHeight > contentBottom) {
+  addReportContinuationHeader();
+  yAfterObs = 30;
+}
+
+sectionTitle(doc, "Assinaturas", M, yAfterObs + 10);
+
+autoTable(doc, {
+  ...commonTableStyle(9),
+  startY: yAfterObs + 14,
+  margin: { left: M, right: M },
+  head: [["Responsável", "Qualidade", "Data"]],
+  body: [[
+    insp.resp || "—",
+    "__________________",
+    fmtDate(finishedDateTime || startedDateTime),
+  ]],
+  columnStyles: {
+    0: { cellWidth: 70 },
+    1: { cellWidth: 70 },
+    2: { cellWidth: "auto" },
+  },
+});
   // Rodapé página 1
   doc.setFontSize(8);
   doc.setTextColor(...COLORS.muted);
