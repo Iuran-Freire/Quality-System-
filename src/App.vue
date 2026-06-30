@@ -43,6 +43,7 @@ const userForm = ref({
   cargo: "",
   role: "inspetor",
   accessLevel: 3,
+  inspectionArea: "IQC ",
   active: true,
 });
 
@@ -155,6 +156,7 @@ function openNewUser() {
     cargo: "",
     role: "inspetor",
     accessLevel: 3,
+    inspectionArea: "IQC",
     active: true,
   };
 
@@ -174,6 +176,7 @@ function openEditUser(user) {
     cargo: user.cargo || "",
     role: user.role || "inspetor",
     accessLevel: Number(user.accessLevel || 3),
+    inspectionArea: user.inspectionArea || "IQC",
     active: Boolean(user.active),
   };
 
@@ -221,6 +224,18 @@ async function saveUser() {
     alert("Preencha o cargo.");
     return;
   }
+
+  const validAreas = ["IQC", "OQC", "ALL"];
+  const selectedArea = String(userForm.value.inspectionArea || "")
+    .trim()
+    .toUpperCase();
+
+  if (!validAreas.includes(selectedArea)) {
+    alert("Selecione a área do usuário :IQC , OQC ou Ambos.");
+    return;
+  }
+
+  userForm.value.inspectionArea = selectedArea;
 
   syncUserRoleByAccessLevel();
 
@@ -974,6 +989,7 @@ function getSwitchingTarget() {
                     <th>Usuário</th>
                     <th>Matrícula</th>
                     <th>Cargo</th>
+                    <th>Área</th>
                     <th>Nível</th>
                     <th>Ações</th>
                   </tr>
@@ -981,15 +997,15 @@ function getSwitchingTarget() {
 
                 <tbody>
                   <tr v-if="users.loading">
-                    <td colspan="7">Carregando usuários...</td>
+                    <td colspan="8">Carregando usuários...</td>
                   </tr>
 
                   <tr v-else-if="users.error">
-                    <td colspan="7">Erro ao carregar usuários: {{ users.error }}</td>
+                    <td colspan="8">Erro ao carregar usuários: {{ users.error }}</td>
                   </tr>
 
                   <tr v-else-if="!users.items.length">
-                    <td colspan="7">Nenhum usuário cadastrado.</td>
+                    <td colspan="8">Nenhum usuário cadastrado.</td>
                   </tr>
 
                   <tr v-else v-for="u in users.items" :key="u.id">
@@ -1003,6 +1019,20 @@ function getSwitchingTarget() {
                     <td>{{ u.username }}</td>
                     <td>{{ u.matricula || "—" }}</td>
                     <td>{{ u.cargo || "—" }}</td>
+
+                    <td>
+                      <span
+                        class="area-pill"
+                        :class="`area-${u.inspectionArea || 'none'}`"
+                      >
+                        {{
+                          u.inspectionArea === "ALL"
+                            ? "Ambos"
+                            : u.inspectionArea || "Não definida"
+                        }}
+                      </span>
+                    </td>
+
                     <td>Nível {{ u.accessLevel || 3 }}</td>
 
                     <td>
@@ -1103,6 +1133,17 @@ function getSwitchingTarget() {
               <option :value="3">Nível 3 - Operacional</option>
             </select>
             <span>Nível *</span>
+          </label>
+        </div>
+
+        <div class="span-2">
+          <label class="float-label">
+            <select v-model="userForm.inspectionArea">
+              <option value="IQC">IQC</option>
+              <option value="OQC">OQC</option>
+              <option value="ALL">Ambos (IQC + OQC)</option>
+            </select>
+            <span>Área de inspeção *</span>
           </label>
         </div>
 
@@ -1799,5 +1840,41 @@ function getSwitchingTarget() {
   .switching-analysis-summary {
     grid-template-columns: 1fr;
   }
+}
+
+.area-pill {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 58px;
+  padding: 5px 9px;
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 800;
+  white-space: nowrap;
+}
+
+.area-IQC {
+  color: #1d4ed8;
+  background: #eff6ff;
+  border: 1px solid #bfdbfe;
+}
+
+.area-OQC {
+  color: #166534;
+  background: #f0fdf4;
+  border: 1px solid #bbf7d0;
+}
+
+.area-ALL {
+  color: #7c2d12;
+  background: #fff7ed;
+  border: 1px solid #fdba74;
+}
+
+.area-none {
+  color: #64748b;
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
 }
 </style>

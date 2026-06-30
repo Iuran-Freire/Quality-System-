@@ -1406,7 +1406,7 @@ Motivo: ${p.reason}`;
 </script>
 
 <template>
-  <div class="modal" :class="{ show: props.show }" @click.self="emit('close')">
+  <div class="modal" :class="{ show: props.show }">
     <div class="sheet vstack">
       <div class="hstack" style="justify-content: space-between; align-items: center">
         <div>
