@@ -50,7 +50,7 @@ async function submitLogin() {
 
       <button class="btn login-btn" type="button" @click="submitLogin">Entrar</button>
 
-      <div class="login-hint">Teste: <b>iuran</b> / <b>1234</b></div>
+      <div class="login-hint">Teste: <b>Usuário de Demonstração</b> </div>
     </div>
   </div>
 </template>
