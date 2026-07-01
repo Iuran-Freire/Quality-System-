@@ -33,7 +33,7 @@ function getSampleCountForChar(char, insp) {
     return safeNum(insp.boxQty ?? insp.planBoxQty, 2);
   }
 
-  if (kind === "teste_especial") {
+  if (kind === "teste_especial" || kind === "xrf_rohs") {
     return safeNum(char.sampleN, 1);
   }
 

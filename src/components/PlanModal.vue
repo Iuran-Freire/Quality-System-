@@ -21,6 +21,38 @@ function cid() {
   return crypto.randomUUID ? crypto.randomUUID() : String(Date.now()) + Math.random();
 }
 
+function normalizeXrfElement(raw = {}) {
+  const element = { ...raw };
+
+  element.id = element.id || cid();
+  element.name = String(element.name || "").trim();
+  element.max = element.max ?? "";
+  element.unit = "ppm";
+
+  return element;
+}
+
+function addXrfElement(char) {
+  if (!Array.isArray(char.elements)) {
+    char.elements = [];
+  }
+
+  char.elements.push({
+    id: cid(),
+    name: "",
+    max: "",
+    unit: "ppm",
+  });
+}
+
+function removeXrfElement(char, elementId) {
+  if (!Array.isArray(char.elements)) return;
+
+  char.elements = char.elements.filter(
+    (element) => String(element.id) !== String(elementId)
+  );
+}
+
 // ---------------- FORM ----------------
 const form = reactive({
   id: null,
@@ -116,6 +148,25 @@ function normalizeChar(raw) {
     c.unit = "";
     c.category =
       c.category && c.category !== "Dimensional" ? c.category : "Rastreabilidade";
+
+    return c;
+  }
+
+  if (c.kind === "xrf_rohs") {
+    c.resultMode = null;
+    c.traceOnly = false;
+
+    const sn = Number(c.sampleN ?? 1);
+    c.sampleN = Number.isFinite(sn) && sn > 0 ? sn : 1;
+
+    c.lsl = "";
+    c.usl = "";
+    c.unit = "";
+    c.category = "Químico";
+
+    c.elements = Array.isArray(c.elements)
+      ? c.elements.map((element) => normalizeXrfElement(element))
+      : [];
 
     return c;
   }
@@ -262,6 +313,14 @@ function cloneCharacteristicsFromPlan() {
     c.lsl = "";
     c.usl = "";
 
+    if (c.kind === "xrf_rohs") {
+      c.elements = (c.elements || []).map((element) => ({
+        ...normalizeXrfElement(element),
+        id: cid(),
+        max: "",
+      }));
+    }
+
     // mantém unidade/método/categoria/nome/tipo para agilizar
     c.unit = c.unit || "";
     c.method = c.method || "";
@@ -285,6 +344,7 @@ function cloneCharacteristicsFromPlan() {
 
 function addChar(kind = "variavel") {
   const isScanner = kind === "scanner";
+  const isXrf = kind === "xrf_rohs";
 
   form.chars.push({
     id: cid(),
@@ -297,6 +357,8 @@ function addChar(kind = "variavel") {
 
     category: isScanner
       ? "Rastreabilidade"
+      : isXrf
+      ? "Químico"
       : kind === "visual_produto" || kind === "visual_caixa"
       ? "Visual"
       : kind === "teste_especial"
@@ -305,10 +367,12 @@ function addChar(kind = "variavel") {
 
     resultMode: kind === "teste_especial" ? "visual" : null,
 
-    // Scanner não tem N próprio: seguirá a amostragem do plano.
-    sampleN: kind === "teste_especial" ? 1 : kind === "visual_caixa" ? 2 : null,
+    sampleN:
+      kind === "teste_especial" ? 1 : kind === "visual_caixa" ? 2 : isXrf ? 1 : null,
 
     traceOnly: isScanner,
+
+    elements: isXrf ? [] : [],
   });
 }
 
@@ -427,6 +491,7 @@ watch(
 function charBadgeLabel(c) {
   if (c.kind === "variavel") return "Variável Numérica";
   if (c.kind === "scanner") return "Scanner — Rastreabilidade";
+  if (c.kind === "xrf_rohs") return "XRF / RoHS — Químico";
   if (c.kind === "visual_caixa") return "Visual (Caixa)";
   if (c.kind === "visual_produto") return "Visual (Produto)";
 
@@ -516,13 +581,18 @@ async function save() {
         resultMode: kind === "teste_especial" ? c.resultMode || "visual" : null,
 
         sampleN:
-          kind === "teste_especial"
+          kind === "teste_especial" || kind === "xrf_rohs"
             ? Math.max(1, Number(c.sampleN ?? 1) || 1)
             : kind === "visual_caixa"
             ? Math.max(1, Number(c.sampleN ?? 2) || 2)
             : null,
 
         traceOnly: kind === "scanner",
+
+        elements:
+          kind === "xrf_rohs"
+            ? (Array.isArray(c.elements) ? c.elements : []).map(normalizeXrfElement)
+            : [],
       };
     })
     .filter((c) => c.name.length > 0)
@@ -548,6 +618,20 @@ async function save() {
         return c;
       }
 
+      if (c.kind === "xrf_rohs") {
+        c.resultMode = null;
+        c.sampleN = Math.max(1, Number(c.sampleN ?? 1) || 1);
+        c.lsl = "";
+        c.usl = "";
+        c.unit = "";
+        c.category = "Químico";
+        c.traceOnly = false;
+
+        c.elements = (c.elements || []).map(normalizeXrfElement);
+
+        return c;
+      }
+
       if (c.kind !== "variavel") {
         c.lsl = "";
         c.usl = "";
@@ -560,6 +644,49 @@ async function save() {
 
   if (!chars.length) {
     return alert("Adicione pelo menos uma característica ou teste ao plano.");
+  }
+
+  // Validação exclusiva do XRF / RoHS
+  for (const c of chars) {
+    if (c.kind !== "xrf_rohs") continue;
+
+    if (!Number.isFinite(Number(c.sampleN)) || Number(c.sampleN) < 1) {
+      return alert(`Informe a quantidade de amostras para: ${c.name}`);
+    }
+
+    if (!Array.isArray(c.elements) || !c.elements.length) {
+      return alert(`Adicione pelo menos um elemento químico em: ${c.name}`);
+    }
+
+    const usedNames = new Set();
+
+    for (const element of c.elements) {
+      const elementName = String(element.name || "").trim();
+
+      if (!elementName) {
+        return alert(`Informe o nome do elemento químico em: ${c.name}`);
+      }
+
+      const key = elementName.toUpperCase();
+
+      if (usedNames.has(key)) {
+        return alert(`O elemento "${elementName}" está repetido no teste: ${c.name}`);
+      }
+
+      usedNames.add(key);
+
+      const max = normalizeNumber(element.max);
+
+      if (!Number.isFinite(max) || max < 0) {
+        return alert(
+          `Informe um limite máximo válido em ppm para "${elementName}" no teste: ${c.name}`
+        );
+      }
+
+      element.name = elementName;
+      element.max = max;
+      element.unit = "ppm";
+    }
   }
 
   for (const c of chars) {
@@ -659,7 +786,7 @@ async function save() {
 </script>
 
 <template>
-  <div class="modal" :class="{ show: show }" @click.self="emit('close')">
+  <div class="modal" :class="{ show: show }">
     <div class="sheet vstack">
       <div class="hstack" style="justify-content: space-between; align-items: center">
         <h3>{{ isEdit ? "Editar Plano de Inspeção" : "Novo Plano de Inspeção" }}</h3>
@@ -904,6 +1031,7 @@ async function save() {
           <button @click="addChar('visual_produto')">+ Visual Produto</button>
           <button @click="addChar('visual_caixa')">+ Visual Caixa</button>
           <button @click="addChar('scanner')">+ Scanner</button>
+          <button @click="addChar('xrf_rohs')">+ XRF / RoHS</button>
           <button @click="addChar('teste_especial')">+ Teste Especial</button>
         </div>
       </div>
@@ -957,7 +1085,7 @@ async function save() {
               <input v-model="c.name" placeholder=" " />
               <span>
                 {{
-                  c.kind === "teste_especial"
+                  c.kind === "teste_especial" || c.kind === "xrf_rohs"
                     ? "Nome do teste *"
                     : c.kind === "scanner"
                     ? "Nome do campo de leitura *"
@@ -991,6 +1119,15 @@ async function save() {
                   <option value="numerico">Numérico</option>
                 </select>
                 <span>Resultado</span>
+              </label>
+            </div>
+          </template>
+
+          <template v-if="c.kind === 'xrf_rohs'">
+            <div class="span-1">
+              <label class="float-label">
+                <input v-model.number="c.sampleN" type="number" min="1" placeholder=" " />
+                <span>Amostras</span>
               </label>
             </div>
           </template>
@@ -1039,9 +1176,56 @@ async function save() {
                 <option value="Aparência">Aparência</option>
                 <option value="Outros">Outros</option>
                 <option value="Rastreabilidade">Rastreabilidade</option>
+                <option value="Químico">Químico</option>
               </select>
               <span>Categoria</span>
             </label>
+          </div>
+        </div>
+        <div v-if="c.kind === 'xrf_rohs'" class="xrf-elements-box">
+          <div class="xrf-elements-head">
+            <div>
+              <strong>Elementos químicos / substâncias avaliadas</strong>
+              <span>
+                Defina cada elemento e o respectivo limite máximo permitido em ppm.
+              </span>
+            </div>
+
+            <button class="btn ghost" type="button" @click="addXrfElement(c)">
+              + Adicionar elemento
+            </button>
+          </div>
+
+          <div v-if="!(c.elements || []).length" class="xrf-empty">
+            Nenhum elemento adicionado ainda.
+          </div>
+
+          <div
+            v-for="(element, elementIndex) in c.elements || []"
+            :key="element.id"
+            class="xrf-element-row"
+          >
+            <span class="xrf-element-index">{{ elementIndex + 1 }}</span>
+
+            <label class="float-label">
+              <input v-model="element.name" placeholder=" " />
+              <span>Elemento / substância *</span>
+            </label>
+
+            <label class="float-label">
+              <input v-model="element.max" inputmode="decimal" placeholder=" " />
+              <span>Máximo permitido *</span>
+            </label>
+
+            <span class="xrf-unit">ppm</span>
+
+            <button
+              class="btn ghost danger"
+              type="button"
+              @click="removeXrfElement(c, element.id)"
+            >
+              Remover
+            </button>
           </div>
         </div>
       </div>
@@ -1140,5 +1324,88 @@ async function save() {
 .move-char-btn:disabled {
   opacity: 0.35;
   cursor: not-allowed;
+}
+
+.xrf-elements-box {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin-top: 14px;
+  padding: 14px;
+  border: 1px solid #ddd6fe;
+  border-radius: 14px;
+  background: #faf5ff;
+}
+
+.xrf-elements-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.xrf-elements-head > div {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.xrf-elements-head strong {
+  color: #5b21b6;
+  font-size: 14px;
+}
+
+.xrf-elements-head span {
+  color: #7e22ce;
+  font-size: 12px;
+}
+
+.xrf-empty {
+  padding: 10px;
+  border: 1px dashed #c4b5fd;
+  border-radius: 10px;
+  color: #6b21a8;
+  font-size: 13px;
+}
+
+.xrf-element-row {
+  display: grid;
+  grid-template-columns: 30px minmax(170px, 1fr) minmax(150px, 220px) auto auto;
+  align-items: center;
+  gap: 10px;
+}
+
+.xrf-element-index {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  border-radius: 999px;
+  background: #ede9fe;
+  color: #6d28d9;
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.xrf-unit {
+  color: #6b21a8;
+  font-size: 13px;
+  font-weight: 800;
+}
+
+@media (max-width: 850px) {
+  .xrf-elements-head {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .xrf-element-row {
+    grid-template-columns: 30px 1fr;
+  }
+
+  .xrf-unit {
+    padding-left: 40px;
+  }
 }
 </style>

@@ -6,6 +6,17 @@ function deepClone(x) {
   return JSON.parse(JSON.stringify(x));
 }
 
+function normalizeXrfElement(raw = {}) {
+  const element = { ...raw };
+
+  element.id = element.id || crypto.randomUUID();
+  element.name = String(element.name || "").trim();
+  element.max = element.max ?? "";
+  element.unit = "ppm";
+
+  return element;
+}
+
 /**
  * Normaliza/migra uma característica para o novo padrão:
  * kind:
@@ -34,6 +45,28 @@ function normalizeChar(char = {}, planN = 5) {
     if (hasLSL && hasUSL) c.kind = "variavel";
     else c.kind = "visual_produto";
   }
+
+  if (c.kind === "xrf_rohs") {
+  const sn = Number(c.sampleN ?? 1);
+
+  c.sampleN = Number.isFinite(sn) && sn > 0 ? sn : 1;
+  c.sampleMode = "fixed";
+  c.resultMode = null;
+
+  c.lsl = "";
+  c.usl = "";
+  c.unit = "";
+  c.method = c.method ?? "";
+  c.category = "Químico";
+  c.decimals = c.decimals ?? 3;
+  c.traceOnly = false;
+
+  c.elements = Array.isArray(c.elements)
+    ? c.elements.map(normalizeXrfElement)
+    : [];
+
+  return c;
+}
 
   if (c.kind === "teste_especial") {
     const sn = Number(c.sampleN ?? 1);

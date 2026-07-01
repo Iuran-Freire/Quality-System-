@@ -1072,7 +1072,7 @@ function getSwitchingTarget() {
     "
   />
 
-  <div class="modal" :class="{ show: showUserModal }" @click.self="showUserModal = false">
+  <div class="modal" :class="{ show: showUserModal }">
     <div class="sheet vstack user-sheet">
       <div class="hstack" style="justify-content: space-between; align-items: center">
         <h3>{{ editUserId ? "Editar usuário" : "Novo usuário" }}</h3>

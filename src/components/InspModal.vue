@@ -295,6 +295,78 @@ function isScannerChar(c) {
   return getCharKind(c) === "scanner";
 }
 
+function isXrfChar(c) {
+  return getCharKind(c) === "xrf_rohs";
+}
+
+function xrfElements(c) {
+  return Array.isArray(c?.elements) ? c.elements : [];
+}
+
+function createEmptyXrfSample(c) {
+  const sample = {};
+
+  for (const element of xrfElements(c)) {
+    sample[element.id] = "";
+  }
+
+  return sample;
+}
+
+function normalizeXrfSamples(c, existing = []) {
+  const n = getCharSampleCount(c);
+  const current = Array.isArray(existing) ? existing : [];
+
+  return Array.from({ length: n }, (_, index) => {
+    const raw = current[index];
+
+    const source = raw && typeof raw === "object" && !Array.isArray(raw) ? raw : {};
+
+    const sample = {};
+
+    for (const element of xrfElements(c)) {
+      sample[element.id] = source[element.id] ?? "";
+    }
+
+    return sample;
+  });
+}
+
+function isXrfSampleComplete(c, sample) {
+  const elements = xrfElements(c);
+
+  return (
+    elements.length > 0 &&
+    elements.every((element) => String(sample?.[element.id] ?? "").trim() !== "")
+  );
+}
+
+function hasAnyCharValue(c, values = []) {
+  if (isXrfChar(c)) {
+    return values.some((sample) =>
+      xrfElements(c).some((element) => String(sample?.[element.id] ?? "").trim() !== "")
+    );
+  }
+
+  return values.some((value) => String(value ?? "").trim() !== "");
+}
+
+function xrfFilledReadings(c) {
+  const values = localSamples.value?.[c.id] || [];
+
+  return values.reduce((total, sample) => {
+    return (
+      total +
+      xrfElements(c).filter((element) => String(sample?.[element.id] ?? "").trim() !== "")
+        .length
+    );
+  }, 0);
+}
+
+function xrfTotalReadings(c) {
+  return getCharSampleCount(c) * xrfElements(c).length;
+}
+
 function normalizeScannerCode(value) {
   return String(value ?? "")
     .trim()
@@ -371,7 +443,7 @@ function getCharSampleCount(c) {
     return Number.isFinite(n) && n > 0 ? n : 2;
   }
 
-  if (kind === "teste_especial") {
+  if (kind === "teste_especial" || kind === "xrf_rohs") {
     const n = Number(c.sampleN ?? 1);
     return Number.isFinite(n) && n > 0 ? n : 1;
   }
@@ -385,20 +457,39 @@ function ensureSamplesByChar(chars = [], existing = {}) {
   const out = JSON.parse(JSON.stringify(existing || {}));
 
   for (const c of chars) {
+    if (isXrfChar(c)) {
+      out[c.id] = normalizeXrfSamples(c, out[c.id] || []);
+      continue;
+    }
+
     const n = getCharSampleCount(c);
+
     if (!Array.isArray(out[c.id])) out[c.id] = [];
+
     out[c.id] = out[c.id].slice(0, n);
-    while (out[c.id].length < n) out[c.id].push("");
+
+    while (out[c.id].length < n) {
+      out[c.id].push("");
+    }
   }
+
   return out;
 }
 
 function buildEmptySamplesByChar(chars = []) {
   const out = {};
+
   for (const c of chars) {
     const n = getCharSampleCount(c);
+
+    if (isXrfChar(c)) {
+      out[c.id] = Array.from({ length: n }, () => createEmptyXrfSample(c));
+      continue;
+    }
+
     out[c.id] = Array.from({ length: n }, () => "");
   }
+
   return out;
 }
 
@@ -451,9 +542,17 @@ function totalCount(charId) {
 
 function filledCount(charId) {
   const arr = localSamples.value?.[charId] || [];
-  return arr.filter((v) => String(v ?? "").trim() !== "").length;
-}
 
+  const char = (currentChars.value || []).find(
+    (item) => String(item.id) === String(charId)
+  );
+
+  if (char && isXrfChar(char)) {
+    return arr.filter((sample) => isXrfSampleComplete(char, sample)).length;
+  }
+
+  return arr.filter((value) => String(value ?? "").trim() !== "").length;
+}
 function getCurrentUserTrace() {
   return {
     name: auth.userName || "",
@@ -468,7 +567,11 @@ function isCharCompleted(c, samplesObj = localSamples.value) {
 
   if (!vals.length) return false;
 
-  return vals.every((v) => String(v ?? "").trim() !== "");
+  if (isXrfChar(c)) {
+    return vals.every((sample) => isXrfSampleComplete(c, sample));
+  }
+
+  return vals.every((value) => String(value ?? "").trim() !== "");
 }
 
 function applyCharTraceability(chars = [], samplesObj = localSamples.value) {
@@ -478,7 +581,7 @@ function applyCharTraceability(chars = [], samplesObj = localSamples.value) {
     const c = JSON.parse(JSON.stringify(raw));
     const vals = samplesObj?.[c.id] || [];
 
-    const hasAnyValue = vals.some((v) => String(v ?? "").trim() !== "");
+    const hasAnyValue = hasAnyCharValue(c, vals);
     const completed = isCharCompleted(c, samplesObj);
 
     if (hasAnyValue && !c.startedAt) {
@@ -505,7 +608,7 @@ function markCharTrace(c) {
   const now = nowLocalISO();
   const vals = localSamples.value?.[c.id] || [];
 
-  const hasAnyValue = vals.some((v) => String(v ?? "").trim() !== "");
+  const hasAnyValue = hasAnyCharValue(c, vals);
   const completed = isCharCompleted(c, localSamples.value);
 
   if (hasAnyValue && !c.startedAt) {
@@ -705,6 +808,7 @@ function kindLabel(c) {
   if (k === "variavel") return "Variável (CPK)";
   if (k === "visual_caixa") return "Visual – Caixa";
   if (k === "scanner") return "Scanner - Rastreabilidade";
+  if (k === "xrf_rohs") return "XRF / RoHS - Químico";
 
   if (k === "teste_especial") {
     return isNumericChar(c) ? "Teste Especial – Numérico" : "Teste Especial – OK/NG";
@@ -964,6 +1068,30 @@ function checkChar(c, vals = []) {
     const allFilled = values.every((value) => Boolean(normalizeScannerCode(value)));
 
     return allFilled ? "OK" : "EMPTY";
+  }
+
+  if (isXrfChar(c)) {
+    const elements = xrfElements(c);
+    const samples = vals || [];
+
+    if (!elements.length || !samples.length) return "EMPTY";
+
+    for (const sample of samples) {
+      for (const element of elements) {
+        const measured = toNumber(sample?.[element.id]);
+        const max = toNumber(element.max);
+
+        if (measured == null || max == null) {
+          return "EMPTY";
+        }
+
+        if (measured > max) {
+          return "NG";
+        }
+      }
+    }
+
+    return "OK";
   }
 
   // VISUAL PRODUTO / VISUAL CAIXA / TESTE ESPECIAL OK-NG
@@ -2029,11 +2157,7 @@ Motivo: ${p.reason}`;
       </div>
     </div>
   </div>
-  <div
-    v-if="showSwitchingApprovalModal"
-    class="modal show"
-    @click.self="showSwitchingApprovalModal = false"
-  >
+  <div v-if="showSwitchingApprovalModal" class="modal show">
     <div class="sheet vstack switching-password-modal">
       <div class="hstack" style="justify-content: space-between; align-items: center">
         <h3>Aprovar comutação</h3>
