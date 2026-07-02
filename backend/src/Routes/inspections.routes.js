@@ -1,5 +1,6 @@
 import express from "express";
 import { db } from "../db.js";
+import { createInspectionFailAlert } from "../services/alerts.service.js";
 
 const router = express.Router();
 
@@ -33,38 +34,212 @@ function safeJson(value, fallback = {}) {
   }
 }
 
+function getCharKind(char) {
+  return char?.kind || char?.type || "visual_produto";
+}
+
+function getSpecialMode(char) {
+  const mode = String(char?.resultMode ?? char?.mode ?? "")
+    .trim()
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "");
+
+  return ["numerico", "numeric", "number", "numero"].includes(mode)
+    ? "numerico"
+    : "visual";
+}
+
+function isXrfChar(char) {
+  return getCharKind(char) === "xrf_rohs";
+}
+
+function isNumericCharForSwitching(char) {
+  const kind = getCharKind(char);
+
+  return (
+    kind === "variavel" ||
+    (kind === "teste_especial" && getSpecialMode(char) === "numerico")
+  );
+}
+
+function normVisual(value) {
+  const text = String(value ?? "").trim().toUpperCase();
+
+  if (text === "OK" || text === "PASS") return "OK";
+  if (text === "NG" || text === "NOK" || text === "FAIL") return "NG";
+
+  return "";
+}
+
+function toNumber(value) {
+  if (value === null || value === undefined) return null;
+
+  const number = Number(String(value).trim().replace(",", "."));
+
+  return Number.isFinite(number) ? number : null;
+}
+
+function xrfCharHasFailure(char, rawSamples = []) {
+  const elements = Array.isArray(char?.elements) ? char.elements : [];
+
+  if (!elements.length) return false;
+
+  return (rawSamples || []).some((sample) => {
+    if (!sample || typeof sample !== "object" || Array.isArray(sample)) {
+      return false;
+    }
+
+    return elements.some((element) => {
+      const measured = toNumber(sample?.[element.id]);
+      const max = toNumber(element?.max);
+
+      return measured != null && max != null && measured > max;
+    });
+  });
+}
+
+function nonXrfCharCausesFailure(char, rawSamples = [], sampling = {}) {
+  const kind = getCharKind(char);
+
+  // Scanner e XRF não são critérios diretos de comutação.
+  if (kind === "scanner" || kind === "xrf_rohs") {
+    return false;
+  }
+
+  // Variável ou teste especial numérico.
+  if (isNumericCharForSwitching(char)) {
+    const lsl = toNumber(char?.lsl ?? char?.min);
+    const usl = toNumber(char?.usl ?? char?.max);
+
+    return (rawSamples || []).some((rawValue) => {
+      const measured = toNumber(rawValue);
+
+      if (measured == null) return false;
+
+      return (
+        (lsl != null && measured < lsl) ||
+        (usl != null && measured > usl)
+      );
+    });
+  }
+
+  const isVisual =
+    kind === "visual_produto" ||
+    kind === "visual_caixa" ||
+    kind === "teste_especial";
+
+  if (!isVisual) return false;
+
+  const ngCount = (rawSamples || [])
+    .map(normVisual)
+    .filter((value) => value === "NG").length;
+
+  // Visual Caixa e Teste Especial OK/NG:
+  // qualquer NG é falha.
+  if (kind === "visual_caixa" || kind === "teste_especial") {
+    return ngCount > 0;
+  }
+
+  // Visual Produto: usa Ac/Re.
+  const ac = toNumber(sampling?.ac);
+  const re = toNumber(sampling?.re);
+
+  if (re == null) {
+    return ngCount > 0;
+  }
+
+  if (ngCount >= re) {
+    return true;
+  }
+
+  // Condição Delta aceita o lote, mas força retorno ao Normal.
+  if (ac != null && ngCount > ac && ngCount < re) {
+    return !Boolean(sampling?.returnToNormalOnDelta);
+  }
+
+  return false;
+}
+
+function getSwitchingOutcome(inspection) {
+  const actualResult = normalizeResult(inspection?.result);
+
+  // Apenas inspeções FAIL precisam ser investigadas.
+  if (actualResult !== "FAIL") {
+    return {
+      actualResult,
+      switchingResult: actualResult,
+      xrfOnlyFailure: false,
+    };
+  }
+
+  const chars = safeJson(inspection?.chars, []);
+  const samples = safeJson(inspection?.samples, {});
+  const sampling = safeJson(inspection?.sampling, {});
+
+  const hasXrfFailure = (chars || []).some((char) => {
+    if (!isXrfChar(char)) return false;
+
+    return xrfCharHasFailure(char, samples?.[char.id] || []);
+  });
+
+  const hasNonXrfFailure = (chars || []).some((char) => {
+    if (isXrfChar(char)) return false;
+
+    return nonXrfCharCausesFailure(
+      char,
+      samples?.[char.id] || [],
+      sampling
+    );
+  });
+
+  const xrfOnlyFailure = hasXrfFailure && !hasNonXrfFailure;
+
+  return {
+    actualResult,
+    switchingResult: xrfOnlyFailure ? "PASS" : actualResult,
+    xrfOnlyFailure,
+  };
+}
+
 function needsSwitching(currentRegime, inspections = []) {
   const regime = normalizeRegime(currentRegime);
 
- const history = inspections.map((item) => {
-  const sampling = safeJson(item.sampling, {});
+  const history = inspections.map((item) => {
+    const sampling = safeJson(item.sampling, {});
+    const switchingOutcome = getSwitchingOutcome(item);
 
-  return {
-  result: normalizeResult(item.result),
-  deltaTriggered: Boolean(sampling?.deltaTriggered),
-  inspectionRegimeSnapshot: String(
-    item.inspection_regime_snapshot || ""
-  )
-    .trim()
-    .toLowerCase(),
-};
-});
+    return {
+      result: switchingOutcome.actualResult,
+      switchingResult: switchingOutcome.switchingResult,
+      xrfOnlyFailure: switchingOutcome.xrfOnlyFailure,
+
+      deltaTriggered: Boolean(sampling?.deltaTriggered),
+
+      inspectionRegimeSnapshot: String(
+        item.inspection_regime_snapshot || ""
+      )
+        .trim()
+        .toLowerCase(),
+    };
+  });
+
   // Só considera lotes consecutivos feitos no regime atual.
-const consecutiveHistory = [];
+  const consecutiveHistory = [];
 
-for (const item of history) {
-  if (item.inspectionRegimeSnapshot !== regime) break;
-  consecutiveHistory.push(item);
-}
+  for (const item of history) {
+    if (item.inspectionRegimeSnapshot !== regime) break;
+    consecutiveHistory.push(item);
+  }
 
-const last10 = consecutiveHistory.slice(0, 10);
-const last5 = consecutiveHistory.slice(0, 5);
-const last1 = consecutiveHistory.slice(0, 1);
+  const last10 = consecutiveHistory.slice(0, 10);
+  const last5 = consecutiveHistory.slice(0, 5);
+  const last1 = consecutiveHistory.slice(0, 1);
 
   if (
     regime === "normal" &&
     last10.length >= 10 &&
-    last10.every((item) => item.result === "PASS")
+    last10.every((item) => item.switchingResult === "PASS")
   ) {
     return {
       blocked: true,
@@ -74,7 +249,9 @@ const last1 = consecutiveHistory.slice(0, 1);
   }
 
   if (regime === "normal") {
-    const failCount = last5.filter((item) => item.result === "FAIL").length;
+    const failCount = last5.filter(
+      (item) => item.switchingResult === "FAIL"
+    ).length;
 
     if (last5.length >= 5 && failCount >= 2) {
       return {
@@ -86,28 +263,28 @@ const last1 = consecutiveHistory.slice(0, 1);
   }
 
   if (regime === "atenuada" && last1.length >= 1) {
-  if (last1[0].deltaTriggered) {
-    return {
-      blocked: true,
-      suggestedRegime: "normal",
-      reason:
-        "Condição Δ identificada: retorno para inspeção Normal obrigatório nos lotes seguintes.",
-    };
-  }
+    if (last1[0].deltaTriggered) {
+      return {
+        blocked: true,
+        suggestedRegime: "normal",
+        reason:
+          "Condição Δ identificada: retorno para inspeção Normal obrigatório nos lotes seguintes.",
+      };
+    }
 
-  if (last1[0].result === "FAIL") {
-    return {
-      blocked: true,
-      suggestedRegime: "normal",
-      reason: "1 lote reprovado em inspeção atenuada.",
-    };
+    if (last1[0].switchingResult === "FAIL") {
+      return {
+        blocked: true,
+        suggestedRegime: "normal",
+        reason: "1 lote reprovado em inspeção atenuada.",
+      };
+    }
   }
-}
 
   if (
     regime === "severa" &&
     last5.length >= 5 &&
-    last5.every((item) => item.result === "PASS")
+    last5.every((item) => item.switchingResult === "PASS")
   ) {
     return {
       blocked: true,
@@ -300,6 +477,8 @@ if (planSnapshot?.id) {
     SELECT
       result,
       sampling,
+      chars,
+      samples,
       inspection_regime_snapshot,
       finished_at,
       created_at
@@ -550,16 +729,51 @@ router.put("/:id", async (req, res) => {
     );
 
     if (!result.rows[0]) {
-      return res.status(404).json({
-        ok: false,
-        message: "Inspeção não encontrada.",
-      });
-    }
+  return res.status(404).json({
+    ok: false,
+    message: "Inspeção não encontrada.",
+  });
+}
 
-    res.json({
-      ok: true,
-      item: mapInspection(result.rows[0]),
+const updatedInspection = mapInspection(result.rows[0]);
+
+// Gera alerta somente quando a inspeção foi finalizada como FAIL.
+// Um erro ao criar alerta não pode impedir a finalização da inspeção.
+if (
+  updatedInspection.status === "done" &&
+  normalizeResult(updatedInspection.result) === "FAIL"
+) {
+  try {
+    const switchingOutcome = getSwitchingOutcome({
+      result: updatedInspection.result,
+      chars: updatedInspection.chars,
+      samples: updatedInspection.samples,
+      sampling: updatedInspection.sampling,
     });
+
+    await createInspectionFailAlert({
+      inspectionId: updatedInspection.id,
+      planId: updatedInspection.planId,
+      inspectionArea: updatedInspection.type,
+      planName: updatedInspection.planName,
+      pn: updatedInspection.pn,
+      lot: updatedInspection.lot,
+      invoice: updatedInspection.invoice,
+      result: updatedInspection.result,
+      xrfOnlyFailure: switchingOutcome.xrfOnlyFailure,
+    });
+  } catch (alertError) {
+    console.error(
+      "Inspeção finalizada, mas não foi possível criar o alerta:",
+      alertError
+    );
+  }
+}
+
+res.json({
+  ok: true,
+  item: updatedInspection,
+});
   } catch (error) {
     console.error("Erro ao atualizar inspeção:", error);
 

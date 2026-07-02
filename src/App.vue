@@ -8,6 +8,7 @@ import { useAuthStore } from "./stores/auth";
 import LoginPage from "./components/LoginPage.vue";
 import { useUsersStore } from "./stores/users";
 import { useSwitchingStore } from "./stores/switching";
+import { useAlertsStore } from "./stores/alerts";
 
 const ui = useUiStore();
 const plans = usePlansStore();
@@ -19,6 +20,11 @@ const switchingPasswordForm = ref({
 });
 onMounted;
 const switching = useSwitchingStore();
+const alerts = useAlertsStore();
+const showAlertsPanel = ref(false);
+const openAlerts = computed(() =>
+  (alerts.items || []).filter((item) => item.status !== "resolved")
+);
 const switchingAnalysis = ref(null);
 const switchingPlan = ref(null);
 const showSwitchingModal = ref(false);
@@ -105,6 +111,12 @@ onMounted(async () => {
   await users.load();
   await switching.loadPasswordStatus();
   await switching.loadHistory();
+
+  try {
+    await alerts.refresh();
+  } catch (error) {
+    console.error("Erro ao carregar alertas:", error);
+  }
 
   currentPage.value = 1;
 });
@@ -536,6 +548,77 @@ function getSwitchingTarget() {
 
   return 1;
 }
+
+function alertTypeLabel(value) {
+  const type = String(value || "").toUpperCase();
+
+  if (type === "XRF_ONLY_FAIL") return "XRF / RoHS";
+  if (type === "INSPECTION_FAIL") return "Inspeção FAIL";
+  if (type === "SWITCHING_PENDING") return "Comutação";
+  if (type === "DELTA_RETURN") return "Condição Δ";
+  if (type === "DRAFT_OVERDUE") return "Rascunho";
+  if (type === "REINSPECTION_REQUIRED") return "Reinspeção";
+
+  return "Alerta";
+}
+
+function alertSeverityLabel(value) {
+  const severity = String(value || "").toLowerCase();
+
+  if (severity === "critical") return "Crítico";
+  if (severity === "warning") return "Atenção";
+
+  return "Informativo";
+}
+
+function alertSeverityClass(value) {
+  return `alert-severity-${String(value || "info").toLowerCase()}`;
+}
+
+function alertStatusClass(value) {
+  return `alert-status-${String(value || "new").toLowerCase()}`;
+}
+
+async function toggleAlertsPanel() {
+  showAlertsPanel.value = !showAlertsPanel.value;
+
+  if (!showAlertsPanel.value) return;
+
+  try {
+    await alerts.refresh();
+  } catch (error) {
+    console.error("Erro ao atualizar alertas:", error);
+  }
+}
+
+async function viewAlert(item) {
+  if (!item?.id || item.status !== "new") return;
+
+  try {
+    await alerts.markViewed(item.id);
+  } catch (error) {
+    console.error("Erro ao marcar alerta como visualizado:", error);
+  }
+}
+
+async function resolveAlert(item) {
+  if (!item?.id || !canEditSystem.value) return;
+
+  const note = prompt(
+    "Informe a ação tomada para resolver este alerta.\n\nEste campo é opcional."
+  );
+
+  if (note === null) return;
+
+  try {
+    await alerts.resolve(item.id, note);
+
+    alert("Alerta resolvido com sucesso.");
+  } catch (error) {
+    console.error("Erro ao resolver alerta:", error);
+    alert(error?.message || "Não foi possível resolver o alerta.");
+  }
+}
 </script>
 
 <template>
@@ -586,6 +669,99 @@ function getSwitchingTarget() {
           </div>
 
           <div class="qs-user-box">
+            <div class="alerts-wrap">
+              <button
+                class="alert-bell"
+                type="button"
+                title="Alertas do sistema"
+                @click="toggleAlertsPanel"
+              >
+                <span class="alert-bell-icon">🔔</span>
+
+                <span v-if="alerts.openCount > 0" class="alert-bell-count">
+                  {{ alerts.openCount > 99 ? "99+" : alerts.openCount }}
+                </span>
+              </button>
+
+              <div v-if="showAlertsPanel" class="alerts-panel">
+                <div class="alerts-panel-head">
+                  <div>
+                    <strong>Alertas do sistema</strong>
+                    <span>{{ alerts.openCount }} pendente(s)</span>
+                  </div>
+
+                  <button
+                    class="btn ghost alerts-refresh-btn"
+                    type="button"
+                    :disabled="alerts.loading"
+                    @click="alerts.refresh()"
+                  >
+                    Atualizar
+                  </button>
+                </div>
+
+                <div v-if="alerts.loading" class="alerts-empty">
+                  Carregando alertas...
+                </div>
+
+                <div v-else-if="alerts.error" class="alerts-empty alerts-error">
+                  {{ alerts.error }}
+                </div>
+
+                <div v-else-if="!openAlerts.length" class="alerts-empty">
+                  Nenhum alerta pendente.
+                </div>
+
+                <div v-else class="alerts-list">
+                  <div
+                    v-for="item in openAlerts"
+                    :key="item.id"
+                    class="alert-item"
+                    :class="{
+                      'alert-item-new': item.status === 'new',
+                      'alert-item-viewed': item.status === 'viewed',
+                    }"
+                    role="button"
+                    tabindex="0"
+                    @click="viewAlert(item)"
+                    @keyup.enter="viewAlert(item)"
+                  >
+                    <div class="alert-item-top">
+                      <span
+                        class="alert-severity"
+                        :class="alertSeverityClass(item.severity)"
+                      >
+                        {{ alertSeverityLabel(item.severity) }}
+                      </span>
+
+                      <span class="alert-status" :class="alertStatusClass(item.status)">
+                        {{ item.status === "new" ? "Novo" : "Visualizado" }}
+                      </span>
+                    </div>
+
+                    <strong>{{ item.title }}</strong>
+
+                    <p>{{ item.message }}</p>
+
+                    <div class="alert-item-footer">
+                      <span>{{ alertTypeLabel(item.alertType) }}</span>
+
+                      <span>{{ formatDateTimeBR(item.createdAt) }}</span>
+                    </div>
+
+                    <button
+                      v-if="canEditSystem"
+                      class="alert-resolve-btn"
+                      type="button"
+                      @click.stop="resolveAlert(item)"
+                    >
+                      Resolver
+                    </button>
+                  </div>
+                </div>
+              </div>
+            </div>
+
             <div class="qs-user-info">
               <span>Logado como</span>
               <b>{{ auth.userName }}</b>
@@ -1876,5 +2052,244 @@ function getSwitchingTarget() {
   color: #64748b;
   background: #f8fafc;
   border: 1px solid #e2e8f0;
+}
+
+.alerts-wrap {
+  position: relative;
+}
+
+.alert-bell {
+  position: relative;
+  width: 39px;
+  height: 39px;
+  border: 1px solid #e2e8f0;
+  border-radius: 12px;
+  background: #ffffff;
+  cursor: pointer;
+  transition: 0.18s ease;
+}
+
+.alert-bell:hover {
+  border-color: #f59e0b;
+  background: #fffbeb;
+}
+
+.alert-bell-icon {
+  font-size: 18px;
+}
+
+.alert-bell-count {
+  position: absolute;
+  top: -7px;
+  right: -7px;
+  min-width: 19px;
+  height: 19px;
+  padding: 0 5px;
+  border: 2px solid #ffffff;
+  border-radius: 999px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: #dc2626;
+  color: #ffffff;
+  font-size: 10px;
+  font-weight: 900;
+  line-height: 1;
+}
+
+.alerts-panel {
+  position: absolute;
+  top: calc(100% + 10px);
+  right: 0;
+  z-index: 150;
+  width: min(420px, calc(100vw - 32px));
+  max-height: 560px;
+  overflow-y: auto;
+  overflow-x: hidden;
+  white-space: normal;
+  border: 1px solid #e2e8f0;
+  border-radius: 16px;
+  background: #ffffff;
+  box-shadow: 0 18px 45px rgb(15 23 42 / 18%);
+}
+
+.alerts-panel-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 14px;
+  border-bottom: 1px solid #e2e8f0;
+}
+
+.alerts-panel-head > div {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.alerts-panel-head strong {
+  color: #0f172a;
+  font-size: 14px;
+}
+
+.alerts-panel-head span {
+  color: #64748b;
+  font-size: 12px;
+}
+
+.alerts-refresh-btn {
+  min-height: 32px;
+  padding: 5px 9px;
+  font-size: 11px;
+}
+
+.alerts-list {
+  display: flex;
+  flex-direction: column;
+}
+
+.alerts-empty {
+  padding: 22px 16px;
+  text-align: center;
+  color: #64748b;
+  font-size: 13px;
+}
+
+.alerts-error {
+  color: #b91c1c;
+}
+
+.alert-item {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 14px;
+  border-bottom: 1px solid #eef2f7;
+  cursor: pointer;
+  transition: 0.18s ease;
+}
+
+.alert-item:last-child {
+  border-bottom: 0;
+}
+
+.alert-item:hover {
+  background: #f8fafc;
+}
+
+.alert-item-new {
+  background: #fffbeb;
+}
+
+.alert-item-viewed {
+  background: #ffffff;
+}
+
+.alert-item-top,
+.alert-item-footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.alert-item strong {
+  padding-right: 0;
+  color: #0f172a;
+  font-size: 13px;
+  white-space: normal;
+}
+
+.alert-item p {
+  margin: 0;
+  color: #475569;
+  font-size: 12px;
+  line-height: 1.45;
+  white-space: normal;
+  word-break: break-word;
+}
+
+.alert-item-footer {
+  color: #64748b;
+  font-size: 11px;
+}
+
+.alert-severity,
+.alert-status {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 4px 7px;
+  border-radius: 999px;
+  font-size: 10px;
+  font-weight: 900;
+  line-height: 1;
+}
+
+.alert-severity-critical {
+  color: #991b1b;
+  background: #fff1f2;
+  border: 1px solid #fecdd3;
+}
+
+.alert-severity-warning {
+  color: #92400e;
+  background: #fffbeb;
+  border: 1px solid #fde68a;
+}
+
+.alert-severity-info {
+  color: #1d4ed8;
+  background: #eff6ff;
+  border: 1px solid #bfdbfe;
+}
+
+.alert-status-new {
+  color: #b45309;
+  background: #fef3c7;
+  border: 1px solid #fde68a;
+}
+
+.alert-status-viewed {
+  color: #475569;
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+}
+
+.alert-resolve-btn {
+  align-self: flex-end;
+  margin-top: 2px;
+  border: 1px solid #86efac;
+  border-radius: 8px;
+  padding: 5px 8px;
+  background: #f0fdf4;
+  color: #166534;
+  font-size: 11px;
+  font-weight: 800;
+  cursor: pointer;
+}
+
+.alert-resolve-btn:hover {
+  background: #dcfce7;
+}
+
+@media (max-width: 700px) {
+  .alerts-panel {
+    position: fixed;
+    top: 64px;
+    right: 16px;
+    left: 16px;
+    width: auto;
+  }
+
+  .qs-user-box {
+    gap: 8px;
+  }
+
+  .qs-user-info > span:first-child {
+    display: none;
+  }
 }
 </style>

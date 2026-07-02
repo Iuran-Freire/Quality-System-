@@ -10,6 +10,7 @@ import usersRoutes from "./routes/users.routes.js";
 import switchingRoutes from "./routes/switching.routes.js";
 import plansRoutes from "./routes/plans.routes.js";
 import inspectionsRoutes from "./routes/inspections.routes.js";
+import alertsRoutes from "./Routes/alerts.routes.js";
 
 dotenv.config();
 
@@ -99,6 +100,7 @@ app.use("/api/users", requireAuth, requireSystemManager, usersRoutes);
 app.use("/plans", requireAuth, plansRoutes);
 app.use("/inspections", requireAuth, inspectionsRoutes);
 app.use("/api/switching", requireAuth, switchingRoutes);
+app.use("/api/alerts", requireAuth, alertsRoutes);
 
 app.get("/", (req, res) => {
   res.json({

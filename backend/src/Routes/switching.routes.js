@@ -1,6 +1,10 @@
 import express from "express";
 import bcrypt from "bcryptjs";
 import { db } from "../db.js";
+import {
+  upsertQualityAlert,
+  resolveQualityAlertBySourceKey,
+} from "../services/alerts.service.js";
 
 const router = express.Router();
 
@@ -191,6 +195,174 @@ function safeJson(value, fallback = {}) {
   }
 }
 
+function getCharKind(char) {
+  return char?.kind || char?.type || "visual_produto";
+}
+
+function getSpecialMode(char) {
+  const mode = String(char?.resultMode ?? char?.mode ?? "")
+    .trim()
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "");
+
+  return ["numerico", "numeric", "number", "numero"].includes(mode)
+    ? "numerico"
+    : "visual";
+}
+
+function isXrfChar(char) {
+  return getCharKind(char) === "xrf_rohs";
+}
+
+function isNumericCharForSwitching(char) {
+  const kind = getCharKind(char);
+
+  return (
+    kind === "variavel" ||
+    (kind === "teste_especial" && getSpecialMode(char) === "numerico")
+  );
+}
+
+function normVisual(value) {
+  const text = String(value ?? "").trim().toUpperCase();
+
+  if (text === "OK" || text === "PASS") return "OK";
+  if (text === "NG" || text === "NOK" || text === "FAIL") return "NG";
+
+  return "";
+}
+
+function toNumber(value) {
+  if (value === null || value === undefined) return null;
+
+  const number = Number(String(value).trim().replace(",", "."));
+
+  return Number.isFinite(number) ? number : null;
+}
+
+function xrfCharHasFailure(char, rawSamples = []) {
+  const elements = Array.isArray(char?.elements) ? char.elements : [];
+
+  if (!elements.length) return false;
+
+  return (rawSamples || []).some((sample) => {
+    if (!sample || typeof sample !== "object" || Array.isArray(sample)) {
+      return false;
+    }
+
+    return elements.some((element) => {
+      const measured = toNumber(sample?.[element.id]);
+      const max = toNumber(element?.max);
+
+      return measured != null && max != null && measured > max;
+    });
+  });
+}
+
+function nonXrfCharCausesFailure(char, rawSamples = [], sampling = {}) {
+  const kind = getCharKind(char);
+
+  // Scanner não influencia resultado.
+  if (kind === "scanner" || kind === "xrf_rohs") {
+    return false;
+  }
+
+  // Variável ou teste especial numérico.
+  if (isNumericCharForSwitching(char)) {
+    const lsl = toNumber(char?.lsl ?? char?.min);
+    const usl = toNumber(char?.usl ?? char?.max);
+
+    return (rawSamples || []).some((rawValue) => {
+      const measured = toNumber(rawValue);
+
+      if (measured == null) return false;
+
+      return (
+        (lsl != null && measured < lsl) ||
+        (usl != null && measured > usl)
+      );
+    });
+  }
+
+  const isVisual =
+    kind === "visual_produto" ||
+    kind === "visual_caixa" ||
+    kind === "teste_especial";
+
+  if (!isVisual) return false;
+
+  const ngCount = (rawSamples || [])
+    .map(normVisual)
+    .filter((value) => value === "NG").length;
+
+  // Visual Caixa e Teste Especial OK/NG:
+  // qualquer NG reprova.
+  if (kind === "visual_caixa" || kind === "teste_especial") {
+    return ngCount > 0;
+  }
+
+  // Visual Produto segue Ac/Re.
+  const ac = toNumber(sampling?.ac);
+  const re = toNumber(sampling?.re);
+
+  if (re == null) {
+    return ngCount > 0;
+  }
+
+  if (ngCount >= re) {
+    return true;
+  }
+
+  // Faixa Delta: acima de Ac e abaixo de Re.
+  // Com Delta ativo, o lote é aceito e retorna à Normal.
+  if (ac != null && ngCount > ac && ngCount < re) {
+    return !Boolean(sampling?.returnToNormalOnDelta);
+  }
+
+  return false;
+}
+
+function getSwitchingOutcome(insp) {
+  const actualResult = normalizeResult(insp?.result);
+
+  if (actualResult !== "FAIL") {
+    return {
+      actualResult,
+      switchingResult: actualResult,
+      xrfOnlyFailure: false,
+    };
+  }
+
+  const chars = safeJson(insp?.chars, []);
+  const samples = safeJson(insp?.samples, {});
+  const sampling = safeJson(insp?.sampling, {});
+
+  const hasXrfFailure = (chars || []).some((char) => {
+    if (!isXrfChar(char)) return false;
+
+    return xrfCharHasFailure(char, samples?.[char.id] || []);
+  });
+
+  const hasNonXrfFailure = (chars || []).some((char) => {
+    if (isXrfChar(char)) return false;
+
+    return nonXrfCharCausesFailure(
+      char,
+      samples?.[char.id] || [],
+      sampling
+    );
+  });
+
+  const xrfOnlyFailure = hasXrfFailure && !hasNonXrfFailure;
+
+  return {
+    actualResult,
+    switchingResult: xrfOnlyFailure ? "PASS" : actualResult,
+    xrfOnlyFailure,
+  };
+}
+
 function getSampleNByRegime(plan, regime) {
   const sampling = safeJson(plan?.sampling, {});
   const targetRegime = normalizeRegime(regime);
@@ -227,24 +399,34 @@ function getSampleNByRegime(plan, regime) {
 function analyzeSwitchingRule(currentRegime, inspections) {
   const regime = normalizeRegime(currentRegime);
 
-  const history = inspections.map((insp) => {
+const history = inspections.map((insp) => {
   const sampling = safeJson(insp.sampling, {});
+  const switchingOutcome = getSwitchingOutcome(insp);
 
   return {
     id: insp.id,
     lot: insp.lot,
     invoice: insp.invoice,
-    result: normalizeResult(insp.result),
+
+    // Resultado real da inspeção, continua aparecendo como FAIL no histórico.
+    result: switchingOutcome.actualResult,
+
+    // Resultado usado somente nas regras de comutação.
+    switchingResult: switchingOutcome.switchingResult,
+
+    // TRUE quando apenas XRF/RoHS causou o FAIL.
+    xrfOnlyFailure: switchingOutcome.xrfOnlyFailure,
+
     finishedAt: insp.finished_at,
     deltaTriggered: Boolean(sampling?.deltaTriggered),
     deltaDetails: Array.isArray(sampling?.deltaDetails)
       ? sampling.deltaDetails
       : [],
-      inspectionRegimeSnapshot: String(
-  insp.inspection_regime_snapshot || ""
-)
-  .trim()
-  .toLowerCase(),
+    inspectionRegimeSnapshot: String(
+      insp.inspection_regime_snapshot || ""
+    )
+      .trim()
+      .toLowerCase(),
   };
 });
 
@@ -262,7 +444,7 @@ const last5 = consecutiveHistory.slice(0, 5);
 const last1 = consecutiveHistory.slice(0, 1);
   if (regime === "normal") {
     const has10Pass =
-      last10.length >= 10 && last10.every((i) => i.result === "PASS");
+      last10.length >= 10 && last10.every((i) => i.switchingResult === "PASS");
 
     if (has10Pass) {
       return {
@@ -275,7 +457,7 @@ const last1 = consecutiveHistory.slice(0, 1);
       };
     }
 
-    const failCountLast5 = last5.filter((i) => i.result === "FAIL").length;
+    const failCountLast5 = last5.filter((i) => i.switchingResult === "FAIL").length;
 
     if (last5.length >= 5 && failCountLast5 >= 2) {
       return {
@@ -304,7 +486,7 @@ const last1 = consecutiveHistory.slice(0, 1);
     };
   }
 
-  const has1Fail = lastInspection?.result === "FAIL";
+  const has1Fail = lastInspection?.switchingResult === "FAIL";
 
   if (has1Fail) {
     return {
@@ -320,7 +502,7 @@ const last1 = consecutiveHistory.slice(0, 1);
 
   if (regime === "severa") {
     const has5Pass =
-      last5.length >= 5 && last5.every((i) => i.result === "PASS");
+      last5.length >= 5 && last5.every((i) => i.switchingResult === "PASS");
 
     if (has5Pass) {
       return {
@@ -389,6 +571,8 @@ WHERE id = $1
         invoice,
         result,
         sampling,
+        chars,
+        samples,
         inspection_regime_snapshot,
         finished_at,
         created_at
@@ -448,6 +632,7 @@ router.post("/plans/:planId/suggest", async (req, res) => {
         pn,
         model,
         client,
+        type,
         inspection_regime,
         switching_status,
         suggested_regime,
@@ -477,6 +662,8 @@ router.post("/plans/:planId/suggest", async (req, res) => {
         lot,
         invoice,
         result,
+        chars,
+        samples,
         sampling,
         inspection_regime_snapshot,
         finished_at,
@@ -544,6 +731,35 @@ WHERE id = $5
   planId,
 ]
     );
+
+    try {
+  await upsertQualityAlert({
+    alertType: "SWITCHING_PENDING",
+    severity: "warning",
+    title: "Comutação NBR pendente",
+    message:
+      `Plano: ${plan.name || "-"} | PN: ${plan.pn || "-"} | ` +
+      `Regime atual: ${analysis.currentRegime} | ` +
+      `Regime sugerido: ${analysis.suggestedRegime}. ` +
+      `Motivo: ${analysis.reason}`,
+    planId: plan.id,
+    inspectionArea: plan.type || "ALL",
+    sourceKey: `SWITCHING_PENDING:PLAN:${plan.id}`,
+    context: {
+      planName: plan.name || "",
+      pn: plan.pn || "",
+      model: plan.model || "",
+      currentRegime: analysis.currentRegime,
+      suggestedRegime: analysis.suggestedRegime,
+      reason: analysis.reason,
+    },
+  });
+} catch (alertError) {
+  console.error(
+    "Sugestão registrada, mas não foi possível criar o alerta de comutação:",
+    alertError
+  );
+}
 
     res.json({
       ok: true,
@@ -771,7 +987,26 @@ WHERE id = $3
 
     await db.query("COMMIT");
 
-    const updated = updateResult.rows[0];
+try {
+  await resolveQualityAlertBySourceKey({
+    sourceKey: `SWITCHING_PENDING:PLAN:${plan.id}`,
+    resolvedBy:
+      req.user?.name ||
+      req.user?.username ||
+      approvedBy?.name ||
+      approvedBy?.username ||
+      "Sistema",
+    resolutionNote:
+      `Comutação aprovada: ${previousRegime} → ${newRegime}.`,
+  });
+} catch (alertError) {
+  console.error(
+    "Comutação aprovada, mas não foi possível resolver o alerta:",
+    alertError
+  );
+}
+
+const updated = updateResult.rows[0];
 
     res.json({
       ok: true,

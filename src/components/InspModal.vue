@@ -367,6 +367,61 @@ function xrfTotalReadings(c) {
   return getCharSampleCount(c) * xrfElements(c).length;
 }
 
+function xrfReadingState(element, rawValue) {
+  const raw = String(rawValue ?? "").trim();
+
+  if (!raw) return "empty";
+
+  const measured = toNumber(rawValue);
+  const max = toNumber(element?.max);
+
+  if (measured == null || max == null) return "invalid";
+
+  return measured <= max ? "pass" : "fail";
+}
+
+function xrfReadingStatusLabel(element, rawValue) {
+  const state = xrfReadingState(element, rawValue);
+
+  if (state === "pass") return "Dentro";
+  if (state === "fail") return "Acima";
+  if (state === "invalid") return "Inválido";
+
+  return "Pendente";
+}
+
+function xrfSampleStatus(c, sample) {
+  const elements = xrfElements(c);
+
+  if (!elements.length) return "PENDENTE";
+
+  const states = elements.map((element) =>
+    xrfReadingState(element, sample?.[element.id])
+  );
+
+  if (states.some((state) => state === "fail")) return "FAIL";
+
+  if (states.some((state) => state === "empty" || state === "invalid")) {
+    return "PENDENTE";
+  }
+
+  return "PASS";
+}
+
+function xrfOverallStatus(c) {
+  const samples = localSamples.value?.[c.id] || [];
+
+  if (!samples.length) return "PENDENTE";
+
+  const results = samples.map((sample) => xrfSampleStatus(c, sample));
+
+  if (results.some((result) => result === "FAIL")) return "FAIL";
+
+  if (results.every((result) => result === "PASS")) return "PASS";
+
+  return "PENDENTE";
+}
+
 function normalizeScannerCode(value) {
   return String(value ?? "")
     .trim()
@@ -1866,6 +1921,11 @@ Motivo: ${p.reason}`;
                   — Qtd. Caixas: {{ c.sampleN || 2 }}
                 </template>
 
+                <template v-else-if="isXrfChar(c)">
+                  — XRF / RoHS: {{ c.sampleN || 1 }} amostra(s) |
+                  {{ xrfElements(c).length }} elemento(s)
+                </template>
+
                 <template v-else-if="isScannerChar(c)">
                   — Rastreabilidade por leitura: {{ planSamplesRef }} peça(s)
                 </template>
@@ -1893,6 +1953,7 @@ Motivo: ${p.reason}`;
                   Cpk {{ fmt(statsMap[c.id]?.cpk, 2) }}
                 </span>
               </template>
+
               <template v-else-if="shouldShowCpk(c)">
                 <span class="cpk-pill cpk-warn">Cpk —</span>
               </template>
@@ -1900,6 +1961,23 @@ Motivo: ${p.reason}`;
               <template v-else-if="isNumericChar(c)">
                 <span class="cpk-pill cpk-warn">Numérico</span>
               </template>
+
+              <template v-else-if="isXrfChar(c)">
+                <span class="cpk-pill xrf-pill">XRF / RoHS</span>
+              </template>
+
+              <template v-else-if="isXrfChar(c)">
+                <div class="char-stats-muted">
+                  XRF / RoHS: informe o valor medido de cada elemento químico.
+
+                  <div class="visual-summary">
+                    <span class="total">
+                      Leituras: {{ xrfFilledReadings(c) }} / {{ xrfTotalReadings(c) }}
+                    </span>
+                  </div>
+                </div>
+              </template>
+
               <template v-else-if="isScannerChar(c)">
                 <span class="cpk-pill scanner-pill">Scanner</span>
               </template>
@@ -1949,6 +2027,28 @@ Motivo: ${p.reason}`;
                     <span class="char-stats-muted">
                       Numérico: preencha os valores dentro do mínimo e máximo definidos.
                     </span>
+                  </template>
+
+                  <template v-else-if="isXrfChar(c)">
+                    <div class="char-stats-muted">
+                      XRF / RoHS: informe a concentração medida de cada elemento.
+
+                      <div class="visual-summary">
+                        <span class="total">
+                          Leituras: {{ xrfFilledReadings(c) }} / {{ xrfTotalReadings(c) }}
+                        </span>
+
+                        <span
+                          :class="{
+                            ok: xrfOverallStatus(c) === 'PASS',
+                            ng: xrfOverallStatus(c) === 'FAIL',
+                            total: xrfOverallStatus(c) === 'PENDENTE',
+                          }"
+                        >
+                          Resultado: {{ xrfOverallStatus(c) }}
+                        </span>
+                      </div>
+                    </div>
                   </template>
 
                   <template v-else-if="isScannerChar(c)">
@@ -2041,9 +2141,81 @@ Motivo: ${p.reason}`;
                     v-for="(_, idx) in localSamples[c.id] || []"
                     :key="idx"
                     class="sample-cell"
+                    :class="{ 'xrf-sample-cell': isXrfChar(c) }"
                   >
+
+                    <!-- XRF / ROHS -->
+                    <template v-if="isXrfChar(c)">
+                      <div class="xrf-inspection-box">
+                        <div class="xrf-inspection-top">
+                          <div>
+                            <strong>Amostra {{ idx + 1 }}</strong>
+                            <span>
+                              {{ xrfElements(c).length }} elemento(s) químico(s)
+                            </span>
+                          </div>
+
+                          <span
+                            class="xrf-sample-status"
+                            :class="`xrf-status-${xrfSampleStatus(
+                              c,
+                              localSamples[c.id][idx]
+                            ).toLowerCase()}`"
+                          >
+                            {{ xrfSampleStatus(c, localSamples[c.id][idx]) }}
+                          </span>
+                        </div>
+
+                        <div class="xrf-readings-list">
+                          <div
+                            v-for="element in xrfElements(c)"
+                            :key="element.id"
+                            class="xrf-reading-row"
+                            :class="`xrf-reading-${xrfReadingState(
+                              element,
+                              localSamples[c.id][idx][element.id]
+                            )}`"
+                          >
+                            <div class="xrf-element-info">
+                              <strong>{{ element.name }}</strong>
+                              <span>Limite máximo permitido</span>
+                            </div>
+
+                            <label class="xrf-value-input">
+                              <input
+                                v-model="localSamples[c.id][idx][element.id]"
+                                inputmode="decimal"
+                                placeholder="Digite o valor"
+                                :disabled="isDone"
+                                @input="markCharTrace(c)"
+                                @blur="markCharTrace(c)"
+                              />
+                              <span>ppm</span>
+                            </label>
+
+                            <div class="xrf-limit">≤ {{ element.max }} ppm</div>
+
+                            <span
+                              class="xrf-reading-status"
+                              :class="`xrf-status-${xrfReadingState(
+                                element,
+                                localSamples[c.id][idx][element.id]
+                              )}`"
+                            >
+                              {{
+                                xrfReadingStatusLabel(
+                                  element,
+                                  localSamples[c.id][idx][element.id]
+                                )
+                              }}
+                            </span>
+                          </div>
+                        </div>
+                      </div>
+                    </template>
+
                     <!-- SCANNER / RASTREABILIDADE -->
-                    <template v-if="isScannerChar(c)">
+                    <template v-else-if="isScannerChar(c)">
                       <label class="float-label scanner-input-wrap">
                         <input
                           :id="scannerInputId(c.id, idx)"
@@ -2556,5 +2728,181 @@ Motivo: ${p.reason}`;
   padding: 6px 12px;
   font-size: 12px;
   box-shadow: 0 1px 2px rgb(0 0 0 / 8%);
+}
+
+.xrf-sample-cell {
+  grid-column: 1 / -1;
+}
+
+.xrf-inspection-box {
+  width: 100%;
+  gap: 14px;
+  padding: 16px;
+}
+
+.xrf-inspection-top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.xrf-inspection-top > div {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.xrf-inspection-top strong {
+  color: #5b21b6;
+  font-size: 15px;
+}
+
+.xrf-inspection-top span {
+  color: #7e22ce;
+  font-size: 12px;
+}
+
+.xrf-sample-status,
+.xrf-reading-status {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 800;
+  white-space: nowrap;
+}
+
+.xrf-sample-status {
+  min-width: 88px;
+  padding: 6px 10px;
+}
+
+.xrf-readings-list {
+  display: flex;
+  flex-direction: column;
+  gap: 9px;
+}
+
+.xrf-reading-row {
+  display: grid;
+  grid-template-columns: minmax(160px, 1.2fr) minmax(180px, 1fr) minmax(110px, 0.7fr) minmax(82px, 0.45fr);
+  align-items: center;
+  gap: 12px;
+  padding: 11px 12px;
+  border: 1px solid #e9d5ff;
+  border-radius: 12px;
+  background: #ffffff;
+}
+
+.xrf-element-info {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.xrf-element-info strong {
+  color: #4c1d95;
+  font-size: 13px;
+}
+
+.xrf-element-info span {
+  color: #7e22ce;
+  font-size: 11px;
+}
+
+.xrf-value-input {
+  position: relative;
+  display: block;
+}
+
+.xrf-value-input input {
+  width: 100%;
+  min-height: 42px;
+  padding: 9px 44px 9px 12px;
+  border: 1px solid #d8b4fe;
+  border-radius: 10px;
+  outline: none;
+  font-size: 14px;
+}
+
+.xrf-value-input input:focus {
+  border-color: #7c3aed;
+  box-shadow: 0 0 0 3px rgb(124 58 237 / 12%);
+}
+
+.xrf-value-input span {
+  position: absolute;
+  top: 50%;
+  right: 12px;
+  transform: translateY(-50%);
+  color: #6d28d9;
+  font-size: 12px;
+  font-weight: 800;
+  pointer-events: none;
+}
+
+.xrf-limit {
+  color: #6b21a8;
+  font-size: 13px;
+  font-weight: 800;
+}
+
+.xrf-status-empty {
+  color: #64748b;
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+}
+
+.xrf-status-pass {
+  color: #166534;
+  background: #f0fdf4;
+  border: 1px solid #bbf7d0;
+}
+
+.xrf-status-fail {
+  color: #991b1b;
+  background: #fff1f2;
+  border: 1px solid #fecdd3;
+}
+
+.xrf-status-invalid {
+  color: #9a3412;
+  background: #fff7ed;
+  border: 1px solid #fdba74;
+}
+
+.xrf-status-pendente {
+  color: #64748b;
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+}
+
+.xrf-reading-pass {
+  border-color: #bbf7d0;
+  background: #f0fdf4;
+}
+
+.xrf-reading-fail {
+  border-color: #fecdd3;
+  background: #fff1f2;
+}
+
+.xrf-reading-invalid {
+  border-color: #fdba74;
+  background: #fff7ed;
+}
+
+@media (max-width: 850px) {
+  .xrf-inspection-top {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .xrf-reading-row {
+    grid-template-columns: 1fr;
+    gap: 8px;
+  }
 }
 </style>

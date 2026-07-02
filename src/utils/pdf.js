@@ -49,6 +49,25 @@ function isScannerChar(c) {
   return getCharKind(c) === "scanner";
 }
 
+function isXrfChar(c) {
+  return getCharKind(c) === "xrf_rohs";
+}
+
+function getXrfElements(c) {
+  return Array.isArray(c?.elements) ? c.elements : [];
+}
+
+function xrfReadingStatus(element, rawValue) {
+  const measured = toNumber(rawValue);
+  const max = toNumber(element?.max);
+
+  if (measured == null || max == null) {
+    return "PENDENTE";
+  }
+
+  return measured <= max ? "DENTRO" : "ACIMA";
+}
+
 function isNumericChar(c) {
   return getCharKind(c) === "variavel" || isSpecialNumeric(c);
 }
@@ -69,6 +88,7 @@ function charTypeLabel(c) {
   if (kind === "variavel") return "Variável";
   if (kind === "visual_produto") return "Visual (Produto)";
   if (kind === "visual_caixa") return "Visual (Caixa)";
+  if (kind === "xrf_rohs") return "XRF / RoHS";
   if (isSpecialNumeric(c)) return "Teste Esp. Numérico";
   if (isSpecialOkNg(c)) return "Teste Esp. OK/NG";
 
@@ -82,9 +102,9 @@ function getCharSampleCount(c, insp) {
     return Number(insp?.boxQty ?? insp?.planBoxQty ?? 2) || 2;
   }
 
-  if (isSpecialChar(c)) {
-    return Number(c?.sampleN ?? c?.n ?? c?.samples ?? 1) || 1;
-  }
+  if (isSpecialChar(c) || kind === "xrf_rohs") {
+  return Number(c?.sampleN ?? c?.n ?? c?.samples ?? 1) || 1;
+}
 
   return Number(
     insp?.sampling?.sampleN ??
@@ -671,12 +691,46 @@ const rightTableFinalY = doc.lastAutoTable?.finalY || 90;;
   const characteristicRows = [];
   const specialRows = [];
   const scannerRows = [];
+  const xrfRows = [];
 
 for (const c of chars) {
   const rawSamples = samplesObj[c.id] || [];
   const expectedN = getCharSampleCount(c, insp);
   const cpk = calcCpkForChar(c, samplesObj);
   const isSpecial = isSpecialChar(c);
+
+    if (isXrfChar(c)) {
+    const elements = getXrfElements(c);
+
+    for (let index = 0; index < expectedN; index += 1) {
+      const sample =
+        rawSamples[index] &&
+        typeof rawSamples[index] === "object" &&
+        !Array.isArray(rawSamples[index])
+          ? rawSamples[index]
+          : {};
+
+      for (const element of elements) {
+        const measured = sample?.[element.id];
+        const status = xrfReadingStatus(element, measured);
+
+        xrfRows.push([
+          c.name || "XRF / RoHS",
+          `Amostra ${index + 1}`,
+          element.name || "Elemento",
+          `${element.max ?? "-"} ppm`,
+          measured === null ||
+          measured === undefined ||
+          String(measured).trim() === ""
+            ? "-"
+            : `${measured} ppm`,
+          status,
+        ]);
+      }
+    }
+
+    continue;
+  }
 
   if(isScannerChar(c)) {
     for (let index = 0; index < expectedN; index +=1){
@@ -867,6 +921,86 @@ if (specialRows.length) {
       1: { cellWidth: 34 },
       2: { cellWidth: 22 },
       3: { cellWidth: "auto" },
+    },
+  });
+
+   yAfterMainTables = doc.lastAutoTable?.finalY || yAfterMainTables;
+}
+
+if (xrfRows.length) {
+  if (yAfterMainTables > 225) {
+    doc.addPage();
+
+    if (opts.logoDataUrl) {
+      try {
+        addLogo(doc, opts.logoDataUrl, M, 8, 30, 12);
+      } catch {}
+    }
+
+    doc.setFont("helvetica", "bold");
+    doc.setFontSize(13);
+    doc.setTextColor(...COLORS.text);
+    doc.text(
+      "RELATÓRIO DE INSPEÇÃO - CONTINUAÇÃO",
+      pageWidth / 2,
+      16,
+      { align: "center" }
+    );
+
+    doc.setDrawColor(...COLORS.grid);
+    doc.setLineWidth(0.3);
+    doc.line(M, 24, pageWidth - M, 24);
+
+    yAfterMainTables = 30;
+  }
+
+  sectionTitle(
+    doc,
+    "Análise Química — XRF / RoHS",
+    M,
+    yAfterMainTables + 10
+  );
+
+  autoTable(doc, {
+    ...commonTableStyle(8),
+    startY: yAfterMainTables + 14,
+    margin: { left: M, right: M },
+    head: [[
+      "Teste",
+      "Amostra",
+      "Elemento",
+      "Máx. permitido",
+      "Valor medido",
+      "Status",
+    ]],
+    body: xrfRows,
+    styles: {
+      ...commonTableStyle(8).styles,
+      cellPadding: 2,
+      overflow: "linebreak",
+    },
+    columnStyles: {
+      0: { cellWidth: 38 },
+      1: { cellWidth: 22 },
+      2: { cellWidth: 38 },
+      3: { cellWidth: 27 },
+      4: { cellWidth: 27 },
+      5: { cellWidth: "auto" },
+    },
+    didParseCell(data) {
+      if (data.section !== "body" || data.column.index !== 5) return;
+
+      const status = String(data.cell.raw || "").toUpperCase();
+
+      data.cell.styles.fontStyle = "bold";
+
+      if (status === "DENTRO") {
+        data.cell.styles.textColor = COLORS.pass;
+      } else if (status === "ACIMA") {
+        data.cell.styles.textColor = COLORS.fail;
+      } else {
+        data.cell.styles.textColor = COLORS.muted;
+      }
     },
   });
 
