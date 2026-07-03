@@ -148,17 +148,12 @@ router.get("/", async (req, res) => {
       FROM public.quality_alerts
       WHERE ${filters.join(" AND ")}
       ORDER BY
-        CASE status
-          WHEN 'new' THEN 1
-          WHEN 'viewed' THEN 2
-          ELSE 3
-        END,
-        CASE severity
-          WHEN 'critical' THEN 1
-          WHEN 'warning' THEN 2
-          ELSE 3
-        END,
-        created_at DESC
+  CASE status
+    WHEN 'new' THEN 1
+    WHEN 'viewed' THEN 2
+    ELSE 3
+  END,
+  created_at DESC
       LIMIT 100
       `,
       params

@@ -1,6 +1,6 @@
 import express from "express";
 import { db } from "../db.js";
-import { createInspectionFailAlert } from "../services/alerts.service.js";
+import { createInspectionFailAlert, createDeltaReturnAlert } from "../services/alerts.service.js";
 
 const router = express.Router();
 
@@ -765,6 +765,34 @@ if (
   } catch (alertError) {
     console.error(
       "Inspeção finalizada, mas não foi possível criar o alerta:",
+      alertError
+    );
+  }
+}
+
+// Condição Δ: lote aceito, mas retorno ao regime Normal é obrigatório.
+if (
+  updatedInspection.status === "done" &&
+  Boolean(updatedInspection.sampling?.deltaTriggered)
+) {
+  try {
+    await createDeltaReturnAlert({
+      inspectionId: updatedInspection.id,
+      planId: updatedInspection.planId,
+      inspectionArea: updatedInspection.type,
+      planName: updatedInspection.planName,
+      pn: updatedInspection.pn,
+      lot: updatedInspection.lot,
+      invoice: updatedInspection.invoice,
+      regimeApplied:
+        updatedInspection.inspectionRegimeSnapshot ||
+        updatedInspection.sampling?.inspectionRegime ||
+        "atenuada",
+      deltaDetails: updatedInspection.sampling?.deltaDetails || [],
+    });
+  } catch (alertError) {
+    console.error(
+      "Inspeção finalizada, mas não foi possível criar o alerta de condição Δ:",
       alertError
     );
   }

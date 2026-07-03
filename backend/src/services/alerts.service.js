@@ -157,3 +157,46 @@ export async function resolveQualityAlertBySourceKey({
 
   return result.rows[0] || null;
 }
+
+export async function createDeltaReturnAlert({
+  inspectionId,
+  planId,
+  inspectionArea,
+  planName,
+  pn,
+  lot,
+  invoice,
+  regimeApplied = "atenuada",
+  deltaDetails = [],
+}) {
+  const details = Array.isArray(deltaDetails) ? deltaDetails : [];
+
+  const detailsText = details.length
+    ? ` Detalhes da condição Δ registrados na inspeção.`
+    : "";
+
+  return upsertQualityAlert({
+    alertType: "DELTA_RETURN",
+    severity: "warning",
+    title: "Condição Δ — retorno à Normal obrigatório",
+    message:
+      `Plano: ${planName || "-"} | PN: ${pn || "-"} | Lote: ${
+        lot || "-"
+      }${invoice ? ` | NF: ${invoice}` : ""}. ` +
+      `O lote foi aceito pela condição Δ no regime ${regimeApplied}. ` +
+      `O próximo lote deve retornar obrigatoriamente para inspeção Normal.` +
+      detailsText,
+    inspectionId,
+    planId,
+    inspectionArea,
+    sourceKey: `DELTA_RETURN:INSPECTION:${inspectionId}`,
+    context: {
+      planName: planName || "",
+      pn: pn || "",
+      lot: lot || "",
+      invoice: invoice || "",
+      regimeApplied,
+      deltaDetails: details,
+    },
+  });
+}
