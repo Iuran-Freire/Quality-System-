@@ -74,8 +74,29 @@ function normalizeInspection(row = {}) {
 
   x.id = String(x.id || uid());
 
-  x.status = x.status ?? "draft";
-  x.result = x.result ?? null;
+ x.status = x.status ?? "draft";
+x.result = x.result ?? null;
+
+x.conditionalApprovalStatus =
+  x.conditionalApprovalStatus ?? "none";
+
+x.conditionalApprovalReason =
+  x.conditionalApprovalReason ?? "";
+
+x.conditionalApprovalBy =
+  x.conditionalApprovalBy ?? "";
+
+x.conditionalApprovalByUser =
+  x.conditionalApprovalByUser ?? "";
+
+x.conditionalApprovalByRole =
+  x.conditionalApprovalByRole ?? "";
+
+x.conditionalApprovalAt =
+  x.conditionalApprovalAt ?? null;
+
+x.conditionalApprovalNote =
+  x.conditionalApprovalNote ?? "";
 
   x.planSamples = safeNum(x.planSamples, 5);
   x.planBoxQty = safeNum(x.planBoxQty, 2);
@@ -395,6 +416,35 @@ export const useInspectionsStore = defineStore("inspections", {
 
       return saved;
     },
+
+    async approveConditional(id, { reason, note = "" } = {}) {
+  if (!id) {
+    throw new Error("Inspeção não informada.");
+  }
+
+  const data = await apiFetch(
+    `/inspections/${id}/conditional-approval`,
+    {
+      method: "PATCH",
+      body: JSON.stringify({
+        reason,
+        note,
+      }),
+    }
+  );
+
+  const saved = normalizeInspection(data.item || {});
+
+  const index = this.items.findIndex(
+    (item) => String(item.id) === String(id)
+  );
+
+  if (index >= 0) {
+    this.items[index] = saved;
+  }
+
+  return saved;
+},
 
     async remove(id) {
       await apiFetch(`/inspections/${id}`, {

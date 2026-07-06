@@ -326,7 +326,22 @@ function mapInspection(row) {
     obs: row.obs,
 
     status: row.status,
-    result: row.result,
+result: row.result,
+
+conditionalApprovalStatus:
+  row.conditional_approval_status || "none",
+conditionalApprovalReason:
+  row.conditional_approval_reason || "",
+conditionalApprovalBy:
+  row.conditional_approval_by || "",
+conditionalApprovalByUser:
+  row.conditional_approval_by_user || "",
+conditionalApprovalByRole:
+  row.conditional_approval_by_role || "",
+conditionalApprovalAt:
+  row.conditional_approval_at || null,
+conditionalApprovalNote:
+  row.conditional_approval_note || "",
 
     startedAt: row.started_at,
     finishedAt: row.finished_at,
@@ -808,6 +823,146 @@ res.json({
     res.status(500).json({
       ok: false,
       message: "Erro ao atualizar inspeção.",
+      error: error.message,
+    });
+  }
+});
+
+router.patch("/:id/conditional-approval", async (req, res) => {
+  try {
+    const { id } = req.params;
+
+    const accessLevel = Number(
+      req.user?.accessLevel ?? req.user?.access_level ?? 3
+    );
+
+    if (accessLevel > 2) {
+      return res.status(403).json({
+        ok: false,
+        message:
+          "Somente usuários Nível 1 ou Nível 2 podem aprovar condicionalmente um lote.",
+      });
+    }
+
+    const reason = String(req.body?.reason || "").trim();
+    const note = String(req.body?.note || "").trim();
+
+    if (!reason) {
+      return res.status(400).json({
+        ok: false,
+        message: "Informe o motivo da aprovação condicional.",
+      });
+    }
+
+    const currentResult = await db.query(
+      `
+      SELECT
+        id,
+        type,
+        status,
+        result,
+        conditional_approval_status
+      FROM public.inspections
+      WHERE id = $1
+      `,
+      [id]
+    );
+
+    const current = currentResult.rows[0];
+
+    if (!current) {
+      return res.status(404).json({
+        ok: false,
+        message: "Inspeção não encontrada.",
+      });
+    }
+
+    if (String(current.type || "").trim().toUpperCase() !== "IQC") {
+      return res.status(409).json({
+        ok: false,
+        message:
+          "Aprovação condicional está disponível somente para inspeções IQC.",
+      });
+    }
+
+    if (String(current.status || "").trim().toLowerCase() !== "done") {
+      return res.status(409).json({
+        ok: false,
+        message:
+          "A inspeção precisa estar finalizada antes da aprovação condicional.",
+      });
+    }
+
+    if (normalizeResult(current.result) !== "FAIL") {
+      return res.status(409).json({
+        ok: false,
+        message:
+          "Aprovação condicional só pode ser usada em inspeções com resultado oficial FAIL.",
+      });
+    }
+
+    if (
+      String(current.conditional_approval_status || "none").toLowerCase() !==
+      "none"
+    ) {
+      return res.status(409).json({
+        ok: false,
+        message:
+          "Esta inspeção já possui uma aprovação condicional registrada.",
+      });
+    }
+
+    const approvedBy =
+      req.user?.name ||
+      req.user?.username ||
+      "Não informado";
+
+    const approvedByUser =
+      req.user?.username ||
+      "";
+
+    const approvedByRole =
+      req.user?.cargo ||
+      req.user?.role ||
+      "";
+
+    const updateResult = await db.query(
+      `
+      UPDATE public.inspections
+      SET
+        conditional_approval_status = 'approved_conditional',
+        conditional_approval_reason = $1,
+        conditional_approval_note = $2,
+        conditional_approval_by = $3,
+        conditional_approval_by_user = $4,
+        conditional_approval_by_role = $5,
+        conditional_approval_at = NOW(),
+        updated_at = NOW()
+      WHERE id = $6
+      RETURNING *
+      `,
+      [
+        reason,
+        note || null,
+        approvedBy,
+        approvedByUser,
+        approvedByRole,
+        id,
+      ]
+    );
+
+    res.json({
+      ok: true,
+      message:
+        "Lote aprovado condicionalmente. O resultado oficial permanece FAIL.",
+      item: mapInspection(updateResult.rows[0]),
+    });
+  } catch (error) {
+    console.error("Erro ao registrar aprovação condicional:", error);
+
+    res.status(500).json({
+      ok: false,
+      message: "Erro ao registrar aprovação condicional.",
       error: error.message,
     });
   }

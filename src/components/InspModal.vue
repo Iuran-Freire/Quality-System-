@@ -52,6 +52,11 @@ const showSwitchingApprovalModal = ref(false);
 const switchingPassword = ref("");
 const switchingActionLoading = ref(false);
 
+const showConditionalApprovalModal = ref(false);
+const conditionalApprovalReason = ref("");
+const conditionalApprovalNote = ref("");
+const conditionalApprovalLoading = ref(false);
+
 // ----------------- CAMPOS -----------------
 const planId = ref("");
 const planSearch = ref("");
@@ -171,6 +176,83 @@ const inspectionBlockedBySwitching = computed(() => {
       switchingAnalysis.value?.hasSuggestion
   );
 });
+
+const isConditionallyApproved = computed(() => {
+  return (
+    String(insp.value?.conditionalApprovalStatus || "none")
+      .trim()
+      .toLowerCase() === "approved_conditional"
+  );
+});
+
+const canApproveConditionally = computed(() => {
+  const inspection = insp.value;
+
+  const isFail = ["FAIL", "NG", "REPROVADO"].includes(
+    String(inspection?.result || "")
+      .trim()
+      .toUpperCase()
+  );
+
+  return (
+    isEdit.value &&
+    isDone.value &&
+    Number(auth.accessLevel || 3) <= 2 &&
+    String(inspection?.type || "")
+      .trim()
+      .toUpperCase() === "IQC" &&
+    isFail &&
+    !isConditionallyApproved.value
+  );
+});
+
+function openConditionalApproval() {
+  if (!canApproveConditionally.value) return;
+
+  conditionalApprovalReason.value = "";
+  conditionalApprovalNote.value = "";
+  showConditionalApprovalModal.value = true;
+}
+
+async function confirmConditionalApproval() {
+  if (!insp.value?.id) return;
+
+  const reason = String(conditionalApprovalReason.value || "").trim();
+  const note = String(conditionalApprovalNote.value || "").trim();
+
+  if (!reason) {
+    alert("Informe o motivo da aprovação condicional.");
+    return;
+  }
+
+  const confirmed = confirm(
+    "Confirmar aprovação condicional?\n\n" +
+      "O resultado oficial permanecerá FAIL e continuará contando para a comutação NBR."
+  );
+
+  if (!confirmed) return;
+
+  conditionalApprovalLoading.value = true;
+
+  try {
+    await insps.approveConditional(insp.value.id, {
+      reason,
+      note,
+    });
+
+    showConditionalApprovalModal.value = false;
+
+    alert(
+      "Aprovação condicional registrada.\n\n" +
+        "O resultado oficial permanece FAIL e continua válido para a comutação NBR."
+    );
+  } catch (error) {
+    console.error("Erro ao aprovar condicionalmente:", error);
+    alert(error?.message || "Não foi possível registrar a aprovação condicional.");
+  } finally {
+    conditionalApprovalLoading.value = false;
+  }
+}
 
 function regimeLabel(value) {
   const regime = String(value || "normal").toLowerCase();
@@ -420,6 +502,92 @@ function xrfOverallStatus(c) {
   if (results.every((result) => result === "PASS")) return "PASS";
 
   return "PENDENTE";
+}
+
+function unitSuffix(c) {
+  const unit = String(c?.unit ?? "").trim();
+  return unit ? ` ${unit}` : "";
+}
+
+function getCharLiveStatus(c) {
+  const values = localSamples.value?.[c.id] || [];
+
+  if (isXrfChar(c)) {
+    const xrfStatus = xrfOverallStatus(c);
+
+    if (xrfStatus === "PASS") {
+      return { key: "ok", label: "DENTRO DO LIMITE" };
+    }
+
+    if (xrfStatus === "FAIL") {
+      return { key: "ng", label: "ACIMA DO LIMITE" };
+    }
+
+    const filled = xrfFilledReadings(c);
+
+    return {
+      key: filled > 0 ? "progress" : "pending",
+      label: filled > 0 ? "EM ANDAMENTO" : "PENDENTE",
+    };
+  }
+
+  if (isScannerChar(c)) {
+    const duplicates = getScannerDuplicateCodes(values);
+
+    if (duplicates.length) {
+      return { key: "ng", label: "DUPLICADO" };
+    }
+
+    const allRead =
+      values.length > 0 && values.every((value) => Boolean(normalizeScannerCode(value)));
+
+    if (allRead) {
+      return { key: "ok", label: "COMPLETO" };
+    }
+
+    const filled = filledCount(c.id);
+
+    return {
+      key: filled > 0 ? "progress" : "pending",
+      label: filled > 0 ? "EM ANDAMENTO" : "PENDENTE",
+    };
+  }
+
+  const total = totalCount(c.id);
+  const filled = filledCount(c.id);
+
+  if (!total || filled === 0) {
+    return { key: "pending", label: "PENDENTE" };
+  }
+
+  if (filled < total) {
+    return { key: "progress", label: "EM ANDAMENTO" };
+  }
+
+  const result = checkChar(c, values);
+
+  if (result === "NG") {
+    return { key: "ng", label: "REPROVADO" };
+  }
+
+  if (getCharKind(c) === "visual_produto") {
+    const sampling = samplingSnapRef.value || insp.value?.sampling || {};
+    const ac = Number(sampling?.ac);
+    const re = Number(sampling?.re);
+    const ng = countNG(values);
+
+    if (
+      Boolean(sampling?.returnToNormalOnDelta) &&
+      Number.isFinite(ac) &&
+      Number.isFinite(re) &&
+      ng > ac &&
+      ng < re
+    ) {
+      return { key: "delta", label: "CONDIÇÃO Δ" };
+    }
+  }
+
+  return { key: "ok", label: "APROVADO" };
 }
 
 function normalizeScannerCode(value) {
@@ -1602,6 +1770,14 @@ Motivo: ${p.reason}`;
 
         <div class="hstack" style="gap: 8px">
           <button
+            v-if="canApproveConditionally"
+            class="btn conditional-approval-btn"
+            type="button"
+            @click="openConditionalApproval"
+          >
+            Aprovar condicionalmente
+          </button>
+          <button
             v-if="canReinspect"
             class="btn reinspection-btn"
             type="button"
@@ -1685,6 +1861,39 @@ Motivo: ${p.reason}`;
         <div>
           <span>Finalização da inspeção</span>
           <b>{{ formatDateTimeBR(insp?.finishedAt) }}</b>
+        </div>
+      </div>
+
+      <div v-if="isConditionallyApproved" class="conditional-approval-info">
+        <div class="conditional-approval-head">
+          <strong>APROVADO CONDICIONALMENTE</strong>
+
+          <span> Resultado oficial: FAIL · Continua válido para comutação NBR </span>
+        </div>
+
+        <div class="conditional-approval-grid">
+          <div>
+            <span>Motivo</span>
+            <b>{{ insp?.conditionalApprovalReason || "—" }}</b>
+          </div>
+
+          <div>
+            <span>Autorizado por</span>
+            <b>
+              {{
+                formatUserTrace(
+                  insp?.conditionalApprovalBy,
+                  insp?.conditionalApprovalByRole,
+                  insp?.conditionalApprovalAt
+                )
+              }}
+            </b>
+          </div>
+
+          <div v-if="insp?.conditionalApprovalNote" class="span-full">
+            <span>Condições / observações</span>
+            <b>{{ insp.conditionalApprovalNote }}</b>
+          </div>
         </div>
       </div>
 
@@ -1914,7 +2123,8 @@ Motivo: ${p.reason}`;
                 <b>{{ kindLabel(c) }}</b>
 
                 <template v-if="isNumericChar(c)">
-                  — Mín: {{ c.lsl ?? c.min ?? "-" }} | Máx: {{ c.usl ?? c.max ?? "-" }}
+                  — Mín: {{ c.lsl ?? c.min ?? "-" }}{{ unitSuffix(c) }} | Máx:
+                  {{ c.usl ?? c.max ?? "-" }}{{ unitSuffix(c) }}
                 </template>
 
                 <template v-else-if="getCharKind(c) === 'visual_caixa'">
@@ -1948,6 +2158,13 @@ Motivo: ${p.reason}`;
             </div>
 
             <div class="char-right">
+              <span
+                class="char-live-status"
+                :class="`char-status-${getCharLiveStatus(c).key}`"
+              >
+                {{ getCharLiveStatus(c).label }}
+              </span>
+
               <template v-if="shouldShowCpk(c) && statsMap[c.id]?.ok">
                 <span class="cpk-pill" :class="cpkClass(statsMap[c.id]?.cpk)">
                   Cpk {{ fmt(statsMap[c.id]?.cpk, 2) }}
@@ -2143,7 +2360,6 @@ Motivo: ${p.reason}`;
                     class="sample-cell"
                     :class="{ 'xrf-sample-cell': isXrfChar(c) }"
                   >
-
                     <!-- XRF / ROHS -->
                     <template v-if="isXrfChar(c)">
                       <div class="xrf-inspection-box">
@@ -2375,6 +2591,75 @@ Motivo: ${p.reason}`;
           @click="approveSwitchingFromInspection"
         >
           Confirmar e liberar plano
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <div v-if="showConditionalApprovalModal" class="modal show">
+    <div class="sheet vstack conditional-approval-modal">
+      <div class="hstack" style="justify-content: space-between; align-items: center">
+        <h3>Aprovação condicional</h3>
+
+        <button
+          class="btn ghost"
+          type="button"
+          @click="showConditionalApprovalModal = false"
+        >
+          Fechar
+        </button>
+      </div>
+
+      <div class="hr"></div>
+
+      <div class="conditional-approval-modal-body">
+        <div class="conditional-approval-warning">
+          <strong>Resultado oficial permanece FAIL</strong>
+          <span>
+            Esta decisão libera o lote sob condição, mas não altera a comutação NBR nem
+            remove a reprovação técnica.
+          </span>
+        </div>
+
+        <label class="float-label">
+          <input
+            v-model="conditionalApprovalReason"
+            placeholder=" "
+            :disabled="conditionalApprovalLoading"
+          />
+          <span>Motivo da aprovação condicional *</span>
+        </label>
+
+        <label class="float-label">
+          <textarea
+            v-model="conditionalApprovalNote"
+            rows="4"
+            placeholder=" "
+            :disabled="conditionalApprovalLoading"
+          ></textarea>
+          <span>Condições / observações da liberação</span>
+        </label>
+      </div>
+
+      <div class="hr"></div>
+
+      <div class="hstack" style="justify-content: flex-end; gap: 8px">
+        <button
+          class="btn ghost"
+          type="button"
+          :disabled="conditionalApprovalLoading"
+          @click="showConditionalApprovalModal = false"
+        >
+          Cancelar
+        </button>
+
+        <button
+          class="btn conditional-approval-btn"
+          type="button"
+          :disabled="conditionalApprovalLoading"
+          @click="confirmConditionalApproval"
+        >
+          Confirmar aprovação condicional
         </button>
       </div>
     </div>
@@ -2787,7 +3072,10 @@ Motivo: ${p.reason}`;
 
 .xrf-reading-row {
   display: grid;
-  grid-template-columns: minmax(160px, 1.2fr) minmax(180px, 1fr) minmax(110px, 0.7fr) minmax(82px, 0.45fr);
+  grid-template-columns: minmax(160px, 1.2fr) minmax(180px, 1fr) minmax(110px, 0.7fr) minmax(
+      82px,
+      0.45fr
+    );
   align-items: center;
   gap: 12px;
   padding: 11px 12px;
@@ -2903,6 +3191,158 @@ Motivo: ${p.reason}`;
   .xrf-reading-row {
     grid-template-columns: 1fr;
     gap: 8px;
+  }
+}
+
+.char-live-status {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 92px;
+  padding: 5px 8px;
+  border-radius: 999px;
+  font-size: 10px;
+  font-weight: 900;
+  line-height: 1;
+  white-space: nowrap;
+}
+
+.char-status-pending {
+  color: #64748b;
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+}
+
+.char-status-progress {
+  color: #1d4ed8;
+  background: #eff6ff;
+  border: 1px solid #bfdbfe;
+}
+
+.char-status-ok {
+  color: #166534;
+  background: #f0fdf4;
+  border: 1px solid #bbf7d0;
+}
+
+.char-status-ng {
+  color: #991b1b;
+  background: #fff1f2;
+  border: 1px solid #fecdd3;
+}
+
+.char-status-delta {
+  color: #9a3412;
+  background: #fff7ed;
+  border: 1px solid #fdba74;
+}
+
+.conditional-approval-btn {
+  background: #b45309;
+  border-color: #b45309;
+  color: #ffffff;
+  font-weight: 800;
+}
+
+.conditional-approval-btn:hover {
+  background: #92400e;
+  border-color: #92400e;
+}
+
+.conditional-approval-modal {
+  max-width: 640px;
+}
+
+.conditional-approval-modal-body {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.conditional-approval-warning {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 13px;
+  border: 1px solid #fdba74;
+  border-radius: 14px;
+  background: #fff7ed;
+}
+
+.conditional-approval-warning strong {
+  color: #9a3412;
+  font-size: 14px;
+}
+
+.conditional-approval-warning span {
+  color: #c2410c;
+  font-size: 13px;
+  line-height: 1.4;
+}
+
+.conditional-approval-info {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  margin-bottom: 12px;
+  padding: 14px;
+  border: 1px solid #fcd34d;
+  border-radius: 14px;
+  background: #fffbeb;
+}
+
+.conditional-approval-head {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.conditional-approval-head strong {
+  color: #92400e;
+  font-size: 14px;
+}
+
+.conditional-approval-head span {
+  color: #a16207;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.conditional-approval-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.conditional-approval-grid > div {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 10px;
+  border: 1px solid #fde68a;
+  border-radius: 10px;
+  background: #ffffff;
+}
+
+.conditional-approval-grid .span-full {
+  grid-column: 1 / -1;
+}
+
+.conditional-approval-grid span {
+  color: #a16207;
+  font-size: 11px;
+  font-weight: 800;
+}
+
+.conditional-approval-grid b {
+  color: #713f12;
+  font-size: 13px;
+  line-height: 1.4;
+}
+
+@media (max-width: 700px) {
+  .conditional-approval-grid {
+    grid-template-columns: 1fr;
   }
 }
 </style>
