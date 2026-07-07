@@ -31,6 +31,9 @@ function mapPlan(row) {
     resp: row.resp,
     active: row.active,
 
+    revisionNumber: Number(row.revision_number || 1),
+    revision_number: Number(row.revision_number || 1),
+
     n: row.n,
     boxQty: row.box_qty,
 
@@ -161,6 +164,95 @@ router.get("/:id", async (req, res) => {
   }
 });
 
+// Lista o histórico de revisões de um plano.
+router.get("/:id/revisions", async (req, res) => {
+  try {
+    const { id } = req.params;
+    const userArea = getUserArea(req);
+
+    if (!userArea) {
+      return res.status(403).json({
+        ok: false,
+        message: "Usuário sem área de inspeção válida.",
+      });
+    }
+
+    const planResult = await db.query(
+      `
+      SELECT id, type, revision_number
+      FROM plans
+      WHERE id = $1
+      `,
+      [id]
+    );
+
+    const plan = planResult.rows[0];
+
+    if (!plan) {
+      return res.status(404).json({
+        ok: false,
+        message: "Plano não encontrado.",
+      });
+    }
+
+    const planType = normalizePlanType(plan.type);
+
+    if (userArea !== "ALL" && planType !== userArea) {
+      return res.status(403).json({
+        ok: false,
+        message: "Você não possui acesso a este histórico.",
+      });
+    }
+
+    const revisionsResult = await db.query(
+      `
+      SELECT
+        id,
+        plan_id,
+        revision_number,
+        change_reason,
+        change_note,
+        changed_by_user_id,
+        changed_by_name,
+        changed_by_role,
+        changed_at,
+        snapshot
+      FROM public.plan_revisions
+      WHERE plan_id = $1
+      ORDER BY revision_number DESC, changed_at DESC
+      `,
+      [id]
+    );
+
+    res.json({
+      ok: true,
+      currentRevisionNumber: Number(plan.revision_number || 1),
+      items: revisionsResult.rows.map((row) => ({
+        id: String(row.id),
+        planId: String(row.plan_id),
+        revisionNumber: Number(row.revision_number || 1),
+        changeReason: row.change_reason || "",
+        changeNote: row.change_note || "",
+        changedByUserId: row.changed_by_user_id
+          ? String(row.changed_by_user_id)
+          : null,
+        changedByName: row.changed_by_name || "",
+        changedByRole: row.changed_by_role || "",
+        changedAt: row.changed_at,
+        snapshot: row.snapshot || {},
+      })),
+    });
+  } catch (error) {
+    console.error("Erro ao listar histórico de revisões:", error);
+
+    res.status(500).json({
+      ok: false,
+      message: "Erro ao listar histórico de revisões.",
+      error: error.message,
+    });
+  }
+});
+
 // Cria plano somente na área permitida.
 router.post("/", async (req, res) => {
   try {
@@ -263,7 +355,7 @@ router.put("/:id", async (req, res) => {
 
     const existingResult = await db.query(
       `
-      SELECT id, type
+      SELECT *
       FROM plans
       WHERE id = $1
       `,
@@ -314,42 +406,141 @@ router.put("/:id", async (req, res) => {
       });
     }
 
-    const result = await db.query(
-      `
-      UPDATE plans
-      SET
-        name = $1,
-        type = $2,
-        pn = $3,
-        model = $4,
-        client = $5,
-        supplier = $6,
-        resp = $7,
-        active = $8,
-        n = $9,
-        box_qty = $10,
-        sampling = $11::jsonb,
-        chars = $12::jsonb,
-        updated_at = NOW()
-      WHERE id = $13
-      RETURNING *
-      `,
-      [
-        p.name || "",
-        planType,
-        p.pn || "",
-        p.model || "",
-        p.client || "",
-        p.supplier || "",
-        p.resp || "",
-        p.active !== false,
-        Number(p.n ?? 5),
-        Number(p.boxQty ?? p.box_qty ?? 2),
-        JSON.stringify(p.sampling || {}),
-        JSON.stringify(p.chars || []),
-        id,
-      ]
-    );
+const revisionNumber = Number(existingPlan.revision_number || 1);
+
+const snapshot = {
+  id: String(existingPlan.id),
+  name: existingPlan.name,
+  type: existingPlan.type,
+  pn: existingPlan.pn,
+  model: existingPlan.model,
+  client: existingPlan.client,
+  supplier: existingPlan.supplier,
+  resp: existingPlan.resp,
+  active: existingPlan.active,
+  n: existingPlan.n,
+  boxQty: existingPlan.box_qty,
+  sampling: existingPlan.sampling || {},
+  chars: existingPlan.chars || {},
+
+  inspectionRegime: existingPlan.inspection_regime || "normal",
+  switchingStatus: existingPlan.switching_status || "sem_pendencia",
+  suggestedRegime: existingPlan.suggested_regime || null,
+  switchingReason: existingPlan.switching_reason || "",
+  currentSampleN: existingPlan.current_sample_n ?? null,
+  suggestedSampleN: existingPlan.suggested_sample_n ?? null,
+
+  revisionNumber,
+  createdAt: existingPlan.created_at,
+  updatedAt: existingPlan.updated_at,
+};
+
+const changedByUserId = req.user?.id ?? null;
+const changedByName =
+  req.user?.name ||
+  req.user?.username ||
+  req.user?.matricula ||
+  "Usuário não identificado";
+
+const changedByRole =
+  req.user?.cargo ||
+  req.user?.role ||
+  null;
+
+const changeReason = String(p.changeReason || "").trim();
+const changeNote = String(p.changeNote || "").trim();
+
+if (!changeReason) {
+  return res.status(400).json({
+    ok: false,
+    message: "Informe o motivo da alteração para gerar uma nova revisão do plano.",
+  });
+}
+
+const client = await db.connect();
+
+try {
+  await client.query("BEGIN");
+
+  await client.query(
+    `
+    INSERT INTO plan_revisions (
+      plan_id,
+      revision_number,
+      change_reason,
+      change_note,
+      changed_by_user_id,
+      changed_by_name,
+      changed_by_role,
+      snapshot
+    )
+    VALUES (
+      $1, $2, $3, $4, $5, $6, $7, $8::jsonb
+    )
+    `,
+    [
+      existingPlan.id,
+      revisionNumber,
+      changeReason,
+      changeNote || null,
+      changedByUserId,
+      changedByName,
+      changedByRole,
+      JSON.stringify(snapshot),
+    ]
+  );
+
+  const result = await client.query(
+    `
+    UPDATE plans
+    SET
+      name = $1,
+      type = $2,
+      pn = $3,
+      model = $4,
+      client = $5,
+      supplier = $6,
+      resp = $7,
+      active = $8,
+      n = $9,
+      box_qty = $10,
+      sampling = $11::jsonb,
+      chars = $12::jsonb,
+      revision_number = $13,
+      updated_at = NOW()
+    WHERE id = $14
+    RETURNING *
+    `,
+    [
+      p.name || "",
+      planType,
+      p.pn || "",
+      p.model || "",
+      p.client || "",
+      p.supplier || "",
+      p.resp || "",
+      p.active !== false,
+      Number(p.n ?? 5),
+      Number(p.boxQty ?? p.box_qty ?? 2),
+      JSON.stringify(p.sampling || {}),
+      JSON.stringify(p.chars || []),
+      revisionNumber + 1,
+      id,
+    ]
+  );
+
+  await client.query("COMMIT");
+
+  res.json({
+    ok: true,
+    item: mapPlan(result.rows[0]),
+  });
+} catch (transactionError) {
+  await client.query("ROLLBACK");
+  throw transactionError;
+} finally {
+  client.release();
+}
 
     res.json({
       ok: true,

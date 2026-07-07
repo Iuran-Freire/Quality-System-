@@ -11,7 +11,12 @@ const emit = defineEmits(["close"]);
 
 const plans = usePlansStore();
 const isEdit = computed(() => !!props.id);
-const cloneSourceId = ref("");
+
+const showRevisionHistory = ref(false);
+const revisionHistoryLoading = ref(false);
+const revisionHistoryError = ref("");
+const revisionHistoryItems = ref([]);
+const selectedRevisionSnapshot = ref(null);
 
 onMounted(() => {
   plans.load();
@@ -89,6 +94,11 @@ const form = reactive({
   },
 
   chars: [],
+
+  // Histórico de revisão
+  revisionNumber: 1,
+  changeReason: "",
+  changeNote: "",
 });
 
 const hasVisualCaixa = computed(
@@ -97,6 +107,11 @@ const hasVisualCaixa = computed(
 
 function resetForm() {
   cloneSourceId.value = "";
+
+  showRevisionHistory.value = false;
+  revisionHistoryLoading.value = false;
+  revisionHistoryError.value = "";
+  selectedRevisionSnapshot.value = null;
 
   form.id = null;
   form.name = "";
@@ -119,6 +134,9 @@ function resetForm() {
   };
 
   form.chars = [];
+  form.revisionNumber = 1;
+  form.changeReason = "";
+  form.changeNote = "";
 }
 
 function normalizeChar(raw) {
@@ -146,8 +164,8 @@ function normalizeChar(raw) {
     c.lsl = "";
     c.usl = "";
     c.unit = "";
-    c.category =
-      c.category && c.category !== "Dimensional" ? c.category : "Rastreabilidade";
+    c.category = un;
+    c.category && c.category !== "Dimensional" ? c.category : "Rastreabilidade";
 
     return c;
   }
@@ -268,6 +286,10 @@ watch(
 
         const rawChars = Array.isArray(p.chars) ? p.chars : [];
         form.chars = rawChars.map((c) => normalizeChar(JSON.parse(JSON.stringify(c))));
+
+        form.revisionNumber = Number(p.revisionNumber || p.revisionNumber || 1) | 1;
+        form.changeReason = "";
+        form.changeNote = "";
       }
     } else {
       resetForm();
@@ -508,7 +530,35 @@ function normalizeNumber(v) {
   return Number(String(v ?? "").replace(",", "."));
 }
 
+function openRevisionSnapshot(revision) {
+  selectedRevisionSnapshot.value = revision || null;
+}
+
+async function openRevisionHistory() {
+  if (!form.id) return;
+
+  revisionHistoryLoading.value = true;
+  revisionHistoryError.value = "";
+  revisionHistoryItems.value = [];
+
+  try {
+    const data = await plans.loadRevisions(form.id);
+
+    revisionHistoryItems.value = Array.isArray(data.items) ? data.items : [];
+    showRevisionHistory.value = true;
+  } catch (error) {
+    revisionHistoryError.value =
+      error?.message || "Não foi possível carregar o histórico de revisões.";
+    alert(revisionHistoryError.value);
+  } finally {
+    revisionHistoryLoading.value = false;
+  }
+}
+
 async function save() {
+  if (isEdit.value && !String(form.changeReason || "").trim()) {
+    return alert("Informe o motivo da alteração para registrar a nova revisão.");
+  }
   // validação mínima
   if (!form.name.trim()) return alert("Preencha o Nome do plano.");
   if (!form.model.trim()) return alert("Preencha o Modelo.");
@@ -778,6 +828,9 @@ async function save() {
 
     active: true,
     chars,
+
+    changeReason: isEdit.value ? String(form.changeReason || "").trim() : "",
+    changeNote: isEdit.value ? String(form.changeNote || "").trim() : "",
   };
 
   await plans.save(payload);
@@ -789,8 +842,31 @@ async function save() {
   <div class="modal" :class="{ show: show }">
     <div class="sheet vstack">
       <div class="hstack" style="justify-content: space-between; align-items: center">
-        <h3>{{ isEdit ? "Editar Plano de Inspeção" : "Novo Plano de Inspeção" }}</h3>
-        <button class="btn ghost" @click="emit('close')">Fechar</button>
+        <div class="plan-modal-title-wrap">
+          <h3>{{ isEdit ? "Editar Plano de Inspeção" : "Novo Plano de Inspeção" }}</h3>
+
+          <span v-if="isEdit" class="plan-revision-current">
+            Rev.
+            {{
+              Number(form.revisionNumber || 1)
+                .toString()
+                .padStart(2, "0")
+            }}
+          </span>
+        </div>
+
+        <div class="hstack" style="gap: 8px">
+          <button
+            v-if="isEdit"
+            class="btn ghost"
+            type="button"
+            @click="openRevisionHistory"
+          >
+            Histórico de revisões
+          </button>
+
+          <button class="btn ghost" type="button" @click="emit('close')">Fechar</button>
+        </div>
       </div>
 
       <div v-if="!isEdit" class="clone-plan-box">
@@ -877,6 +953,31 @@ async function save() {
             </select>
             <span>Tipo</span>
           </label>
+        </div>
+      </div>
+
+      <div v-if="isEdit" class="plan-revision-box">
+        <div class="plan-revision-box-title">Registro da nova revisão</div>
+
+        <div class="plan-revision-box-subtitle">
+          Ao salvar, a versão atual do plano será arquivada e será criada uma nova
+          revisão.
+        </div>
+
+        <div class="row" style="margin-top: 12px">
+          <div class="span-3">
+            <label class="float-label">
+              <input v-model="form.changeReason" placeholder=" " />
+              <span>Motivo da alteração *</span>
+            </label>
+          </div>
+
+          <div class="span-3">
+            <label class="float-label">
+              <input v-model="form.changeNote" placeholder=" " />
+              <span>Observação adicional</span>
+            </label>
+          </div>
         </div>
       </div>
 
@@ -1240,6 +1341,265 @@ async function save() {
       </div>
     </div>
   </div>
+
+  <div
+    v-if="showRevisionHistory"
+    class="revision-history-overlay"
+    @click.self="showRevisionHistory = false"
+  >
+    <div class="revision-history-modal">
+      <div class="revision-history-header">
+        <div>
+          <h3>Histórico de revisões</h3>
+          <span>
+            Plano atual: Rev.
+            {{
+              Number(form.revisionNumber || 1)
+                .toString()
+                .padStart(2, "0")
+            }}
+          </span>
+        </div>
+
+        <button class="btn ghost" type="button" @click="showRevisionHistory = false">
+          Fechar
+        </button>
+      </div>
+
+      <div v-if="revisionHistoryLoading" class="revision-history-empty">
+        Carregando histórico...
+      </div>
+
+      <div
+        v-else-if="revisionHistoryError"
+        class="revision-history-empty revision-history-error"
+      >
+        {{ revisionHistoryError }}
+      </div>
+
+      <div v-else-if="revisionHistoryItems.length === 0" class="revision-history-empty">
+        Nenhuma revisão anterior registrada para este plano.
+      </div>
+
+      <div v-else class="revision-history-list">
+        <div
+          v-for="revision in revisionHistoryItems"
+          :key="revision.id"
+          class="revision-history-item"
+        >
+          <div class="revision-history-item-top">
+            <span class="revision-history-number">
+              Rev.
+              {{
+                Number(revision.revisionNumber || 1)
+                  .toString()
+                  .padStart(2, "0")
+              }}
+            </span>
+
+            <span class="revision-history-date">
+              {{
+                revision.changedAt
+                  ? new Date(revision.changedAt).toLocaleString("pt-BR")
+                  : "Data não informada"
+              }}
+            </span>
+          </div>
+
+          <div class="revision-history-label">Motivo da alteração</div>
+          <div class="revision-history-value">
+            {{ revision.changeReason || "Não informado" }}
+          </div>
+
+          <div v-if="revision.changeNote" class="revision-history-label">Observação</div>
+          <div v-if="revision.changeNote" class="revision-history-value">
+            {{ revision.changeNote }}
+          </div>
+
+          <div class="revision-history-author">
+            Alterado por:
+            <strong>{{ revision.changedByName || "Usuário não identificado" }}</strong>
+            <span v-if="revision.changedByRole"> · {{ revision.changedByRole }} </span>
+          </div>
+
+          <div class="revision-history-actions">
+            <button
+              class="btn ghost revision-history-view-btn"
+              type="button"
+              @click="openRevisionSnapshot(revision)"
+            >
+              Ver revisão
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div
+    v-if="selectedRevisionSnapshot"
+    class="revision-snapshot-overlay"
+    @click.self="selectedRevisionSnapshot = null"
+  >
+    <div class="revision-snapshot-modal">
+      <div class="revision-snapshot-header">
+        <div>
+          <h3>
+            Revisão
+            {{
+              Number(selectedRevisionSnapshot.revisionNumber || 1)
+                .toString()
+                .padStart(2, "0")
+            }}
+          </h3>
+
+          <span> Versão arquivada do plano antes da alteração. </span>
+        </div>
+
+        <button class="btn ghost" type="button" @click="selectedRevisionSnapshot = null">
+          Fechar
+        </button>
+      </div>
+
+      <div class="revision-snapshot-content">
+        <div class="revision-snapshot-section">
+          <h4>Dados do plano</h4>
+
+          <div class="revision-snapshot-grid">
+            <div>
+              <span>Nome</span>
+              <strong>{{ selectedRevisionSnapshot.snapshot?.name || "—" }}</strong>
+            </div>
+
+            <div>
+              <span>Tipo</span>
+              <strong>{{ selectedRevisionSnapshot.snapshot?.type || "—" }}</strong>
+            </div>
+
+            <div>
+              <span>PN</span>
+              <strong>{{ selectedRevisionSnapshot.snapshot?.pn || "—" }}</strong>
+            </div>
+
+            <div>
+              <span>Modelo</span>
+              <strong>{{ selectedRevisionSnapshot.snapshot?.model || "—" }}</strong>
+            </div>
+
+            <div>
+              <span>Fornecedor</span>
+              <strong>{{ selectedRevisionSnapshot.snapshot?.supplier || "—" }}</strong>
+            </div>
+
+            <div>
+              <span>Cliente</span>
+              <strong>{{ selectedRevisionSnapshot.snapshot?.client || "—" }}</strong>
+            </div>
+
+            <div>
+              <span>Responsável</span>
+              <strong>{{ selectedRevisionSnapshot.snapshot?.resp || "—" }}</strong>
+            </div>
+          </div>
+        </div>
+
+        <div class="revision-snapshot-section">
+          <h4>Amostragem / Norma</h4>
+
+          <div class="revision-snapshot-grid">
+            <div>
+              <span>Modo</span>
+              <strong>
+                {{ selectedRevisionSnapshot.snapshot?.sampling?.mode || "Não informado" }}
+              </strong>
+            </div>
+
+            <div>
+              <span>Norma</span>
+              <strong>
+                {{
+                  selectedRevisionSnapshot.snapshot?.sampling?.standard || "Não informado"
+                }}
+              </strong>
+            </div>
+
+            <div>
+              <span>Nível</span>
+              <strong>
+                {{ selectedRevisionSnapshot.snapshot?.sampling?.level || "—" }}
+              </strong>
+            </div>
+
+            <div>
+              <span>AQL</span>
+              <strong>
+                {{ selectedRevisionSnapshot.snapshot?.sampling?.aql ?? "—" }}
+              </strong>
+            </div>
+
+            <div>
+              <span>Amostra atual</span>
+              <strong>{{ selectedRevisionSnapshot.snapshot?.n ?? "—" }}</strong>
+            </div>
+          </div>
+        </div>
+
+        <div class="revision-snapshot-section">
+          <h4>
+            Características e testes (
+            {{
+              Array.isArray(selectedRevisionSnapshot.snapshot?.chars)
+                ? selectedRevisionSnapshot.snapshot.chars.length
+                : 0
+            }}
+            )
+          </h4>
+
+          <div
+            v-if="
+              !Array.isArray(selectedRevisionSnapshot.snapshot?.chars) ||
+              selectedRevisionSnapshot.snapshot.chars.length === 0
+            "
+            class="revision-snapshot-empty"
+          >
+            Nenhuma característica registrada nesta revisão.
+          </div>
+
+          <div v-else class="revision-snapshot-chars">
+            <div
+              v-for="(char, index) in selectedRevisionSnapshot.snapshot.chars"
+              :key="char.id || index"
+              class="revision-snapshot-char"
+            >
+              <div class="revision-snapshot-char-title">
+                <strong>{{ index + 1 }}. {{ char.name || "Sem nome" }}</strong>
+
+                <span>{{ char.kind || "característica" }}</span>
+              </div>
+
+              <div class="revision-snapshot-char-details">
+                <span v-if="char.lsl !== '' && char.lsl != null">
+                  Mín: {{ char.lsl }}
+                </span>
+
+                <span v-if="char.usl !== '' && char.usl != null">
+                  Máx: {{ char.usl }}
+                </span>
+
+                <span v-if="char.unit"> Unidade: {{ char.unit }} </span>
+
+                <span v-if="char.sampleN"> Amostras: {{ char.sampleN }} </span>
+
+                <span v-if="char.method"> Método: {{ char.method }} </span>
+
+                <span v-if="char.category"> Categoria: {{ char.category }} </span>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
 </template>
 
 <style scoped>
@@ -1406,6 +1766,323 @@ async function save() {
 
   .xrf-unit {
     padding-left: 40px;
+  }
+}
+
+.plan-revision-box {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 14px;
+  border: 1px solid #bfdbfe;
+  border-radius: 14px;
+  background: #eff6ff;
+}
+
+.plan-revision-box-title {
+  color: #1d4ed8;
+  font-size: 14px;
+  font-weight: 750;
+}
+
+.plan-revision-box-subtitle {
+  color: #475569;
+  font-size: 12.5px;
+  line-height: 1.35;
+}
+.plan-modal-title-wrap {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.plan-modal-title-wrap h3 {
+  margin: 0;
+}
+
+.plan-revision-current {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 4px 9px;
+  border: 1px solid #bfdbfe;
+  border-radius: 999px;
+  background: #eff6ff;
+  color: #1d4ed8;
+  font-size: 12px;
+  font-weight: 750;
+  white-space: nowrap;
+}
+
+.revision-history-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 1200;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+  background: rgba(15, 23, 42, 0.45);
+}
+
+.revision-history-modal {
+  width: min(760px, 100%);
+  max-height: min(760px, calc(100vh - 48px));
+  overflow: auto;
+  padding: 20px;
+  border: 1px solid #dbeafe;
+  border-radius: 18px;
+  background: #ffffff;
+  box-shadow: 0 24px 60px rgba(15, 23, 42, 0.22);
+}
+
+.revision-history-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+  padding-bottom: 14px;
+  border-bottom: 1px solid #e2e8f0;
+}
+
+.revision-history-header h3 {
+  margin: 0;
+  color: #0f172a;
+}
+
+.revision-history-header span {
+  display: block;
+  margin-top: 4px;
+  color: #64748b;
+  font-size: 13px;
+}
+
+.revision-history-list {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  margin-top: 16px;
+}
+
+.revision-history-item {
+  padding: 14px;
+  border: 1px solid #dbeafe;
+  border-radius: 14px;
+  background: #f8fbff;
+}
+
+.revision-history-item-top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 12px;
+}
+
+.revision-history-number {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 4px 9px;
+  border: 1px solid #bfdbfe;
+  border-radius: 999px;
+  background: #eff6ff;
+  color: #1d4ed8;
+  font-size: 12px;
+  font-weight: 750;
+}
+
+.revision-history-date {
+  color: #64748b;
+  font-size: 12px;
+  text-align: right;
+}
+
+.revision-history-label {
+  margin-top: 9px;
+  color: #64748b;
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+}
+
+.revision-history-value {
+  margin-top: 3px;
+  color: #0f172a;
+  font-size: 13px;
+  line-height: 1.4;
+}
+
+.revision-history-author {
+  margin-top: 12px;
+  color: #475569;
+  font-size: 12px;
+}
+
+.revision-history-empty {
+  padding: 28px 14px;
+  color: #64748b;
+  font-size: 13px;
+  text-align: center;
+}
+
+.revision-history-error {
+  color: #b91c1c;
+}
+
+.revision-history-actions {
+  display: flex;
+  justify-content: flex-end;
+  margin-top: 12px;
+}
+
+.revision-history-view-btn {
+  min-width: 118px;
+  font-size: 12px;
+}
+
+.revision-snapshot-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 1300;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+  background: rgba(15, 23, 42, 0.56);
+}
+
+.revision-snapshot-modal {
+  width: min(980px, 100%);
+  max-height: min(820px, calc(100vh - 48px));
+  overflow: auto;
+  padding: 20px;
+  border: 1px solid #dbeafe;
+  border-radius: 18px;
+  background: #ffffff;
+  box-shadow: 0 24px 60px rgba(15, 23, 42, 0.28);
+}
+
+.revision-snapshot-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+  padding-bottom: 14px;
+  border-bottom: 1px solid #e2e8f0;
+}
+
+.revision-snapshot-header h3 {
+  margin: 0;
+  color: #0f172a;
+}
+
+.revision-snapshot-header span {
+  display: block;
+  margin-top: 4px;
+  color: #64748b;
+  font-size: 13px;
+}
+
+.revision-snapshot-content {
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+  margin-top: 18px;
+}
+
+.revision-snapshot-section {
+  padding: 14px;
+  border: 1px solid #e2e8f0;
+  border-radius: 14px;
+  background: #f8fafc;
+}
+
+.revision-snapshot-section h4 {
+  margin: 0 0 12px;
+  color: #0f172a;
+  font-size: 14px;
+}
+
+.revision-snapshot-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.revision-snapshot-grid > div {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.revision-snapshot-grid span {
+  color: #64748b;
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+}
+
+.revision-snapshot-grid strong {
+  color: #0f172a;
+  font-size: 13px;
+  line-height: 1.35;
+}
+
+.revision-snapshot-chars {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.revision-snapshot-char {
+  padding: 12px;
+  border: 1px solid #dbeafe;
+  border-radius: 12px;
+  background: #ffffff;
+}
+
+.revision-snapshot-char-title {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.revision-snapshot-char-title strong {
+  color: #0f172a;
+  font-size: 13px;
+}
+
+.revision-snapshot-char-title span {
+  color: #2563eb;
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.revision-snapshot-char-details {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 7px 12px;
+  margin-top: 8px;
+  color: #475569;
+  font-size: 12px;
+}
+
+.revision-snapshot-empty {
+  color: #64748b;
+  font-size: 13px;
+}
+
+@media (max-width: 760px) {
+  .revision-snapshot-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .revision-snapshot-header,
+  .revision-snapshot-char-title {
+    align-items: stretch;
+    flex-direction: column;
   }
 }
 </style>

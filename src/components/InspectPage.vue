@@ -347,12 +347,23 @@ function pdfDisabledTitle(x) {
                 </span>
               </td>
               <td>
-                <span
-                  class="badge"
-                  :class="x.result === 'PASS' ? 'ok' : x.result === 'FAIL' ? 'warn' : ''"
-                >
-                  {{ x.result || "—" }}
-                </span>
+                <div class="inspection-result-cell">
+                  <span
+                    class="badge"
+                    :class="
+                      x.result === 'PASS' ? 'ok' : x.result === 'FAIL' ? 'warn' : ''
+                    "
+                  >
+                    {{ x.result || "—" }}
+                  </span>
+
+                  <span
+                    v-if="x.conditionalApprovalStatus === 'approved_conditional'"
+                    class="conditional-approval-table-badge"
+                  >
+                    APROVADO CONDICIONALMENTE
+                  </span>
+                </div>
               </td>
               <td class="actions-col">
                 <div class="actions-cell">
@@ -515,6 +526,29 @@ function pdfDisabledTitle(x) {
   color: #c2410c;
   font-size: 10px;
   font-weight: 645;
+  white-space: nowrap;
+}
+
+.inspection-result-cell {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+}
+
+.conditional-approval-table-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 3px 8px;
+  border: 1px solid #86efac;
+  border-radius: 6px;
+  background: #f0fdf4;
+  color: #15803d;
+  font-size: 8px;
+  font-weight: 750;
+  line-height: 1;
+  letter-spacing: 0.1px;
   white-space: nowrap;
 }
 </style>

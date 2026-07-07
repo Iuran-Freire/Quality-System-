@@ -1868,7 +1868,7 @@ Motivo: ${p.reason}`;
         <div class="conditional-approval-head">
           <strong>APROVADO CONDICIONALMENTE</strong>
 
-          <span> Resultado oficial: FAIL · Continua válido para comutação NBR </span>
+          <span> Resultado oficial: FAIL </span>
         </div>
 
         <div class="conditional-approval-grid">

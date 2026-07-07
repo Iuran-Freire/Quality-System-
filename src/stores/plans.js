@@ -294,6 +294,20 @@ export const usePlansStore = defineStore("plans", {
       }
     },
 
+        async loadRevisions(id) {
+      try {
+        const data = await apiFetch(`/plans/${id}/revisions`);
+
+        return {
+          currentRevisionNumber: Number(data.currentRevisionNumber || 1),
+          items: Array.isArray(data.items) ? data.items : [],
+        };
+      } catch (error) {
+        console.error("Erro ao carregar histórico de revisões:", error);
+        throw error;
+      }
+    },
+
     async save(plan) {
       try {
         const payload = normalizePlan(plan);
