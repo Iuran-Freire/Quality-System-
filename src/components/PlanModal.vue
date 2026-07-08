@@ -11,12 +11,14 @@ const emit = defineEmits(["close"]);
 
 const plans = usePlansStore();
 const isEdit = computed(() => !!props.id);
+const cloneSourceId = ref("");
 
 const showRevisionHistory = ref(false);
 const revisionHistoryLoading = ref(false);
 const revisionHistoryError = ref("");
 const revisionHistoryItems = ref([]);
 const selectedRevisionSnapshot = ref(null);
+const selectedRevisionComparison = ref(null);
 
 onMounted(() => {
   plans.load();
@@ -112,6 +114,7 @@ function resetForm() {
   revisionHistoryLoading.value = false;
   revisionHistoryError.value = "";
   selectedRevisionSnapshot.value = null;
+  selectedRevisionComparison.value = null;
 
   form.id = null;
   form.name = "";
@@ -164,8 +167,8 @@ function normalizeChar(raw) {
     c.lsl = "";
     c.usl = "";
     c.unit = "";
-    c.category = un;
-    c.category && c.category !== "Dimensional" ? c.category : "Rastreabilidade";
+    c.category =
+      c.category && c.category !== "Dimensional" ? c.category : "Rastreabilidade";
 
     return c;
   }
@@ -287,7 +290,7 @@ watch(
         const rawChars = Array.isArray(p.chars) ? p.chars : [];
         form.chars = rawChars.map((c) => normalizeChar(JSON.parse(JSON.stringify(c))));
 
-        form.revisionNumber = Number(p.revisionNumber || p.revisionNumber || 1) | 1;
+        form.revisionNumber = Number(p.revisionNumber || p.revisionNumber || 1) || 1;
         form.changeReason = "";
         form.changeNote = "";
       }
@@ -534,6 +537,207 @@ function openRevisionSnapshot(revision) {
   selectedRevisionSnapshot.value = revision || null;
 }
 
+function normalizeCompareValue(value) {
+  if (value === null || value === undefined || value === "") {
+    return "—";
+  }
+
+  if (typeof value === "boolean") {
+    return value ? "Sim" : "Não";
+  }
+
+  return String(value);
+}
+
+function getCurrentPlanForComparison() {
+  return {
+    name: form.name || "",
+    type: form.type || "",
+    pn: form.pn || "",
+    model: form.model || "",
+    client: form.client || "",
+    supplier: form.supplier || "",
+    resp: form.resp || "",
+    n: form.n ?? "",
+    sampling: {
+      mode: form.sampling?.mode || "",
+      standard: form.sampling?.standard || "",
+      level: form.sampling?.level || "",
+      aql: form.sampling?.aql ?? "",
+      clientName: form.sampling?.clientName || "",
+      note: form.sampling?.note || "",
+      fixedNormalN: form.sampling?.fixedNormalN ?? "",
+      fixedReducedN: form.sampling?.fixedReducedN ?? "",
+      fixedTightenedN: form.sampling?.fixedTightenedN ?? "",
+    },
+    chars: Array.isArray(form.chars) ? form.chars : [],
+  };
+}
+
+function getCharCompareKey(char) {
+  return String(char?.id || char?.name || "").trim();
+}
+
+function getCharFriendlyKind(char) {
+  const kind = String(char?.kind || "");
+
+  if (kind === "variavel") return "Variável Numérica";
+  if (kind === "visual_produto") return "Visual (Produto)";
+  if (kind === "visual_caixa") return "Visual (Caixa)";
+  if (kind === "scanner") return "Scanner";
+  if (kind === "xrf_rohs") return "XRF / RoHS";
+
+  if (kind === "teste_especial") {
+    return char?.resultMode === "numerico"
+      ? "Teste Especial — Numérico"
+      : "Teste Especial — OK/NG";
+  }
+
+  return kind || "Característica";
+}
+
+function buildRevisionComparison(revision) {
+  const oldPlan = revision?.snapshot || {};
+  const currentPlan = getCurrentPlanForComparison();
+
+  const planFields = [
+    { label: "Nome do plano", key: "name" },
+    { label: "Tipo", key: "type" },
+    { label: "PN", key: "pn" },
+    { label: "Modelo", key: "model" },
+    { label: "Cliente", key: "client" },
+    { label: "Fornecedor", key: "supplier" },
+    { label: "Responsável", key: "resp" },
+    { label: "Amostra atual", key: "n" },
+  ];
+
+  const changedPlanFields = planFields
+    .map((field) => {
+      const before = oldPlan?.[field.key];
+      const after = currentPlan?.[field.key];
+
+      return {
+        label: field.label,
+        before: normalizeCompareValue(before),
+        after: normalizeCompareValue(after),
+        changed: normalizeCompareValue(before) !== normalizeCompareValue(after),
+      };
+    })
+    .filter((item) => item.changed);
+
+  const oldSamplingMode = String(oldPlan?.sampling?.mode || "").trim();
+  const currentSamplingMode = String(currentPlan?.sampling?.mode || "").trim();
+
+  const samplingFields = [
+    { label: "Modo de amostragem", key: "mode" },
+    { label: "Norma", key: "standard" },
+    { label: "Nível", key: "level" },
+    { label: "AQL", key: "aql" },
+    { label: "Norma do cliente", key: "clientName" },
+    { label: "Observação", key: "note" },
+  ];
+
+  if (oldSamplingMode === "fixed" || currentSamplingMode === "fixed") {
+    samplingFields.push(
+      { label: "Amostra Normal", key: "fixedNormalN" },
+      { label: "Amostra Atenuada", key: "fixedReducedN" },
+      { label: "Amostra Severa", key: "fixedTightenedN" }
+    );
+  }
+
+  const changedSamplingFields = samplingFields
+    .map((field) => {
+      const before = oldPlan?.sampling?.[field.key];
+      const after = currentPlan?.sampling?.[field.key];
+
+      return {
+        label: field.label,
+        before: normalizeCompareValue(before),
+        after: normalizeCompareValue(after),
+        changed: normalizeCompareValue(before) !== normalizeCompareValue(after),
+      };
+    })
+    .filter((item) => item.changed);
+
+  const oldChars = Array.isArray(oldPlan?.chars) ? oldPlan.chars : [];
+  const currentChars = Array.isArray(currentPlan?.chars) ? currentPlan.chars : [];
+
+  const oldMap = new Map(oldChars.map((char) => [getCharCompareKey(char), char]));
+  const currentMap = new Map(currentChars.map((char) => [getCharCompareKey(char), char]));
+
+  const addedChars = currentChars
+    .filter((char) => !oldMap.has(getCharCompareKey(char)))
+    .map((char) => ({
+      name: char.name || "Sem nome",
+      kind: getCharFriendlyKind(char),
+    }));
+
+  const removedChars = oldChars
+    .filter((char) => !currentMap.has(getCharCompareKey(char)))
+    .map((char) => ({
+      name: char.name || "Sem nome",
+      kind: getCharFriendlyKind(char),
+    }));
+
+  const changedChars = [];
+
+  for (const oldChar of oldChars) {
+    const key = getCharCompareKey(oldChar);
+    const currentChar = currentMap.get(key);
+
+    if (!currentChar) continue;
+
+    const charFields = [
+      { label: "Tipo", key: "kind" },
+      { label: "Resultado", key: "resultMode" },
+      { label: "Mín", key: "lsl" },
+      { label: "Máx", key: "usl" },
+      { label: "Unidade", key: "unit" },
+      { label: "Método", key: "method" },
+      { label: "Categoria", key: "category" },
+      { label: "Amostras", key: "sampleN" },
+    ];
+
+    const changes = charFields
+      .map((field) => {
+        const before = oldChar?.[field.key];
+        const after = currentChar?.[field.key];
+
+        return {
+          label: field.label,
+          before:
+            field.key === "kind"
+              ? getCharFriendlyKind(oldChar)
+              : normalizeCompareValue(before),
+          after:
+            field.key === "kind"
+              ? getCharFriendlyKind(currentChar)
+              : normalizeCompareValue(after),
+          changed:
+            field.key === "kind"
+              ? getCharFriendlyKind(oldChar) !== getCharFriendlyKind(currentChar)
+              : normalizeCompareValue(before) !== normalizeCompareValue(after),
+        };
+      })
+      .filter((item) => item.changed);
+
+    if (changes.length) {
+      changedChars.push({
+        name: currentChar.name || oldChar.name || "Sem nome",
+        changes,
+      });
+    }
+  }
+
+  return {
+    revisionNumber: Number(revision?.revisionNumber || 1),
+    changedPlanFields,
+    changedSamplingFields,
+    addedChars,
+    removedChars,
+    changedChars,
+  };
+}
 async function openRevisionHistory() {
   if (!form.id) return;
 
@@ -862,10 +1066,12 @@ async function save() {
             type="button"
             @click="openRevisionHistory"
           >
-            Histórico de revisões
+            Histórico de Revisões do Plano
           </button>
 
-          <button class="btn ghost" type="button" @click="emit('close')">Fechar</button>
+          <div class="hstack" style="gap: 8px">
+            <button class="btn ghost" type="button" @click="emit('close')">Fechar</button>
+          </div>
         </div>
       </div>
 
@@ -957,25 +1163,24 @@ async function save() {
       </div>
 
       <div v-if="isEdit" class="plan-revision-box">
-        <div class="plan-revision-box-title">Registro da nova revisão</div>
+        <div class="plan-revision-box-title">Registro de Alteração / Controle de Revisão</div>
 
         <div class="plan-revision-box-subtitle">
-          Ao salvar, a versão atual do plano será arquivada e será criada uma nova
-          revisão.
+          Ao salvar, a revisão vigente será arquivada como snapshot e uma nova revisão do plano será gerada.
         </div>
 
         <div class="row" style="margin-top: 12px">
           <div class="span-3">
             <label class="float-label">
               <input v-model="form.changeReason" placeholder=" " />
-              <span>Motivo da alteração *</span>
+              <span>Justificativa da alteração *</span>
             </label>
           </div>
 
           <div class="span-3">
             <label class="float-label">
               <input v-model="form.changeNote" placeholder=" " />
-              <span>Observação adicional</span>
+              <span>Observações da revisão</span>
             </label>
           </div>
         </div>
@@ -1428,7 +1633,7 @@ async function save() {
               type="button"
               @click="openRevisionSnapshot(revision)"
             >
-              Ver revisão
+              Visualizar Revisão Arquivada
             </button>
           </div>
         </div>
@@ -1453,12 +1658,30 @@ async function save() {
             }}
           </h3>
 
-          <span> Versão arquivada do plano antes da alteração. </span>
+          <span> Snapshot da revisão arquivada antes da alteração. </span>
         </div>
 
-        <button class="btn ghost" type="button" @click="selectedRevisionSnapshot = null">
-          Fechar
-        </button>
+        <div class="hstack" style="gap: 8px">
+          <button
+            class="btn ghost"
+            type="button"
+            @click="
+              selectedRevisionComparison = buildRevisionComparison(
+                selectedRevisionSnapshot
+              )
+            "
+          >
+            Comparar com Revisão Atual
+          </button>
+
+          <button
+            class="btn ghost"
+            type="button"
+            @click="selectedRevisionSnapshot = null"
+          >
+            Fechar
+          </button>
+        </div>
       </div>
 
       <div class="revision-snapshot-content">
@@ -1597,6 +1820,157 @@ async function save() {
             </div>
           </div>
         </div>
+      </div>
+    </div>
+  </div>
+  <!-- Comparação da revisão com o plano atual -->
+  <div
+    v-if="selectedRevisionComparison"
+    class="revision-compare-overlay"
+    @click.self="selectedRevisionComparison = null"
+  >
+    <div class="revision-compare-modal">
+      <div class="revision-compare-header">
+        <div>
+          <h3>
+            Comparativo de Revisão — Rev.
+            {{
+              Number(selectedRevisionComparison.revisionNumber || 1)
+                .toString()
+                .padStart(2, "0")
+            }}
+            × Revisão Atual
+          </h3>
+
+          <span> Análise das alterações entre a revisão arquivada e a revisão vigente do plano. </span>
+        </div>
+
+        <button
+          class="btn ghost"
+          type="button"
+          @click="selectedRevisionComparison = null"
+        >
+          Fechar
+        </button>
+      </div>
+
+      <div class="revision-compare-content">
+        <div
+          v-if="
+            selectedRevisionComparison.changedPlanFields.length === 0 &&
+            selectedRevisionComparison.changedSamplingFields.length === 0 &&
+            selectedRevisionComparison.addedChars.length === 0 &&
+            selectedRevisionComparison.removedChars.length === 0 &&
+            selectedRevisionComparison.changedChars.length === 0
+          "
+          class="revision-compare-empty"
+        >
+          Nenhuma alteração identificada entre as revisões comparadas.
+        </div>
+
+        <template v-else>
+          <div
+            v-if="selectedRevisionComparison.changedPlanFields.length"
+            class="revision-compare-section"
+          >
+            <h4>Alterações nos Dados Mestres do Plano</h4>
+
+            <div class="revision-compare-table">
+              <div
+                v-for="item in selectedRevisionComparison.changedPlanFields"
+                :key="item.label"
+                class="revision-compare-row"
+              >
+                <span class="revision-compare-label">{{ item.label }}</span>
+                <span class="revision-compare-before">{{ item.before }}</span>
+                <span class="revision-compare-arrow">→</span>
+                <span class="revision-compare-after">{{ item.after }}</span>
+              </div>
+            </div>
+          </div>
+
+          <div
+            v-if="selectedRevisionComparison.changedSamplingFields.length"
+            class="revision-compare-section"
+          >
+            <h4>Alterações nos Critérios de Amostragem / Norma</h4>
+
+            <div class="revision-compare-table">
+              <div
+                v-for="item in selectedRevisionComparison.changedSamplingFields"
+                :key="item.label"
+                class="revision-compare-row"
+              >
+                <span class="revision-compare-label">{{ item.label }}</span>
+                <span class="revision-compare-before">{{ item.before }}</span>
+                <span class="revision-compare-arrow">→</span>
+                <span class="revision-compare-after">{{ item.after }}</span>
+              </div>
+            </div>
+          </div>
+
+          <div
+            v-if="selectedRevisionComparison.addedChars.length"
+            class="revision-compare-section"
+          >
+            <h4>Características Incluídas</h4>
+
+            <div class="revision-compare-chip-list">
+              <span
+                v-for="item in selectedRevisionComparison.addedChars"
+                :key="`${item.name}-${item.kind}`"
+                class="revision-compare-chip added"
+              >
+                + {{ item.name }} · {{ item.kind }}
+              </span>
+            </div>
+          </div>
+
+          <div
+            v-if="selectedRevisionComparison.removedChars.length"
+            class="revision-compare-section"
+          >
+            <h4>Características Removidas</h4>
+
+            <div class="revision-compare-chip-list">
+              <span
+                v-for="item in selectedRevisionComparison.removedChars"
+                :key="`${item.name}-${item.kind}`"
+                class="revision-compare-chip removed"
+              >
+                − {{ item.name }} · {{ item.kind }}
+              </span>
+            </div>
+          </div>
+
+          <div
+            v-if="selectedRevisionComparison.changedChars.length"
+            class="revision-compare-section"
+          >
+            <h4>Alterações nas Características de Inspeção</h4>
+
+            <div class="revision-compare-char-list">
+              <div
+                v-for="char in selectedRevisionComparison.changedChars"
+                :key="char.name"
+                class="revision-compare-char"
+              >
+                <strong>{{ char.name }}</strong>
+
+                <div
+                  v-for="change in char.changes"
+                  :key="change.label"
+                  class="revision-compare-row"
+                >
+                  <span class="revision-compare-label">{{ change.label }}</span>
+                  <span class="revision-compare-before">{{ change.before }}</span>
+                  <span class="revision-compare-arrow">→</span>
+                  <span class="revision-compare-after">{{ change.after }}</span>
+                </div>
+              </div>
+            </div>
+          </div>
+        </template>
       </div>
     </div>
   </div>
@@ -2083,6 +2457,177 @@ async function save() {
   .revision-snapshot-char-title {
     align-items: stretch;
     flex-direction: column;
+  }
+}
+
+.revision-compare-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 1400;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+  background: rgba(15, 23, 42, 0.62);
+}
+
+.revision-compare-modal {
+  width: min(980px, 100%);
+  max-height: min(820px, calc(100vh - 48px));
+  overflow: auto;
+  padding: 20px;
+  border: 1px solid #dbeafe;
+  border-radius: 18px;
+  background: #ffffff;
+  box-shadow: 0 24px 60px rgba(15, 23, 42, 0.3);
+}
+
+.revision-compare-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+  padding-bottom: 14px;
+  border-bottom: 1px solid #e2e8f0;
+}
+
+.revision-compare-header h3 {
+  margin: 0;
+  color: #0f172a;
+}
+
+.revision-compare-header span {
+  display: block;
+  margin-top: 4px;
+  color: #64748b;
+  font-size: 13px;
+}
+
+.revision-compare-content {
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+  margin-top: 18px;
+}
+
+.revision-compare-section {
+  padding: 14px;
+  border: 1px solid #e2e8f0;
+  border-radius: 14px;
+  background: #f8fafc;
+}
+
+.revision-compare-section h4 {
+  margin: 0 0 12px;
+  color: #0f172a;
+  font-size: 14px;
+}
+
+.revision-compare-table {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.revision-compare-row {
+  display: grid;
+  grid-template-columns: minmax(150px, 1fr) minmax(120px, 1fr) 24px minmax(120px, 1fr);
+  align-items: center;
+  gap: 8px;
+  padding: 9px 10px;
+  border: 1px solid #e2e8f0;
+  border-radius: 10px;
+  background: #ffffff;
+  font-size: 12px;
+}
+
+.revision-compare-label {
+  color: #475569;
+  font-weight: 700;
+}
+
+.revision-compare-before {
+  color: #b91c1c;
+  text-decoration: line-through;
+}
+
+.revision-compare-arrow {
+  color: #64748b;
+  text-align: center;
+  font-weight: 800;
+}
+
+.revision-compare-after {
+  color: #15803d;
+  font-weight: 700;
+}
+
+.revision-compare-chip-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.revision-compare-chip {
+  display: inline-flex;
+  padding: 6px 9px;
+  border-radius: 8px;
+  font-size: 12px;
+  font-weight: 650;
+}
+
+.revision-compare-chip.added {
+  border: 1px solid #bbf7d0;
+  background: #f0fdf4;
+  color: #15803d;
+}
+
+.revision-compare-chip.removed {
+  border: 1px solid #fecaca;
+  background: #fef2f2;
+  color: #b91c1c;
+}
+
+.revision-compare-char-list {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.revision-compare-char {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 12px;
+  border: 1px solid #dbeafe;
+  border-radius: 12px;
+  background: #ffffff;
+}
+
+.revision-compare-char > strong {
+  color: #0f172a;
+  font-size: 13px;
+}
+
+.revision-compare-empty {
+  padding: 34px 16px;
+  color: #64748b;
+  font-size: 13px;
+  text-align: center;
+}
+
+@media (max-width: 760px) {
+  .revision-compare-header {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .revision-compare-row {
+    grid-template-columns: 1fr;
+  }
+
+  .revision-compare-arrow {
+    display: none;
   }
 }
 </style>

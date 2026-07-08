@@ -531,10 +531,6 @@ try {
 
   await client.query("COMMIT");
 
-  res.json({
-    ok: true,
-    item: mapPlan(result.rows[0]),
-  });
 } catch (transactionError) {
   await client.query("ROLLBACK");
   throw transactionError;

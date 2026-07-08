@@ -307,6 +307,9 @@ function mapInspection(row) {
     planId: row.plan_id,
     planName: row.plan_name,
 
+    planRevisionNumber: Number(row.plan_revision_number || 1),
+    plan_revision_number: Number(row.plan_revision_number || 1),
+
     type: row.type,
     pn: row.pn,
     model: row.model,
@@ -443,14 +446,15 @@ router.post("/", async (req, res) => {
       const planResult = await db.query(
         `
         SELECT
-  id,
-  inspection_regime,
-  switching_status,
-  suggested_regime,
-  switching_reason,
-  n
-FROM public.plans
-WHERE id = $1
+          id,
+          inspection_regime,
+          switching_status,
+          suggested_regime,
+          switching_reason,
+          revision_number,
+          n
+        FROM public.plans
+        WHERE id = $1
         `,
         [p.plan_id || p.planId]
       );
@@ -474,165 +478,175 @@ WHERE id = $1
           0
       ) || null;
 
-      if (planSnapshot?.switching_status === "pendente") {
-  return res.status(409).json({
-    ok: false,
-    message:
-      "Inspeção bloqueada. Este plano possui comutação pendente de aprovação da liderança.",
-    switching: {
-      suggestedRegime: planSnapshot.suggested_regime || null,
-      reason: planSnapshot.switching_reason || "",
-    },
-  });
-}
+    const planRevisionNumber =
+      Number(
+        planSnapshot?.revision_number ||
+          p.planRevisionNumber ||
+          p.plan_revision_number ||
+          1
+      ) || 1;
 
-if (planSnapshot?.id) {
-  const historyResult = await db.query(
-    `
-    SELECT
-      result,
-      sampling,
-      chars,
-      samples,
-      inspection_regime_snapshot,
-      finished_at,
-      created_at
-    FROM public.inspections
-    WHERE plan_id = $1
-      AND finished_at IS NOT NULL
-      AND result IS NOT NULL
-    ORDER BY finished_at DESC, created_at DESC
-    LIMIT 10
-    `,
-    [planSnapshot.id]
-  );
+    if (planSnapshot?.switching_status === "pendente") {
+      return res.status(409).json({
+        ok: false,
+        message:
+          "Inspeção bloqueada. Este plano possui comutação pendente de aprovação da liderança.",
+        switching: {
+          suggestedRegime: planSnapshot.suggested_regime || null,
+          reason: planSnapshot.switching_reason || "",
+        },
+      });
+    }
 
-  const switchingCheck = needsSwitching(
-    planSnapshot.inspection_regime,
-    historyResult.rows
-  );
+    if (planSnapshot?.id) {
+      const historyResult = await db.query(
+        `
+        SELECT
+          result,
+          sampling,
+          chars,
+          samples,
+          inspection_regime_snapshot,
+          finished_at,
+          created_at
+        FROM public.inspections
+        WHERE plan_id = $1
+          AND finished_at IS NOT NULL
+          AND result IS NOT NULL
+        ORDER BY finished_at DESC, created_at DESC
+        LIMIT 10
+        `,
+        [planSnapshot.id]
+      );
 
-  if (switchingCheck.blocked) {
-    return res.status(409).json({
-      ok: false,
-      message:
-        "Inspeção bloqueada. Este plano atende critério para comutação e precisa de confirmação da liderança.",
-      switching: switchingCheck,
-    });
-  }
-}
+      const switchingCheck = needsSwitching(
+        planSnapshot.inspection_regime,
+        historyResult.rows
+      );
 
-   const result = await db.query(
-  `
-  INSERT INTO inspections (
-    id,
-    plan_id,
-    plan_name,
-    type,
-    pn,
-    model,
-    client,
-    supplier,
-    lot,
-    invoice,
-    lot_size,
-    shift,
-    resp,
-    obs,
-    status,
-    result,
-    started_at,
-    finished_at,
-    created_by,
-    created_by_user,
-    created_by_role,
-    updated_by,
-    updated_by_user,
-    updated_by_role,
-    finished_by,
-    finished_by_user,
-    finished_by_role,
-    plan_samples,
-    plan_box_qty,
-    box_qty,
-    sampling,
-    chars,
-    samples,
-    parent_inspection_id,
-    is_reinspection,
-    inspection_cycle,
-    created_at,
-    updated_at,
-    inspection_regime_snapshot,
-    sample_n_snapshot
-  )
-  VALUES (
-    $1, $2, $3, $4, $5, $6, $7, $8,
-    $9, $10, $11, $12, $13, $14, $15, $16,
-    $17, $18, $19, $20, $21, $22, $23, $24,
-    $25, $26, $27, $28, $29, $30,
-    $31::jsonb, $32::jsonb, $33::jsonb,
-    $34, $35, $36,
-    $37, $38, $39, $40
-  )
-  RETURNING *
-  `,
-  [
-    p.id || crypto.randomUUID(),
+      if (switchingCheck.blocked) {
+        return res.status(409).json({
+          ok: false,
+          message:
+            "Inspeção bloqueada. Este plano atende critério para comutação e precisa de confirmação da liderança.",
+          switching: switchingCheck,
+        });
+      }
+    }
 
-    p.planId || p.plan_id || null,
-    p.planName || "",
+    const result = await db.query(
+      `
+      INSERT INTO inspections (
+        id,
+        plan_id,
+        plan_name,
+        type,
+        pn,
+        model,
+        client,
+        supplier,
+        lot,
+        invoice,
+        lot_size,
+        shift,
+        resp,
+        obs,
+        status,
+        result,
+        started_at,
+        finished_at,
+        created_by,
+        created_by_user,
+        created_by_role,
+        updated_by,
+        updated_by_user,
+        updated_by_role,
+        finished_by,
+        finished_by_user,
+        finished_by_role,
+        plan_samples,
+        plan_box_qty,
+        box_qty,
+        sampling,
+        chars,
+        samples,
+        parent_inspection_id,
+        is_reinspection,
+        inspection_cycle,
+        created_at,
+        updated_at,
+        inspection_regime_snapshot,
+        sample_n_snapshot,
+        plan_revision_number
+      )
+      VALUES (
+        $1, $2, $3, $4, $5, $6, $7, $8,
+        $9, $10, $11, $12, $13, $14, $15, $16,
+        $17, $18, $19, $20, $21, $22, $23, $24,
+        $25, $26, $27, $28, $29, $30,
+        $31::jsonb, $32::jsonb, $33::jsonb,
+        $34, $35, $36,
+        $37, $38, $39, $40, $41
+      )
+      RETURNING *
+      `,
+      [
+        p.id || crypto.randomUUID(),
 
-    p.type || "IQC",
-    p.pn || "",
-    p.model || "",
-    p.client || "",
-    p.supplier || "",
+        p.planId || p.plan_id || null,
+        p.planName || "",
 
-    p.lot || "",
-    p.invoice || "",
-    p.lotSize == null || p.lotSize === "" ? null : Number(p.lotSize),
-    p.shift || "",
-    p.resp || "",
-    p.obs || "",
+        p.type || "IQC",
+        p.pn || "",
+        p.model || "",
+        p.client || "",
+        p.supplier || "",
 
-    p.status || "draft",
-    p.result || null,
+        p.lot || "",
+        p.invoice || "",
+        p.lotSize == null || p.lotSize === "" ? null : Number(p.lotSize),
+        p.shift || "",
+        p.resp || "",
+        p.obs || "",
 
-    p.startedAt || new Date().toISOString(),
-    p.finishedAt || null,
+        p.status || "draft",
+        p.result || null,
 
-    p.createdBy || "",
-    p.createdByUser || "",
-    p.createdByRole || "",
+        p.startedAt || new Date().toISOString(),
+        p.finishedAt || null,
 
-    p.updatedBy || "",
-    p.updatedByUser || "",
-    p.updatedByRole || "",
+        p.createdBy || "",
+        p.createdByUser || "",
+        p.createdByRole || "",
 
-    p.finishedBy || "",
-    p.finishedByUser || "",
-    p.finishedByRole || "",
+        p.updatedBy || "",
+        p.updatedByUser || "",
+        p.updatedByRole || "",
 
-    Number(p.planSamples ?? sampleNSnapshot ?? 5),
-    Number(p.planBoxQty ?? 2),
-    Number(p.boxQty ?? p.planBoxQty ?? 2),
+        p.finishedBy || "",
+        p.finishedByUser || "",
+        p.finishedByRole || "",
 
-    JSON.stringify(p.sampling || null),
-    JSON.stringify(p.chars || []),
-    JSON.stringify(p.samples || {}),
+        Number(p.planSamples ?? sampleNSnapshot ?? 5),
+        Number(p.planBoxQty ?? 2),
+        Number(p.boxQty ?? p.planBoxQty ?? 2),
 
-    p.parentInspectionId || null,
-    Boolean(p.isReinspection),
-    Number(p.inspectionCycle ?? 1),
+        JSON.stringify(p.sampling || null),
+        JSON.stringify(p.chars || []),
+        JSON.stringify(p.samples || {}),
 
-    p.createdAt || new Date().toISOString(),
-    p.updatedAt || new Date().toISOString(),
+        p.parentInspectionId || null,
+        Boolean(p.isReinspection),
+        Number(p.inspectionCycle ?? 1),
 
-    inspectionRegimeSnapshot,
-    sampleNSnapshot,
-  ]
-);
+        p.createdAt || new Date().toISOString(),
+        p.updatedAt || new Date().toISOString(),
+
+        inspectionRegimeSnapshot,
+        sampleNSnapshot,
+        planRevisionNumber,
+      ]
+    );
 
     res.status(201).json({
       ok: true,
@@ -654,9 +668,48 @@ router.put("/:id", async (req, res) => {
     const { id } = req.params;
     const p = req.body || {};
 
+    const currentInspectionResult = await db.query(
+      `
+      SELECT
+        i.id,
+        i.plan_id,
+        i.plan_revision_number,
+        p.revision_number AS current_plan_revision_number
+      FROM public.inspections i
+      LEFT JOIN public.plans p
+        ON p.id::text = i.plan_id::text
+      WHERE i.id::text = $1::text
+      `,
+      [String(id)]
+    );
+
+    const currentInspection = currentInspectionResult.rows[0];
+
+    if (!currentInspection) {
+      return res.status(404).json({
+        ok: false,
+        message: "Inspeção não encontrada.",
+      });
+    }
+
+    const dbRevision = Number(currentInspection.plan_revision_number || 0);
+    const bodyRevision = Number(p.planRevisionNumber || p.plan_revision_number || 0);
+    const currentPlanRevision = Number(
+      currentInspection.current_plan_revision_number || 0
+    );
+
+    const planRevisionNumber =
+      dbRevision > 1
+        ? dbRevision
+        : bodyRevision > 1
+          ? bodyRevision
+          : currentPlanRevision > 0
+            ? currentPlanRevision
+            : 1;
+
     const result = await db.query(
       `
-      UPDATE inspections
+      UPDATE public.inspections
       SET
         plan_id = $1,
         plan_name = $2,
@@ -691,13 +744,14 @@ router.put("/:id", async (req, res) => {
         is_reinspection = $31,
         inspection_cycle = $32,
         created_at = $33,
+        plan_revision_number = $34,
         updated_at = NOW()
-        WHERE id = $34
+      WHERE id::text = $35::text
       RETURNING *
       `,
       [
-        p.planId || null,
-        p.planName || "",
+        p.planId || p.plan_id || null,
+        p.planName || p.plan_name || "",
 
         p.type || "IQC",
         p.pn || "",
@@ -715,108 +769,99 @@ router.put("/:id", async (req, res) => {
         p.status || "draft",
         p.result || null,
 
-        p.startedAt || null,
-        p.finishedAt || null,
+        p.startedAt || p.started_at || null,
+        p.finishedAt || p.finished_at || null,
 
-        p.updatedBy || "",
-        p.updatedByUser || "",
-        p.updatedByRole || "",
+        p.updatedBy || p.updated_by || "",
+        p.updatedByUser || p.updated_by_user || "",
+        p.updatedByRole || p.updated_by_role || "",
 
-        p.finishedBy || "",
-        p.finishedByUser || "",
-        p.finishedByRole || "",
+        p.finishedBy || p.finished_by || "",
+        p.finishedByUser || p.finished_by_user || "",
+        p.finishedByRole || p.finished_by_role || "",
 
-        Number(p.planSamples ?? 5),
-        Number(p.planBoxQty ?? 2),
-        Number(p.boxQty ?? p.planBoxQty ?? 2),
+        Number(p.planSamples ?? p.plan_samples ?? 5),
+        Number(p.planBoxQty ?? p.plan_box_qty ?? 2),
+        Number(p.boxQty ?? p.box_qty ?? p.planBoxQty ?? p.plan_box_qty ?? 2),
 
         JSON.stringify(p.sampling || null),
         JSON.stringify(p.chars || []),
         JSON.stringify(p.samples || {}),
 
-        p.parentInspectionId || null,
-        Boolean(p.isReinspection),
-        Number(p.inspectionCycle ?? 1),
+        p.parentInspectionId || p.parent_inspection_id || null,
+        Boolean(p.isReinspection ?? p.is_reinspection),
+        Number(p.inspectionCycle ?? p.inspection_cycle ?? 1),
 
-        p.createdAt || new Date().toISOString(),
-        id,
+        p.createdAt || p.created_at || new Date().toISOString(),
+        planRevisionNumber,
+        String(id),
       ]
     );
 
-    if (!result.rows[0]) {
-  return res.status(404).json({
-    ok: false,
-    message: "Inspeção não encontrada.",
-  });
-}
+    const updatedInspection = mapInspection(result.rows[0]);
 
-const updatedInspection = mapInspection(result.rows[0]);
+    if (
+      updatedInspection.status === "done" &&
+      normalizeResult(updatedInspection.result) === "FAIL"
+    ) {
+      try {
+        const switchingOutcome = getSwitchingOutcome({
+          result: updatedInspection.result,
+          chars: updatedInspection.chars,
+          samples: updatedInspection.samples,
+          sampling: updatedInspection.sampling,
+        });
 
-// Gera alerta somente quando a inspeção foi finalizada como FAIL.
-// Um erro ao criar alerta não pode impedir a finalização da inspeção.
-if (
-  updatedInspection.status === "done" &&
-  normalizeResult(updatedInspection.result) === "FAIL"
-) {
-  try {
-    const switchingOutcome = getSwitchingOutcome({
-      result: updatedInspection.result,
-      chars: updatedInspection.chars,
-      samples: updatedInspection.samples,
-      sampling: updatedInspection.sampling,
+        await createInspectionFailAlert({
+          inspectionId: updatedInspection.id,
+          planId: updatedInspection.planId,
+          inspectionArea: updatedInspection.type,
+          planName: updatedInspection.planName,
+          pn: updatedInspection.pn,
+          lot: updatedInspection.lot,
+          invoice: updatedInspection.invoice,
+          result: updatedInspection.result,
+          xrfOnlyFailure: switchingOutcome.xrfOnlyFailure,
+        });
+      } catch (alertError) {
+        console.error(
+          "Inspeção finalizada, mas não foi possível criar o alerta:",
+          alertError
+        );
+      }
+    }
+
+    if (
+      updatedInspection.status === "done" &&
+      Boolean(updatedInspection.sampling?.deltaTriggered)
+    ) {
+      try {
+        await createDeltaReturnAlert({
+          inspectionId: updatedInspection.id,
+          planId: updatedInspection.planId,
+          inspectionArea: updatedInspection.type,
+          planName: updatedInspection.planName,
+          pn: updatedInspection.pn,
+          lot: updatedInspection.lot,
+          invoice: updatedInspection.invoice,
+          regimeApplied:
+            updatedInspection.inspectionRegimeSnapshot ||
+            updatedInspection.sampling?.inspectionRegime ||
+            "atenuada",
+          deltaDetails: updatedInspection.sampling?.deltaDetails || [],
+        });
+      } catch (alertError) {
+        console.error(
+          "Inspeção finalizada, mas não foi possível criar o alerta de condição Δ:",
+          alertError
+        );
+      }
+    }
+
+    res.json({
+      ok: true,
+      item: updatedInspection,
     });
-
-    await createInspectionFailAlert({
-      inspectionId: updatedInspection.id,
-      planId: updatedInspection.planId,
-      inspectionArea: updatedInspection.type,
-      planName: updatedInspection.planName,
-      pn: updatedInspection.pn,
-      lot: updatedInspection.lot,
-      invoice: updatedInspection.invoice,
-      result: updatedInspection.result,
-      xrfOnlyFailure: switchingOutcome.xrfOnlyFailure,
-    });
-  } catch (alertError) {
-    console.error(
-      "Inspeção finalizada, mas não foi possível criar o alerta:",
-      alertError
-    );
-  }
-}
-
-// Condição Δ: lote aceito, mas retorno ao regime Normal é obrigatório.
-if (
-  updatedInspection.status === "done" &&
-  Boolean(updatedInspection.sampling?.deltaTriggered)
-) {
-  try {
-    await createDeltaReturnAlert({
-      inspectionId: updatedInspection.id,
-      planId: updatedInspection.planId,
-      inspectionArea: updatedInspection.type,
-      planName: updatedInspection.planName,
-      pn: updatedInspection.pn,
-      lot: updatedInspection.lot,
-      invoice: updatedInspection.invoice,
-      regimeApplied:
-        updatedInspection.inspectionRegimeSnapshot ||
-        updatedInspection.sampling?.inspectionRegime ||
-        "atenuada",
-      deltaDetails: updatedInspection.sampling?.deltaDetails || [],
-    });
-  } catch (alertError) {
-    console.error(
-      "Inspeção finalizada, mas não foi possível criar o alerta de condição Δ:",
-      alertError
-    );
-  }
-}
-
-res.json({
-  ok: true,
-  item: updatedInspection,
-});
   } catch (error) {
     console.error("Erro ao atualizar inspeção:", error);
 
@@ -827,7 +872,6 @@ res.json({
     });
   }
 });
-
 router.patch("/:id/conditional-approval", async (req, res) => {
   try {
     const { id } = req.params;

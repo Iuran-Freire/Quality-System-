@@ -74,29 +74,26 @@ function normalizeInspection(row = {}) {
 
   x.id = String(x.id || uid());
 
- x.status = x.status ?? "draft";
-x.result = x.result ?? null;
+  x.status = x.status ?? "draft";
+  x.result = x.result ?? null;
 
-x.conditionalApprovalStatus =
-  x.conditionalApprovalStatus ?? "none";
+  x.conditionalApprovalStatus = x.conditionalApprovalStatus ?? "none";
+  x.conditionalApprovalReason = x.conditionalApprovalReason ?? "";
+  x.conditionalApprovalBy = x.conditionalApprovalBy ?? "";
+  x.conditionalApprovalByUser = x.conditionalApprovalByUser ?? "";
+  x.conditionalApprovalByRole = x.conditionalApprovalByRole ?? "";
+  x.conditionalApprovalAt = x.conditionalApprovalAt ?? null;
+  x.conditionalApprovalNote = x.conditionalApprovalNote ?? "";
 
-x.conditionalApprovalReason =
-  x.conditionalApprovalReason ?? "";
+  x.planRevisionNumber = safeNum(
+    x.planRevisionNumber ??
+      x.plan_revision_number ??
+      x.revisionNumber ??
+      x.revision_number,
+    1
+  );
 
-x.conditionalApprovalBy =
-  x.conditionalApprovalBy ?? "";
-
-x.conditionalApprovalByUser =
-  x.conditionalApprovalByUser ?? "";
-
-x.conditionalApprovalByRole =
-  x.conditionalApprovalByRole ?? "";
-
-x.conditionalApprovalAt =
-  x.conditionalApprovalAt ?? null;
-
-x.conditionalApprovalNote =
-  x.conditionalApprovalNote ?? "";
+  x.plan_revision_number = x.planRevisionNumber;
 
   x.planSamples = safeNum(x.planSamples, 5);
   x.planBoxQty = safeNum(x.planBoxQty, 2);
@@ -124,7 +121,7 @@ x.conditionalApprovalNote =
 
   x.inspectionCycle = safeNum(
     x.inspectionCycle ??
-    x.inspection_cycle,
+      x.inspection_cycle,
     1
   );
 
@@ -170,11 +167,21 @@ export const useInspectionsStore = defineStore("inspections", {
 
       const planBoxQty = safeNum(plan?.boxQty, 2);
 
+      const planRevisionNumber = safeNum(
+        plan?.revisionNumber ??
+          plan?.revision_number ??
+          plan?.planRevisionNumber ??
+          plan?.plan_revision_number,
+        1
+      );
+
       const insp = {
         id: uid(),
 
         planId: plan.id,
         planName: plan.name,
+        planRevisionNumber,
+        plan_revision_number: planRevisionNumber,
         type: plan.type ?? "IQC",
 
         pn: plan.pn,
@@ -217,28 +224,16 @@ export const useInspectionsStore = defineStore("inspections", {
         throw new Error("Inspeção original não encontrada.");
       }
 
-      const originalType = String(
-        originalInspection.type || ""
-      ).toUpperCase();
-
-      const originalStatus = String(
-        originalInspection.status || ""
-      ).toLowerCase();
-
-      const originalResult = String(
-        originalInspection.result || ""
-      ).toUpperCase();
+      const originalType = String(originalInspection.type || "").toUpperCase();
+      const originalStatus = String(originalInspection.status || "").toLowerCase();
+      const originalResult = String(originalInspection.result || "").toUpperCase();
 
       if (originalType !== "OQC") {
-        throw new Error(
-          "A reinspeção está disponível somente para inspeções OQC."
-        );
+        throw new Error("A reinspeção está disponível somente para inspeções OQC.");
       }
 
       if (originalStatus !== "done") {
-        throw new Error(
-          "A inspeção original ainda não foi finalizada."
-        );
+        throw new Error("A inspeção original ainda não foi finalizada.");
       }
 
       if (originalResult !== "FAIL") {
@@ -258,12 +253,8 @@ export const useInspectionsStore = defineStore("inspections", {
           item.parent_inspection_id;
 
         return (
-          String(itemParentId || "") ===
-          String(rootInspectionId) &&
-          Boolean(
-            item.isReinspection ??
-            item.is_reinspection
-          ) &&
+          String(itemParentId || "") === String(rootInspectionId) &&
+          Boolean(item.isReinspection ?? item.is_reinspection) &&
           String(item.status || "").toLowerCase() !== "done"
         );
       });
@@ -278,12 +269,16 @@ export const useInspectionsStore = defineStore("inspections", {
 
       const currentCycle = safeNum(
         originalInspection.inspectionCycle ??
-        originalInspection.inspection_cycle,
+          originalInspection.inspection_cycle,
         1
       );
 
-      const chars = deepClone(
-        originalInspection.chars || []
+      const chars = deepClone(originalInspection.chars || []);
+
+      const planRevisionNumber = safeNum(
+        originalInspection.planRevisionNumber ??
+          originalInspection.plan_revision_number,
+        1
       );
 
       const newInspection = {
@@ -291,6 +286,8 @@ export const useInspectionsStore = defineStore("inspections", {
 
         planId: originalInspection.planId,
         planName: originalInspection.planName,
+        planRevisionNumber,
+        plan_revision_number: planRevisionNumber,
         type: "OQC",
 
         pn: originalInspection.pn,
@@ -302,37 +299,25 @@ export const useInspectionsStore = defineStore("inspections", {
         invoice: originalInspection.invoice,
         lotSize: originalInspection.lotSize ?? null,
         shift: originalInspection.shift,
-        resp:
-          user.name ||
-          originalInspection.resp ||
-          "",
+        resp: user.name || originalInspection.resp || "",
 
         obs:
-         `Reinspeção OQC — ciclo ${currentCycle + 1}` +
-         ` | Lote: ${originalInspection.lot || "-"}` +
-         ` | NF: ${originalInspection.invoice || "-"}`,
+          `Reinspeção OQC — ciclo ${currentCycle + 1}` +
+          ` | Lote: ${originalInspection.lot || "-"}` +
+          ` | NF: ${originalInspection.invoice || "-"}`,
 
         chars,
 
-        planSamples: safeNum(
-          originalInspection.planSamples,
-          5
-        ),
-
-        planBoxQty: safeNum(
-          originalInspection.planBoxQty,
-          2
-        ),
+        planSamples: safeNum(originalInspection.planSamples, 5),
+        planBoxQty: safeNum(originalInspection.planBoxQty, 2),
 
         boxQty: safeNum(
           originalInspection.boxQty ??
-          originalInspection.planBoxQty,
+            originalInspection.planBoxQty,
           2
         ),
 
-        sampling: deepClone(
-          originalInspection.sampling || null
-        ),
+        sampling: deepClone(originalInspection.sampling || null),
 
         status: "draft",
         result: null,
@@ -356,10 +341,7 @@ export const useInspectionsStore = defineStore("inspections", {
         inspectionCycle: currentCycle + 1,
       };
 
-      newInspection.samples = initSamplesFromSnapshot(
-        chars,
-        newInspection
-      );
+      newInspection.samples = initSamplesFromSnapshot(chars, newInspection);
 
       return await this.create(newInspection);
     },
@@ -418,33 +400,30 @@ export const useInspectionsStore = defineStore("inspections", {
     },
 
     async approveConditional(id, { reason, note = "" } = {}) {
-  if (!id) {
-    throw new Error("Inspeção não informada.");
-  }
+      if (!id) {
+        throw new Error("Inspeção não informada.");
+      }
 
-  const data = await apiFetch(
-    `/inspections/${id}/conditional-approval`,
-    {
-      method: "PATCH",
-      body: JSON.stringify({
-        reason,
-        note,
-      }),
-    }
-  );
+      const data = await apiFetch(`/inspections/${id}/conditional-approval`, {
+        method: "PATCH",
+        body: JSON.stringify({
+          reason,
+          note,
+        }),
+      });
 
-  const saved = normalizeInspection(data.item || {});
+      const saved = normalizeInspection(data.item || {});
 
-  const index = this.items.findIndex(
-    (item) => String(item.id) === String(id)
-  );
+      const index = this.items.findIndex(
+        (item) => String(item.id) === String(id)
+      );
 
-  if (index >= 0) {
-    this.items[index] = saved;
-  }
+      if (index >= 0) {
+        this.items[index] = saved;
+      }
 
-  return saved;
-},
+      return saved;
+    },
 
     async remove(id) {
       await apiFetch(`/inspections/${id}`, {

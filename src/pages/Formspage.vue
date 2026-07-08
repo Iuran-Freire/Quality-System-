@@ -34,6 +34,7 @@
               <th>Modelo</th>
               <th>Plano</th>
               <th>Cliente</th>
+              <th>Revisão Vigente</th>
               <th>Amostragem</th>
               <th style="width: 220px">Ações</th>
             </tr>
@@ -51,6 +52,16 @@
               <td>{{ p.model }}</td>
               <td>{{ p.name }}</td>
               <td>{{ p.client }}</td>
+              <td>
+                <span class="plan-revision-table-badge">
+                  Rev.
+                  {{
+                    Number(p.revisionNumber || p.revision_number || 1)
+                      .toString()
+                      .padStart(2, "0")
+                  }}
+                </span>
+              </td>
               <td>{{ samplingLabel(p) }}</td>
               <td>
                 <button class="btn ghost" @click="plans.toggle(p.id)">
@@ -64,7 +75,7 @@
 
             <!-- mensagem quando nenhum plano for encontrado -->
             <tr v-if="!paginatedPlans.length">
-              <td colspan="8">Nenhum plano cadastrado.</td>
+              <td colspan="9">Nenhum plano cadastrado.</td>
             </tr>
           </tbody>
         </table>
@@ -182,5 +193,19 @@ async function seed() {
   padding: 10px 16px;
   font-size: 13px;
   color: var(--muted, #666);
+}
+
+.plan-revision-table-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 4px 9px;
+  border: 1px solid #bfdbfe;
+  border-radius: 999px;
+  background: #eff6ff;
+  color: #1d4ed8;
+  font-size: 12px;
+  font-weight: 750;
+  white-space: nowrap;
 }
 </style>

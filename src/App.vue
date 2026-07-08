@@ -793,6 +793,7 @@ async function resolveAlert(item) {
                     <th>Modelo</th>
                     <th>Plano</th>
                     <th>Cliente</th>
+                    <th>Revisão Vigente</th>
                     <th>Amostragem</th>
                     <th>Regime</th>
                     <th>Comutação</th>
@@ -803,11 +804,11 @@ async function resolveAlert(item) {
 
                 <tbody>
                   <tr v-if="plans.loading">
-                    <td colspan="9">Carregando...</td>
+                    <td colspan="12">Carregando...</td>
                   </tr>
 
                   <tr v-else-if="!sourcePlans.length">
-                    <td colspan="9">Nenhum plano criado ainda.</td>
+                    <td colspan="12">Nenhum plano criado ainda.</td>
                   </tr>
 
                   <tr v-else v-for="p in paginatedPlans" :key="p.id">
@@ -822,6 +823,18 @@ async function resolveAlert(item) {
                     <td>{{ p.model }}</td>
                     <td>{{ p.name }}</td>
                     <td>{{ p.client }}</td>
+
+                    <td>
+                      <span class="plan-revision-table-badge">
+                        Rev.
+                        {{
+                          Number(p.revisionNumber || p.revision_number || 1)
+                            .toString()
+                            .padStart(2, "0")
+                        }}
+                      </span>
+                    </td>
+
                     <td>
                       <span class="sampling-pill" :class="samplingClass(p)">
                         {{ samplingLabel(p) }}
@@ -944,11 +957,13 @@ async function resolveAlert(item) {
         </div>
 
         <!-- ================= INSPEÇÃO ================= -->
+
         <div v-else-if="isInspect">
           <InspectPage />
         </div>
 
         <!-- ================= ANÁLISES ================= -->
+
         <div v-else-if="isAnalytics" class="vstack">
           <div class="title">Análises</div>
           <div class="tabline"></div>
@@ -956,6 +971,7 @@ async function resolveAlert(item) {
         </div>
 
         <!-- ================= GERENCIAMENTO ================= -->
+
         <div v-else-if="isManagement" class="vstack">
           <div class="title">Gerenciamento</div>
           <div class="tabline"></div>
@@ -2291,5 +2307,21 @@ async function resolveAlert(item) {
   .qs-user-info > span:first-child {
     display: none;
   }
+}
+
+.plan-revision-table-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 64px;
+  padding: 5px 10px;
+  border: 1px solid #bfdbfe;
+  border-radius: 999px;
+  background: #eff6ff;
+  color: #1d4ed8;
+  font-size: 12px;
+  font-weight: 850;
+  line-height: 1;
+  white-space: nowrap;
 }
 </style>

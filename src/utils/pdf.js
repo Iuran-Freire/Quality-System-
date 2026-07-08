@@ -608,8 +608,24 @@ const finishedUser =
   insp.inspector_name ||
   insp.inspectorName;
 
+const planRevisionNumber = Number(
+  insp.planRevisionNumber ||
+    insp.plan_revision_number ||
+    insp.revisionNumber ||
+    insp.revision_number ||
+    insp.planRevision ||
+    1
+);
+
+const planRevisionText = `Rev. ${String(
+  Number.isFinite(planRevisionNumber) && planRevisionNumber > 0
+    ? planRevisionNumber
+    : 1
+).padStart(2, "0")}`;
+
 const left = [
   ["Plano", insp.planName || "-"],
+  ["Revisão do plano", planRevisionText],
   ["Tipo", inspectionTypeText],
   ...(isReinspection
     ? [
