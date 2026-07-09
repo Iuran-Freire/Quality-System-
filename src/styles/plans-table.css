@@ -1,0 +1,246 @@
+/* src/styles/plans-table.css */
+
+/* =========================================================
+   TABELA — PLANOS DE INSPEÇÃO
+   Layout técnico, compacto e com coluna de operações limpa
+   ========================================================= */
+
+.plans-table {
+  table-layout: fixed;
+  min-width: 1180px;
+}
+
+.plans-table th,
+.plans-table td {
+  padding: 8px 8px;
+  font-size: 12px;
+  line-height: 1.25;
+  vertical-align: middle;
+}
+
+.plans-table th {
+  font-size: 11px;
+  font-weight: 850;
+  color: #475569;
+  white-space: nowrap;
+}
+
+.plans-table td {
+  color: #0f172a;
+}
+
+.plans-table th:nth-child(1),
+.plans-table td:nth-child(1) {
+  width: 64px;
+  text-align: center;
+}
+
+.plans-table th:nth-child(2),
+.plans-table td:nth-child(2) {
+  width: 45px;
+  text-align: center;
+}
+
+.plans-table th:nth-child(3),
+.plans-table td:nth-child(3) {
+  width: 88px;
+}
+
+.plans-table th:nth-child(4),
+.plans-table td:nth-child(4) {
+  width: 70px;
+}
+
+.plans-table th:nth-child(5),
+.plans-table td:nth-child(5) {
+  width: 115px;
+}
+
+.plans-table th:nth-child(6),
+.plans-table td:nth-child(6) {
+  width: 125px;
+}
+
+.plans-table th:nth-child(7),
+.plans-table td:nth-child(7) {
+  width: 105px;
+  text-align: center;
+}
+
+.plans-table th:nth-child(8),
+.plans-table td:nth-child(8) {
+  width: 160px;
+  text-align: center;
+}
+
+.plans-table th:nth-child(9),
+.plans-table td:nth-child(9) {
+  width: 85px;
+  text-align: center;
+}
+
+.plans-table th:nth-child(10),
+.plans-table td:nth-child(10) {
+  width: 155px;
+  text-align: center;
+}
+
+.plans-table th:nth-child(11),
+.plans-table td:nth-child(11) {
+  width: 120px;
+}
+
+.plans-table th:nth-child(12),
+.plans-table td:nth-child(12) {
+  width: 105px;
+  text-align: center;
+}
+
+.plans-table td:nth-child(3),
+.plans-table td:nth-child(5) {
+  word-break: break-word;
+}
+
+.plans-table td:nth-child(6) {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.plans-table td:nth-child(11) {
+  white-space: normal;
+  word-break: normal;
+}
+
+.plans-table .status-pill,
+.plans-table .regime-pill,
+.plans-table .switching-pill,
+.plans-table .sampling-pill,
+.plans-table .plan-revision-table-badge {
+  min-height: 21px;
+  padding: 4px 8px;
+  font-size: 11px;
+  font-weight: 800;
+}
+
+.plans-table .switching-pill {
+  max-width: 145px;
+  white-space: nowrap;
+}
+
+.plans-table tbody tr {
+  transition: background 0.15s ease;
+}
+
+.plans-table tbody tr:hover {
+  background: #f8fafc;
+}
+
+/* Menu de operações */
+.operations-cell {
+  display: flex;
+  justify-content: center;
+  position: relative;
+}
+
+.operations-menu {
+  position: relative;
+}
+
+.operations-menu summary {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 30px;
+  padding: 6px 10px;
+  border: 1px solid #f59e0b;
+  border-radius: 9px;
+  background: #ffffff;
+  color: #0f172a;
+  font-size: 11.5px;
+  font-weight: 800;
+  cursor: pointer;
+  list-style: none;
+  user-select: none;
+}
+
+.operations-menu summary::-webkit-details-marker {
+  display: none;
+}
+
+.operations-menu summary::after {
+  content: "▾";
+  margin-left: 6px;
+  color: #c2410c;
+  font-size: 10px;
+}
+
+.operations-menu[open] summary {
+  background: #fff7ed;
+  color: #7c2d12;
+}
+
+.operations-list {
+  position: absolute;
+  right: 0;
+  top: calc(100% + 6px);
+  z-index: 50;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 185px;
+  padding: 8px;
+  border: 1px solid #e2e8f0;
+  border-radius: 12px;
+  background: #ffffff;
+  box-shadow: 0 14px 34px rgba(15, 23, 42, 0.16);
+}
+
+.operations-list button {
+  width: 100%;
+  min-height: 30px;
+  padding: 7px 9px;
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
+  color: #0f172a;
+  font-size: 12px;
+  font-weight: 750;
+  text-align: left;
+  cursor: pointer;
+}
+
+.operations-list button:hover:not(:disabled) {
+  background: #f8fafc;
+}
+
+.operations-list button:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+.operations-list .operation-primary {
+  color: #7c2d12;
+  background: #fff7ed;
+}
+
+.operations-list .operation-primary:hover:not(:disabled) {
+  background: #ffedd5;
+}
+
+.operations-list .operation-danger {
+  color: #b91c1c;
+}
+
+.operations-list .operation-danger:hover:not(:disabled) {
+  background: #fff1f2;
+}
+
+.tablecard > .hstack {
+  border-top: 1px solid #e2e8f0;
+  background: #ffffff;
+}
+
+.card:has(> .btn) {
+  padding: 14px;
+}

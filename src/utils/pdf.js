@@ -694,12 +694,71 @@ const leftTableFinalY = doc.lastAutoTable?.finalY || 90;
   },
 });
 
-const rightTableFinalY = doc.lastAutoTable?.finalY || 90;;
+const rightTableFinalY = doc.lastAutoTable?.finalY || 90;
 
-  const yAfterData = Math.max(leftTableFinalY, rightTableFinalY);
+let yAfterData = Math.max(leftTableFinalY, rightTableFinalY);
 
-  // Características (resumo)
-  sectionTitle(doc, "Características", M, yAfterData + 12);
+const hasConditionalApproval =
+  String(insp.conditionalApprovalStatus || "")
+    .trim()
+    .toLowerCase() === "approved_conditional";
+
+if (hasConditionalApproval) {
+  const conditionalRows = [
+    ["Resultado técnico", String(insp.result || "—").toUpperCase()],
+    ["Disposição operacional", "APROVADO CONDICIONALMENTE"],
+    ["Motivo", insp.conditionalApprovalReason || "—"],
+    [
+      "Autorizado por",
+      userWithDateTime(
+        insp.conditionalApprovalBy || "Não informado",
+        insp.conditionalApprovalByRole || "",
+        insp.conditionalApprovalAt || null
+      ),
+    ],
+    ["Condições / observações", insp.conditionalApprovalNote || "—"],
+  ];
+
+  sectionTitle(doc, "Disposição operacional do lote", M, yAfterData + 10);
+
+  autoTable(doc, {
+    ...commonTableStyle(8.6),
+    startY: yAfterData + 14,
+    margin: { left: M, right: M },
+    body: conditionalRows,
+    columnStyles: {
+      0: {
+        cellWidth: 42,
+        fontStyle: "bold",
+        textColor: COLORS.muted,
+      },
+      1: {
+        cellWidth: "auto",
+      },
+    },
+    didParseCell(data) {
+      if (data.section !== "body" || data.column.index !== 1) return;
+
+      const label = String(data.row.raw?.[0] || "").toLowerCase();
+      const value = String(data.cell.raw || "").toUpperCase();
+
+      if (label.includes("resultado técnico") && value === "FAIL") {
+        data.cell.styles.textColor = COLORS.fail;
+        data.cell.styles.fontStyle = "bold";
+      }
+
+      if (label.includes("disposição operacional")) {
+        data.cell.styles.textColor = COLORS.pass;
+        data.cell.styles.fontStyle = "bold";
+      }
+    },
+  });
+
+  yAfterData = doc.lastAutoTable?.finalY || yAfterData;
+}
+
+// Características (resumo)
+sectionTitle(doc, "Características", M, yAfterData + 12);
 
   const chars = insp.chars || [];
   const samplesObj = insp.samples || {};

@@ -1,0 +1,86 @@
+/* src/styles/shell.css */
+
+/* =========================================================
+   SHELL DO SISTEMA
+   Sidebar, topbar e usuário logado
+   ========================================================= */
+
+.qs-user-box {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  white-space: nowrap;
+  font-size: 13px;
+  color: var(--muted, #64748b);
+}
+
+.qs-user-info {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.qs-user-info b {
+  color: var(--text, #111827);
+  font-weight: 800;
+}
+
+.qs-role-pill {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 3px 9px;
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 800;
+  line-height: 1;
+  background: #f1f5f9;
+  color: #475569;
+  border: 1px solid #e2e8f0;
+  text-transform: uppercase;
+}
+
+/* Expansão lateral */
+.layout {
+  transition: grid-template-columns 0.22s ease;
+}
+
+.layout-side-open {
+  grid-template-columns: 290px 1fr !important;
+}
+
+.side {
+  width: 100%;
+  transition: width 0.22s ease;
+}
+
+.side-hover-open {
+  width: 290px !important;
+}
+
+.side-hover-open .mi {
+  justify-content: flex-start !important;
+  gap: 12px !important;
+  padding-left: 18px !important;
+}
+
+.side-hover-open .mi-label {
+  display: inline-flex !important;
+  opacity: 1 !important;
+  visibility: visible !important;
+  width: auto !important;
+  max-width: 180px !important;
+  overflow: visible !important;
+  margin-left: 8px !important;
+  white-space: nowrap !important;
+}
+
+@media (max-width: 700px) {
+  .qs-user-box {
+    gap: 8px;
+  }
+
+  .qs-user-info > span:first-child {
+    display: none;
+  }
+}

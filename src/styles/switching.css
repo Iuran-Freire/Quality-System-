@@ -1,0 +1,757 @@
+/* src/styles/switching.css */
+
+/* =========================================================
+   COMUTAÇÃO DE REGIME
+   Modais, análise, aprovação e badges técnicos
+   ========================================================= */
+
+/* Modal de aprovação */
+
+.switching-approval-modal {
+  max-width: 620px;
+}
+
+.switching-approval-modal h2 {
+  margin: 0 0 10px 0;
+  font-size: 20px;
+  color: #111827;
+}
+
+.switching-approval-modal p {
+  margin: 0 0 14px 0;
+  color: #64748b;
+  font-size: 13px;
+  line-height: 1.5;
+}
+
+.switching-approval-card {
+  margin: 14px 0;
+  padding: 14px;
+  border: 1px solid #fed7aa;
+  border-radius: 14px;
+  background: #fff7ed;
+}
+
+.switching-approval-card strong {
+  display: block;
+  margin-bottom: 6px;
+  color: #7c2d12;
+  font-size: 13px;
+}
+
+.switching-approval-card span {
+  color: #9a3412;
+  font-size: 12px;
+  line-height: 1.45;
+}
+
+.switching-approval-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+  margin-top: 16px;
+}
+
+/* Modal de análise */
+
+.switching-analysis-modal {
+  max-width: 980px;
+}
+
+.switching-analysis-modal h2 {
+  margin: 0 0 10px 0;
+  font-size: 20px;
+  color: #111827;
+}
+
+.switching-analysis-modal p {
+  margin: 0 0 14px 0;
+  color: #64748b;
+  font-size: 13px;
+  line-height: 1.5;
+}
+
+.switching-analysis-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(240px, 1fr));
+  gap: 12px;
+  margin: 14px 0;
+}
+
+.switching-analysis-card {
+  padding: 14px;
+  border: 1px solid #e2e8f0;
+  border-radius: 14px;
+  background: #ffffff;
+  box-shadow: var(--shadow-min);
+}
+
+.switching-analysis-card span {
+  display: block;
+  margin-bottom: 5px;
+  color: #64748b;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.switching-analysis-card b {
+  color: #111827;
+  font-size: 18px;
+  font-weight: 900;
+}
+
+.switching-analysis-reason {
+  margin-top: 14px;
+  padding: 14px;
+  border: 1px solid #bfdbfe;
+  border-radius: 14px;
+  background: #eff6ff;
+}
+
+.switching-analysis-reason strong {
+  display: block;
+  margin-bottom: 6px;
+  color: #1e3a8a;
+  font-size: 13px;
+}
+
+.switching-analysis-reason p {
+  margin: 0;
+  color: #1d4ed8;
+  font-size: 12.5px;
+}
+
+.switching-analysis-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+  margin-top: 16px;
+}
+
+/* Badges de regime */
+
+.regime-pill {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 24px;
+  padding: 5px 10px;
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 850;
+  line-height: 1;
+  white-space: nowrap;
+}
+
+.regime-normal {
+  color: #1d4ed8;
+  background: #eff6ff;
+  border: 1px solid #bfdbfe;
+}
+
+.regime-reduced {
+  color: #166534;
+  background: #f0fdf4;
+  border: 1px solid #bbf7d0;
+}
+
+.regime-tightened {
+  color: #991b1b;
+  background: #fff1f2;
+  border: 1px solid #fecdd3;
+}
+
+.regime-none {
+  color: #64748b;
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+}
+
+/* Badges de status de comutação */
+
+.switching-pill {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 24px;
+  padding: 5px 10px;
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 850;
+  line-height: 1;
+  white-space: nowrap;
+}
+
+.switching-ok {
+  color: #166534;
+  background: #f0fdf4;
+  border: 1px solid #bbf7d0;
+}
+
+.switching-pending {
+  color: #92400e;
+  background: #fffbeb;
+  border: 1px solid #fde68a;
+}
+
+.switching-review {
+  color: #1d4ed8;
+  background: #eff6ff;
+  border: 1px solid #bfdbfe;
+}
+
+.switching-blocked {
+  color: #991b1b;
+  background: #fff1f2;
+  border: 1px solid #fecdd3;
+}
+
+.switching-none {
+  color: #64748b;
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+}
+
+/* Badges de resultado */
+
+.result-pill {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 24px;
+  padding: 5px 10px;
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 850;
+  line-height: 1;
+  white-space: nowrap;
+}
+
+.result-pass {
+  color: #166534;
+  background: #f0fdf4;
+  border: 1px solid #bbf7d0;
+}
+
+.result-fail {
+  color: #991b1b;
+  background: #fff1f2;
+  border: 1px solid #fecdd3;
+}
+
+.result-draft,
+.result-empty,
+.result-none {
+  color: #64748b;
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+}
+
+/* Responsividade */
+
+@media (max-width: 900px) {
+  .switching-analysis-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .switching-approval-actions,
+  .switching-analysis-actions {
+    flex-direction: column-reverse;
+  }
+
+  .switching-approval-actions .btn,
+  .switching-analysis-actions .btn {
+    width: 100%;
+  }
+}
+
+/* =========================================================
+   CORREÇÃO VISUAL — MODAIS DE COMUTAÇÃO
+   Garante espaçamento mesmo quando os campos estão em estrutura simples
+   ========================================================= */
+
+/* Corpo dos modais */
+.switching-analysis-modal,
+.switching-approval-modal {
+  color: #0f172a;
+}
+
+/* Separador após o cabeçalho */
+.switching-analysis-modal hr,
+.switching-approval-modal hr {
+  margin: 18px 0;
+  border: 0;
+  border-top: 1px solid #e2e8f0;
+}
+
+/* Corrige blocos simples onde label e valor ficam grudados */
+.switching-analysis-modal div,
+.switching-approval-modal div {
+  box-sizing: border-box;
+}
+
+/* Campos de resumo quando aparecem como linhas simples */
+.switching-analysis-modal .info-row,
+.switching-approval-modal .info-row,
+.switching-analysis-modal .summary-row,
+.switching-approval-modal .summary-row,
+.switching-analysis-modal .switching-row,
+.switching-approval-modal .switching-row {
+  display: grid;
+  grid-template-columns: 150px 1fr;
+  gap: 10px;
+  align-items: center;
+  margin-bottom: 8px;
+}
+
+/* Caso os textos estejam apenas em span + b */
+.switching-analysis-modal span + b,
+.switching-approval-modal span + b,
+.switching-analysis-modal label + b,
+.switching-approval-modal label + b,
+.switching-analysis-modal strong + span,
+.switching-approval-modal strong + span {
+  margin-left: 6px;
+}
+
+/* Labels dos modais */
+.switching-analysis-modal label,
+.switching-approval-modal label,
+.switching-analysis-modal .label,
+.switching-approval-modal .label,
+.switching-analysis-modal .field-label,
+.switching-approval-modal .field-label {
+  color: #64748b;
+  font-size: 12px;
+  font-weight: 800;
+}
+
+/* Valores dos modais */
+.switching-analysis-modal b,
+.switching-approval-modal b,
+.switching-analysis-modal strong,
+.switching-approval-modal strong {
+  color: #0f172a;
+  font-weight: 900;
+}
+
+/* Bloco de dados do plano */
+.switching-analysis-modal .plan-info,
+.switching-approval-modal .plan-info,
+.switching-analysis-modal .switching-info,
+.switching-approval-modal .switching-info,
+.switching-analysis-modal .analysis-info,
+.switching-approval-modal .analysis-info {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(220px, 1fr));
+  gap: 10px 18px;
+  margin: 16px 0;
+  padding: 14px;
+  border: 1px solid #e2e8f0;
+  border-radius: 14px;
+  background: #f8fafc;
+}
+
+/* Cada item dentro do bloco de dados */
+.switching-analysis-modal .plan-info > div,
+.switching-approval-modal .plan-info > div,
+.switching-analysis-modal .switching-info > div,
+.switching-approval-modal .switching-info > div,
+.switching-analysis-modal .analysis-info > div,
+.switching-approval-modal .analysis-info > div {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 26px;
+}
+
+/* Texto de critério / motivo */
+.switching-analysis-modal .switching-analysis-reason,
+.switching-approval-modal .switching-approval-card {
+  margin-top: 16px;
+  margin-bottom: 16px;
+  padding: 14px;
+  border-radius: 14px;
+  line-height: 1.45;
+}
+
+/* Evita motivo grudado na label */
+.switching-approval-modal p,
+.switching-analysis-modal p {
+  line-height: 1.55;
+}
+
+/* Campo senha no modal de aprovação */
+.switching-approval-modal .float-label {
+  margin-top: 12px;
+}
+
+/* Tabela do histórico */
+.switching-analysis-modal table {
+  width: 100%;
+  border-collapse: collapse;
+  margin-top: 10px;
+}
+
+.switching-analysis-modal th,
+.switching-analysis-modal td {
+  padding: 10px 12px;
+  border-bottom: 1px solid #e2e8f0;
+  font-size: 13px;
+  vertical-align: middle;
+}
+
+.switching-analysis-modal th {
+  color: #64748b;
+  font-size: 12px;
+  font-weight: 900;
+  text-align: left;
+}
+
+.switching-analysis-modal td {
+  color: #0f172a;
+}
+
+/* Resultado PASS/FAIL no histórico */
+.switching-analysis-modal td b {
+  font-size: 12px;
+}
+
+/* Ações no rodapé */
+.switching-analysis-actions,
+.switching-approval-actions {
+  padding-top: 16px;
+  border-top: 1px solid #e2e8f0;
+}
+
+/* Responsividade dos blocos de informação */
+@media (max-width: 800px) {
+  .switching-analysis-modal .plan-info,
+  .switching-approval-modal .plan-info,
+  .switching-analysis-modal .switching-info,
+  .switching-approval-modal .switching-info,
+  .switching-analysis-modal .analysis-info,
+  .switching-approval-modal .analysis-info {
+    grid-template-columns: 1fr;
+  }
+
+  .switching-analysis-modal .info-row,
+  .switching-approval-modal .info-row,
+  .switching-analysis-modal .summary-row,
+  .switching-approval-modal .summary-row,
+  .switching-analysis-modal .switching-row,
+  .switching-approval-modal .switching-row {
+    grid-template-columns: 1fr;
+    gap: 4px;
+  }
+}
+
+/* =========================================================
+   APROVAÇÃO DE COMUTAÇÃO — RESUMO TÉCNICO
+   ========================================================= */
+
+.switching-approval-summary {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(220px, 1fr));
+  gap: 10px 14px;
+  margin: 18px 0;
+  padding: 14px;
+  border: 1px solid #e2e8f0;
+  border-radius: 16px;
+  background: #f8fafc;
+}
+
+.switching-summary-row {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+}
+
+.switching-summary-row span {
+  color: #64748b;
+  font-size: 11.5px;
+  font-weight: 850;
+}
+
+.switching-summary-row b {
+  color: #0f172a;
+  font-size: 13px;
+  font-weight: 900;
+  line-height: 1.35;
+  word-break: break-word;
+}
+
+.switching-summary-row-full {
+  grid-column: 1 / -1;
+}
+
+
+@media (max-width: 760px) {
+  .switching-approval-summary {
+    grid-template-columns: 1fr;
+  }
+
+  .switching-summary-row-full {
+    grid-column: auto;
+  }
+}
+
+/* =========================================================
+   ANÁLISE DE COMUTAÇÃO — RESUMO TÉCNICO
+   ========================================================= */
+
+.switching-analysis-summary {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(180px, 1fr));
+  gap: 10px 14px;
+  margin: 18px 0;
+  padding: 14px;
+  border: 1px solid #e2e8f0;
+  border-radius: 16px;
+  background: #f8fafc;
+}
+
+.switching-suggestion-box {
+  margin: 14px 0 16px;
+  padding: 14px;
+  border: 1px solid #fed7aa;
+  border-radius: 16px;
+  background: #fff7ed;
+}
+
+.switching-suggestion-box strong {
+  display: block;
+  margin-bottom: 6px;
+  color: #7c2d12;
+  font-size: 13px;
+  font-weight: 900;
+}
+
+.switching-suggestion-box p {
+  margin: 0;
+  color: #9a3412;
+  font-size: 13px;
+  line-height: 1.45;
+}
+
+@media (max-width: 900px) {
+  .switching-analysis-summary {
+    grid-template-columns: repeat(2, minmax(180px, 1fr));
+  }
+}
+
+@media (max-width: 700px) {
+  .switching-analysis-summary {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* =========================================================
+   AJUSTE FINO — MODAIS DE COMUTAÇÃO
+   Espaçamento, cards e correção de input duplicado
+   ========================================================= */
+
+/* Modal de análise mais compacto */
+.switching-analysis-modal {
+  max-width: 980px;
+}
+
+.switching-analysis-modal .hr,
+.switching-approval-modal .hr {
+  margin: 14px 0;
+}
+
+/* Resumo da análise */
+.switching-analysis-summary {
+  grid-template-columns: repeat(3, minmax(160px, 1fr));
+  gap: 14px 18px;
+  margin: 14px 0 18px;
+  padding: 16px;
+  border-radius: 16px;
+}
+
+/* Resumo da aprovação */
+.switching-approval-summary {
+  grid-template-columns: repeat(2, minmax(220px, 1fr));
+  gap: 14px 18px;
+  margin: 14px 0 16px;
+  padding: 16px;
+  border-radius: 16px;
+}
+
+/* Linha individual dentro dos cards */
+.switching-summary-row {
+  gap: 5px;
+}
+
+.switching-summary-row span {
+  font-size: 11px;
+  font-weight: 900;
+  color: #64748b;
+}
+
+.switching-summary-row b {
+  font-size: 13px;
+  font-weight: 900;
+  line-height: 1.35;
+}
+
+/* Motivo ocupa a linha inteira, mas sem exagerar altura */
+.switching-summary-row-full {
+  grid-column: 1 / -1;
+}
+
+/* Caixa da sugestão mais compacta */
+.switching-suggestion-box {
+  margin: 12px 0 18px;
+  padding: 14px 16px;
+}
+
+.switching-suggestion-box strong {
+  margin-bottom: 7px;
+}
+
+.switching-suggestion-box p {
+  font-size: 12.5px;
+  line-height: 1.45;
+}
+
+/* Bloco de histórico mais próximo */
+.switching-history-preview {
+  margin-top: 4px;
+}
+
+.switching-valid-lots {
+  display: flex;
+  align-items: center;
+  gap: 18px;
+  margin: 0 0 8px;
+}
+
+.switching-valid-lots > div {
+  display: flex;
+  align-items: baseline;
+  gap: 5px;
+}
+
+.switching-valid-lots span {
+  color: #0f172a;
+  font-size: 13px;
+}
+
+.switching-valid-lots b {
+  color: #0f172a;
+  font-size: 13px;
+  font-weight: 900;
+}
+
+/* Tabela do histórico mais enxuta */
+.switching-analysis-modal table th,
+.switching-analysis-modal table td {
+  padding: 9px 12px;
+  font-size: 12.5px;
+}
+
+/* =========================================================
+   CORREÇÃO DO INPUT DUPLICADO
+   Remove a borda dupla do float-label dentro do modal
+   ========================================================= */
+
+
+/* Rodapé mais alinhado */
+.switching-analysis-actions,
+.switching-approval-actions {
+  margin-top: 12px;
+  padding-top: 14px;
+}
+
+/* Quando os botões estão dentro de hstack no modal */
+.switching-analysis-modal > .hstack:last-child,
+.switching-approval-modal > .hstack:last-child {
+  padding-top: 4px;
+}
+
+/* Responsivo */
+@media (max-width: 900px) {
+  .switching-analysis-summary {
+    grid-template-columns: repeat(2, minmax(160px, 1fr));
+  }
+}
+
+@media (max-width: 700px) {
+  .switching-analysis-summary,
+  .switching-approval-summary {
+    grid-template-columns: 1fr;
+  }
+
+  .switching-valid-lots {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 4px;
+  }
+}
+
+/* =========================================================
+   CAMPO SENHA DE COMUTAÇÃO
+   Float label com animação normal e sem borda dupla
+   ========================================================= */
+
+.switching-password-field {
+  position: relative;
+  display: block;
+  margin-top: 14px;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  box-shadow: none;
+}
+
+.switching-password-field input {
+  width: 100%;
+  min-height: 48px;
+  padding: 15px 16px 7px;
+  border: 1px solid #dbe3ef;
+  border-radius: 14px;
+  background: #ffffff;
+  color: #0f172a;
+  font-size: 13px;
+  font-weight: 700;
+  outline: none;
+  box-shadow: none;
+  transition:
+    border-color 0.18s ease,
+    box-shadow 0.18s ease;
+}
+
+.switching-password-field input:focus {
+  border-color: #f59e0b;
+  box-shadow: 0 0 0 3px rgba(245, 158, 11, 0.12);
+}
+
+.switching-password-field span {
+  position: absolute;
+  left: 14px;
+  top: 50%;
+  transform: translateY(-50%);
+  padding: 0 6px;
+  background: #ffffff;
+  color: #64748b;
+  font-size: 13px;
+  font-weight: 750;
+  pointer-events: none;
+  transition:
+    top 0.16s ease,
+    transform 0.16s ease,
+    font-size 0.16s ease,
+    color 0.16s ease;
+}
+
+.switching-password-field input:focus + span,
+.switching-password-field input:not(:placeholder-shown) + span {
+  top: 0;
+  transform: translateY(-50%);
+  color: #c2410c;
+  font-size: 11px;
+  font-weight: 900;
+}

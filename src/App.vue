@@ -369,8 +369,74 @@ async function analyzePlanSwitching(plan) {
   try {
     const data = await switching.analyzePlan(plan.id);
 
-    switchingAnalysis.value = data.analysis;
-    switchingPlan.value = data.plan;
+    const analysisPayload = data?.analysis || {};
+    const planPayload = data?.plan || plan || {};
+
+    switchingPlan.value = {
+      ...planPayload,
+
+      id: planPayload.id || plan.id,
+
+      name: planPayload.name || plan.name || plan.planName || plan.plan_name || "-",
+
+      pn: planPayload.pn || plan.pn || "-",
+
+      model: planPayload.model || plan.model || "-",
+
+      client: planPayload.client || plan.client || "-",
+
+      inspectionRegime:
+        planPayload.inspectionRegime ||
+        planPayload.inspection_regime ||
+        plan.inspectionRegime ||
+        plan.inspection_regime ||
+        analysisPayload.currentRegime ||
+        "normal",
+
+      suggestedRegime:
+        planPayload.suggestedRegime ||
+        planPayload.suggested_regime ||
+        plan.suggestedRegime ||
+        plan.suggested_regime ||
+        analysisPayload.suggestedRegime ||
+        analysisPayload.suggested_regime ||
+        null,
+
+      switchingReason:
+        planPayload.switchingReason ||
+        planPayload.switching_reason ||
+        plan.switchingReason ||
+        plan.switching_reason ||
+        analysisPayload.reason ||
+        analysisPayload.switchingReason ||
+        "-",
+    };
+
+    switchingAnalysis.value = {
+      ...analysisPayload,
+
+      currentRegime:
+        analysisPayload.currentRegime ||
+        analysisPayload.current_regime ||
+        switchingPlan.value.inspectionRegime ||
+        "normal",
+
+      suggestedRegime:
+        analysisPayload.suggestedRegime ||
+        analysisPayload.suggested_regime ||
+        switchingPlan.value.suggestedRegime ||
+        null,
+
+      reason:
+        analysisPayload.reason ||
+        analysisPayload.switchingReason ||
+        analysisPayload.switching_reason ||
+        switchingPlan.value.switchingReason ||
+        "Histórico ainda não atende critério para comutação.",
+
+      history:
+        analysisPayload.history || analysisPayload.records || analysisPayload.lots || [],
+    };
 
     showSwitchingAnalysisModal.value = true;
   } catch (error) {
@@ -384,9 +450,50 @@ async function analyzePlanSwitching(plan) {
 function openApproveSwitching(plan) {
   if (!plan?.id) return;
 
-  switchingPlan.value = plan;
+  switchingPlan.value = {
+    ...plan,
+
+    name: plan.name || plan.planName || plan.plan_name || "-",
+
+    inspectionRegime:
+      plan.inspectionRegime ||
+      plan.inspection_regime ||
+      plan.currentRegime ||
+      plan.current_regime ||
+      "normal",
+
+    suggestedRegime: plan.suggestedRegime || plan.suggested_regime || null,
+
+    switchingReason: plan.switchingReason || plan.switching_reason || plan.reason || "-",
+  };
+
   switchingPassword.value = "";
   showSwitchingModal.value = true;
+}
+
+async function confirmRemovePlan(plan) {
+  if (!plan?.id) return;
+
+  const ok = confirm(
+    "Deseja realmente remover este Plano de Inspeção?\n\n" +
+      `Plano: ${plan.name || "-"}\n` +
+      `PN: ${plan.pn || "-"}\n` +
+      `Modelo: ${plan.model || "-"}\n` +
+      `Cliente: ${plan.client || "-"}\n\n` +
+      "Esta ação não poderá ser desfeita."
+  );
+
+  if (!ok) return;
+
+  try {
+    await plans.remove(plan.id);
+    await plans.load();
+
+    alert("Plano de Inspeção removido com sucesso.");
+  } catch (error) {
+    console.error("Erro ao remover plano:", error);
+    alert(error?.message || "Não foi possível remover o Plano de Inspeção.");
+  }
 }
 
 async function approvePlanSwitching() {
@@ -665,7 +772,10 @@ async function resolveAlert(item) {
       <div class="top">
         <div class="wrap top-wrap">
           <div class="search">
-            <input v-model="ui.q" placeholder="Buscar por PN, modelo, plano ou cliente" />
+            <input
+              v-model="ui.q"
+              placeholder="Pesquisar por PN, modelo, plano, cliente ou fornecedor"
+            />
           </div>
 
           <div class="qs-user-box">
@@ -779,12 +889,12 @@ async function resolveAlert(item) {
       <main>
         <!-- ================= FORMULÁRIOS ================= -->
         <div v-if="isForms" class="vstack">
-          <div class="title">Formulários (Planos de Inspeção)</div>
+          <div class="title">Planos de Inspeção</div>
           <div class="tabline"></div>
 
           <div class="card tablecard" style="margin-top: 12px">
             <div class="tablewrap">
-              <table>
+              <table class="plans-table">
                 <thead>
                   <tr>
                     <th>Status</th>
@@ -794,11 +904,11 @@ async function resolveAlert(item) {
                     <th>Plano</th>
                     <th>Cliente</th>
                     <th>Revisão Vigente</th>
-                    <th>Amostragem</th>
+                    <th>Critério de Amostragem</th>
                     <th>Regime</th>
-                    <th>Comutação</th>
-                    <th>Responsável</th>
-                    <th>Ações</th>
+                    <th>Status de Comutação</th>
+                    <th>Responsável Técnico</th>
+                    <th>Operações</th>
                   </tr>
                 </thead>
 
@@ -861,46 +971,51 @@ async function resolveAlert(item) {
                     <td>{{ p.resp }}</td>
 
                     <td>
-                      <div v-if="canEditSystem" class="actions-wrap">
-                        <button
-                          class="btn ghost"
-                          type="button"
-                          @click="
-                            editPlanId = p.id;
-                            showPlan = true;
-                          "
-                        >
-                          Editar
-                        </button>
+                      <div v-if="canEditSystem" class="operations-cell">
+                        <details class="operations-menu">
+                          <summary>Operações</summary>
 
-                        <button
-                          class="btn ghost danger"
-                          type="button"
-                          @click="plans.remove(p.id)"
-                        >
-                          Excluir
-                        </button>
-                        <button
-                          class="btn ghost"
-                          type="button"
-                          :disabled="switchingLoading"
-                          @click="analyzePlanSwitching(p)"
-                        >
-                          Analisar comutação
-                        </button>
+                          <div class="operations-list">
+                            <button
+                              type="button"
+                              @click="
+                                editPlanId = p.id;
+                                showPlan = true;
+                              "
+                            >
+                              Editar plano
+                            </button>
 
-                        <button
-                          v-if="canEditSystem && p.switchingStatus === 'pendente'"
-                          class="btn primary"
-                          type="button"
-                          :disabled="switchingLoading"
-                          @click="openApproveSwitching(p)"
-                        >
-                          Aprovar comutação
-                        </button>
+                            <button
+                              type="button"
+                              :disabled="switchingLoading"
+                              @click="analyzePlanSwitching(p)"
+                            >
+                              Analisar Critério de Comutação
+                            </button>
+
+                            <button
+                              v-if="canEditSystem && p.switchingStatus === 'pendente'"
+                              type="button"
+                              class="operation-primary"
+                              :disabled="switchingLoading"
+                              @click="openApproveSwitching(p)"
+                            >
+                              Aprovar comutação
+                            </button>
+
+                            <button
+                              type="button"
+                              class="operation-danger"
+                              @click="confirmRemovePlan(p)"
+                            >
+                              Remover Plano de Inspeção
+                            </button>
+                          </div>
+                        </details>
                       </div>
 
-                      <span v-else class="muted-text">Somente leitura</span>
+                      <span v-else class="muted-text">Visualização</span>
                     </td>
                   </tr>
                 </tbody>
@@ -951,7 +1066,7 @@ async function resolveAlert(item) {
                 showPlan = true;
               "
             >
-              + Novo Plano
+              + Novo Plano de Inspeção
             </button>
           </div>
         </div>
@@ -1384,28 +1499,28 @@ async function resolveAlert(item) {
         <p>Confirme a alteração do regime de inspeção usando a senha de comutação.</p>
 
         <div class="switching-approval-summary">
-          <div>
+          <div class="switching-summary-row">
             <span>Plano</span>
             <b>{{ switchingPlan?.name || "-" }}</b>
           </div>
 
-          <div>
+          <div class="switching-summary-row">
             <span>Regime atual</span>
-            <b>{{ switchingPlan?.inspectionRegime || "-" }}</b>
+            <b>{{ regimeLabel(switchingPlan?.inspectionRegime) }}</b>
           </div>
 
-          <div>
+          <div class="switching-summary-row">
             <span>Regime sugerido</span>
-            <b>{{ switchingPlan?.suggestedRegime || "-" }}</b>
+            <b>{{ regimeLabel(switchingPlan?.suggestedRegime) }}</b>
           </div>
 
-          <div>
+          <div class="switching-summary-row switching-summary-row-full">
             <span>Motivo</span>
             <b>{{ switchingPlan?.switchingReason || "-" }}</b>
           </div>
         </div>
 
-        <label class="float-label">
+        <label class="float-label switching-password-field">
           <input
             v-model="switchingPassword"
             type="password"
@@ -1461,71 +1576,54 @@ async function resolveAlert(item) {
       <div class="hr"></div>
 
       <div class="switching-analysis-summary">
-        <div>
+        <div class="switching-summary-row">
           <span>Plano</span>
           <b>{{ switchingPlan?.name || "-" }}</b>
         </div>
 
-        <div>
+        <div class="switching-summary-row">
           <span>PN</span>
           <b>{{ switchingPlan?.pn || "-" }}</b>
         </div>
 
-        <div>
+        <div class="switching-summary-row">
           <span>Modelo</span>
           <b>{{ switchingPlan?.model || "-" }}</b>
         </div>
 
-        <div>
+        <div class="switching-summary-row">
           <span>Cliente</span>
           <b>{{ switchingPlan?.client || "-" }}</b>
         </div>
 
-        <div>
+        <div class="switching-summary-row">
           <span>Regime atual</span>
-          <b>
-            <span
-              class="regime-pill"
-              :class="`regime-${switchingAnalysis?.currentRegime || 'normal'}`"
-            >
-              {{ regimeLabel(switchingAnalysis?.currentRegime) }}
-            </span>
-          </b>
+          <b>{{ regimeLabel(switchingAnalysis?.currentRegime) }}</b>
         </div>
 
-        <div>
+        <div class="switching-summary-row">
           <span>Regime sugerido</span>
-          <b v-if="switchingAnalysis?.hasSuggestion">
-            <span
-              class="regime-pill"
-              :class="`regime-${switchingAnalysis?.suggestedRegime || 'normal'}`"
-            >
-              {{ regimeLabel(switchingAnalysis?.suggestedRegime) }}
-            </span>
-          </b>
-
-          <b v-else>Sem sugestão</b>
+          <b>{{ regimeLabel(switchingAnalysis?.suggestedRegime) }}</b>
         </div>
       </div>
 
-      <div
-        class="switching-analysis-message"
-        :class="switchingAnalysis?.hasSuggestion ? 'has-suggestion' : 'no-suggestion'"
-      >
+      <div class="switching-suggestion-box">
         <strong>
           {{
-            switchingAnalysis?.hasSuggestion
+            switchingAnalysis?.suggestedRegime &&
+            switchingAnalysis?.suggestedRegime !== switchingAnalysis?.currentRegime
               ? "Sugestão encontrada"
               : "Sem critério de comutação"
           }}
         </strong>
 
-        <span>
+        <p>
           {{
             switchingAnalysis?.reason ||
+            switchingAnalysis?.switchingReason ||
             "Histórico ainda não atende critério para comutação."
           }}
-        </span>
+        </p>
       </div>
 
       <div class="switching-history-preview">
@@ -1628,700 +1726,4 @@ async function resolveAlert(item) {
   </div>
 </template>
 
-<style scoped>
-.qs-user-box {
-  display: flex;
-  align-items: center;
-  gap: 14px;
-  white-space: nowrap;
-  font-size: 13px;
-  color: var(--muted, #64748b);
-}
-
-.qs-user-info {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-}
-
-.qs-user-info b {
-  color: var(--text, #111827);
-  font-weight: 800;
-}
-
-.qs-role-pill {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  padding: 3px 9px;
-  border-radius: 999px;
-  font-size: 11px;
-  font-weight: 800;
-  line-height: 1;
-  background: #f1f5f9;
-  color: #475569;
-  border: 1px solid #e2e8f0;
-  text-transform: uppercase;
-}
-
-.layout {
-  transition: grid-template-columns 0.22s ease;
-}
-
-.layout-side-open {
-  grid-template-columns: 290px 1fr !important;
-}
-
-.side {
-  width: 100%;
-  transition: width 0.22s ease;
-}
-
-.side-hover-open {
-  width: 290px !important;
-}
-
-.side-hover-open .mi {
-  justify-content: flex-start !important;
-  gap: 12px !important;
-  padding-left: 18px !important;
-}
-
-.side-hover-open .mi-label {
-  display: inline-flex !important;
-  opacity: 1 !important;
-  visibility: visible !important;
-  width: auto !important;
-  max-width: 180px !important;
-  overflow: visible !important;
-  margin-left: 8px !important;
-  white-space: nowrap !important;
-}
-
-.management-summary {
-  display: grid;
-  grid-template-columns: repeat(5, minmax(140px, 1fr));
-  gap: 12px;
-}
-
-.mg-card {
-  padding: 14px;
-  border: 1px solid #e2e8f0;
-  border-radius: 16px;
-  background: #ffffff;
-  box-shadow: var(--shadow-min);
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-}
-
-.mg-card span {
-  color: var(--muted, #64748b);
-  font-size: 12px;
-  font-weight: 700;
-}
-
-.mg-card b {
-  color: var(--text, #111827);
-  font-size: 24px;
-  font-weight: 900;
-}
-
-@media (max-width: 1100px) {
-  .management-summary {
-    grid-template-columns: repeat(2, minmax(140px, 1fr));
-  }
-}
-
-.user-sheet {
-  max-width: 920px;
-}
-
-.modal-section-title {
-  margin: 0 0 10px 0;
-  font-size: 16px;
-  font-weight: 700;
-  color: var(--text);
-}
-
-.switching-config-card {
-  margin-top: 14px;
-  margin-bottom: 14px;
-  padding: 16px;
-  border: 1px solid #fed7aa;
-  border-radius: 18px;
-  background: #fff7ed;
-  box-shadow: var(--shadow-min);
-}
-
-.switching-config-head {
-  display: flex;
-  align-items: flex-start;
-  justify-content: space-between;
-  gap: 14px;
-  margin-bottom: 14px;
-}
-
-.switching-config-head h3 {
-  margin: 0;
-  font-size: 18px;
-  color: #7c2d12;
-}
-
-.switching-config-head p {
-  margin: 4px 0 0 0;
-  font-size: 13px;
-  color: #9a3412;
-}
-
-.switching-password-status {
-  padding: 6px 10px;
-  border-radius: 999px;
-  font-size: 12px;
-  font-weight: 800;
-  white-space: nowrap;
-}
-
-.switching-password-status.ok {
-  color: #166534;
-  background: #dcfce7;
-  border: 1px solid #bbf7d0;
-}
-
-.switching-password-status.warn {
-  color: #92400e;
-  background: #fef3c7;
-  border: 1px solid #fde68a;
-}
-
-.switching-password-form {
-  display: grid;
-  grid-template-columns: 1fr 1fr auto;
-  gap: 12px;
-  align-items: center;
-}
-
-@media (max-width: 900px) {
-  .switching-config-head {
-    flex-direction: column;
-  }
-
-  .switching-password-form {
-    grid-template-columns: 1fr;
-  }
-}
-
-.switching-approval-modal {
-  max-width: 640px;
-}
-
-.switching-approval-body {
-  display: flex;
-  flex-direction: column;
-  gap: 14px;
-}
-
-.switching-approval-body p {
-  margin: 0;
-  color: var(--muted, #64748b);
-  font-size: 14px;
-}
-
-.switching-approval-summary {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 10px;
-  padding: 12px;
-  border-radius: 14px;
-  background: #f8fafc;
-  border: 1px solid #e2e8f0;
-}
-
-.switching-approval-summary div {
-  display: flex;
-  flex-direction: column;
-  gap: 3px;
-}
-
-.switching-approval-summary span {
-  font-size: 11px;
-  font-weight: 800;
-  color: var(--muted, #64748b);
-}
-
-.switching-approval-summary b {
-  font-size: 13px;
-  color: var(--text, #111827);
-}
-
-.regime-pill,
-.switching-pill {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  min-width: 78px;
-  padding: 5px 10px;
-  border-radius: 999px;
-  font-size: 12px;
-  font-weight: 800;
-  line-height: 1;
-  white-space: nowrap;
-}
-
-.regime-normal {
-  color: #475569;
-  background: #f8fafc;
-  border: 1px solid #e2e8f0;
-}
-
-.regime-atenuada {
-  color: #166534;
-  background: #f0fdf4;
-  border: 1px solid #bbf7d0;
-}
-
-.regime-severa {
-  color: #991b1b;
-  background: #fff1f2;
-  border: 1px solid #fecdd3;
-}
-
-.switching-pill.ok {
-  color: #475569;
-  background: #f8fafc;
-  border: 1px solid #e2e8f0;
-}
-
-.switching-pill.pending {
-  color: #c2410c;
-  background: #fff7ed;
-  border: 1px solid #fdba74;
-}
-
-.switching-analysis-modal {
-  max-width: 980px;
-}
-
-.switching-analysis-summary {
-  display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 10px;
-}
-
-.switching-analysis-summary > div {
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-  padding: 12px;
-  border-radius: 14px;
-  background: #f8fafc;
-  border: 1px solid #e2e8f0;
-}
-
-.switching-analysis-summary span {
-  font-size: 11px;
-  font-weight: 800;
-  color: var(--muted, #64748b);
-}
-
-.switching-analysis-summary b {
-  font-size: 13px;
-  color: var(--text, #111827);
-}
-
-.switching-analysis-message {
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-  padding: 14px;
-  border-radius: 16px;
-  border: 1px solid #e2e8f0;
-}
-
-.switching-analysis-message strong {
-  font-size: 14px;
-  font-weight: 900;
-}
-
-.switching-analysis-message span {
-  font-size: 13px;
-}
-
-.switching-analysis-message.has-suggestion {
-  background: #fff7ed;
-  border-color: #fdba74;
-  color: #9a3412;
-}
-
-.switching-analysis-message.no-suggestion {
-  background: #f8fafc;
-  border-color: #e2e8f0;
-  color: #475569;
-}
-
-.switching-valid-lots {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 10px;
-}
-
-.switching-valid-lots > div {
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-  padding: 12px;
-  border: 1px solid #dbeafe;
-  border-radius: 14px;
-  background: #eff6ff;
-}
-
-.switching-valid-lots span {
-  font-size: 11px;
-  font-weight: 800;
-  color: #64748b;
-}
-
-.switching-valid-lots b {
-  font-size: 15px;
-  color: #1e3a8a;
-}
-
-@media (max-width: 900px) {
-  .switching-valid-lots {
-    grid-template-columns: 1fr;
-  }
-}
-
-.switching-history-preview {
-  display: flex;
-  flex-direction: column;
-  gap: 10px;
-}
-
-.result-pill {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  min-width: 58px;
-  padding: 5px 9px;
-  border-radius: 999px;
-  font-size: 12px;
-  font-weight: 900;
-  line-height: 1;
-}
-
-.result-pill.pass {
-  color: #166534;
-  background: #f0fdf4;
-  border: 1px solid #bbf7d0;
-}
-
-.result-pill.fail {
-  color: #991b1b;
-  background: #fff1f2;
-  border: 1px solid #fecdd3;
-}
-
-.result-pill.neutral {
-  color: #475569;
-  background: #f8fafc;
-  border: 1px solid #e2e8f0;
-}
-
-@media (max-width: 900px) {
-  .switching-analysis-summary {
-    grid-template-columns: 1fr;
-  }
-}
-
-.area-pill {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  min-width: 58px;
-  padding: 5px 9px;
-  border-radius: 999px;
-  font-size: 11px;
-  font-weight: 800;
-  white-space: nowrap;
-}
-
-.area-IQC {
-  color: #1d4ed8;
-  background: #eff6ff;
-  border: 1px solid #bfdbfe;
-}
-
-.area-OQC {
-  color: #166534;
-  background: #f0fdf4;
-  border: 1px solid #bbf7d0;
-}
-
-.area-ALL {
-  color: #7c2d12;
-  background: #fff7ed;
-  border: 1px solid #fdba74;
-}
-
-.area-none {
-  color: #64748b;
-  background: #f8fafc;
-  border: 1px solid #e2e8f0;
-}
-
-.alerts-wrap {
-  position: relative;
-}
-
-.alert-bell {
-  position: relative;
-  width: 39px;
-  height: 39px;
-  border: 1px solid #e2e8f0;
-  border-radius: 12px;
-  background: #ffffff;
-  cursor: pointer;
-  transition: 0.18s ease;
-}
-
-.alert-bell:hover {
-  border-color: #f59e0b;
-  background: #fffbeb;
-}
-
-.alert-bell-icon {
-  font-size: 18px;
-}
-
-.alert-bell-count {
-  position: absolute;
-  top: -7px;
-  right: -7px;
-  min-width: 19px;
-  height: 19px;
-  padding: 0 5px;
-  border: 2px solid #ffffff;
-  border-radius: 999px;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  background: #dc2626;
-  color: #ffffff;
-  font-size: 10px;
-  font-weight: 900;
-  line-height: 1;
-}
-
-.alerts-panel {
-  position: absolute;
-  top: calc(100% + 10px);
-  right: 0;
-  z-index: 150;
-  width: min(420px, calc(100vw - 32px));
-  max-height: 560px;
-  overflow-y: auto;
-  overflow-x: hidden;
-  white-space: normal;
-  border: 1px solid #e2e8f0;
-  border-radius: 16px;
-  background: #ffffff;
-  box-shadow: 0 18px 45px rgb(15 23 42 / 18%);
-}
-
-.alerts-panel-head {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 12px;
-  padding: 14px;
-  border-bottom: 1px solid #e2e8f0;
-}
-
-.alerts-panel-head > div {
-  display: flex;
-  flex-direction: column;
-  gap: 3px;
-}
-
-.alerts-panel-head strong {
-  color: #0f172a;
-  font-size: 14px;
-}
-
-.alerts-panel-head span {
-  color: #64748b;
-  font-size: 12px;
-}
-
-.alerts-refresh-btn {
-  min-height: 32px;
-  padding: 5px 9px;
-  font-size: 11px;
-}
-
-.alerts-list {
-  display: flex;
-  flex-direction: column;
-}
-
-.alerts-empty {
-  padding: 22px 16px;
-  text-align: center;
-  color: #64748b;
-  font-size: 13px;
-}
-
-.alerts-error {
-  color: #b91c1c;
-}
-
-.alert-item {
-  position: relative;
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-  padding: 14px;
-  border-bottom: 1px solid #eef2f7;
-  cursor: pointer;
-  transition: 0.18s ease;
-}
-
-.alert-item:last-child {
-  border-bottom: 0;
-}
-
-.alert-item:hover {
-  background: #f8fafc;
-}
-
-.alert-item-new {
-  background: #fffbeb;
-}
-
-.alert-item-viewed {
-  background: #ffffff;
-}
-
-.alert-item-top,
-.alert-item-footer {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 8px;
-}
-
-.alert-item strong {
-  padding-right: 0;
-  color: #0f172a;
-  font-size: 13px;
-  white-space: normal;
-}
-
-.alert-item p {
-  margin: 0;
-  color: #475569;
-  font-size: 12px;
-  line-height: 1.45;
-  white-space: normal;
-  word-break: break-word;
-}
-
-.alert-item-footer {
-  color: #64748b;
-  font-size: 11px;
-}
-
-.alert-severity,
-.alert-status {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  padding: 4px 7px;
-  border-radius: 999px;
-  font-size: 10px;
-  font-weight: 900;
-  line-height: 1;
-}
-
-.alert-severity-critical {
-  color: #991b1b;
-  background: #fff1f2;
-  border: 1px solid #fecdd3;
-}
-
-.alert-severity-warning {
-  color: #92400e;
-  background: #fffbeb;
-  border: 1px solid #fde68a;
-}
-
-.alert-severity-info {
-  color: #1d4ed8;
-  background: #eff6ff;
-  border: 1px solid #bfdbfe;
-}
-
-.alert-status-new {
-  color: #b45309;
-  background: #fef3c7;
-  border: 1px solid #fde68a;
-}
-
-.alert-status-viewed {
-  color: #475569;
-  background: #f8fafc;
-  border: 1px solid #e2e8f0;
-}
-
-.alert-resolve-btn {
-  align-self: flex-end;
-  margin-top: 2px;
-  border: 1px solid #86efac;
-  border-radius: 8px;
-  padding: 5px 8px;
-  background: #f0fdf4;
-  color: #166534;
-  font-size: 11px;
-  font-weight: 800;
-  cursor: pointer;
-}
-
-.alert-resolve-btn:hover {
-  background: #dcfce7;
-}
-
-@media (max-width: 700px) {
-  .alerts-panel {
-    position: fixed;
-    top: 64px;
-    right: 16px;
-    left: 16px;
-    width: auto;
-  }
-
-  .qs-user-box {
-    gap: 8px;
-  }
-
-  .qs-user-info > span:first-child {
-    display: none;
-  }
-}
-
-.plan-revision-table-badge {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  min-width: 64px;
-  padding: 5px 10px;
-  border: 1px solid #bfdbfe;
-  border-radius: 999px;
-  background: #eff6ff;
-  color: #1d4ed8;
-  font-size: 12px;
-  font-weight: 850;
-  line-height: 1;
-  white-space: nowrap;
-}
-</style>
+<style scoped></style>

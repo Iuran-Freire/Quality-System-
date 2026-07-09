@@ -1,0 +1,237 @@
+/* src/styles/alerts.css */
+
+/* =========================================================
+   ALERTAS DO SISTEMA
+   Sino, painel, lista e estados dos alertas
+   ========================================================= */
+
+.alerts-wrap {
+  position: relative;
+}
+
+.alert-bell {
+  position: relative;
+  width: 39px;
+  height: 39px;
+  border: 1px solid #e2e8f0;
+  border-radius: 12px;
+  background: #ffffff;
+  cursor: pointer;
+  transition: 0.18s ease;
+}
+
+.alert-bell:hover {
+  border-color: #f59e0b;
+  background: #fffbeb;
+}
+
+.alert-bell-icon {
+  font-size: 18px;
+}
+
+.alert-bell-count {
+  position: absolute;
+  top: -7px;
+  right: -7px;
+  min-width: 19px;
+  height: 19px;
+  padding: 0 5px;
+  border: 2px solid #ffffff;
+  border-radius: 999px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: #dc2626;
+  color: #ffffff;
+  font-size: 10px;
+  font-weight: 900;
+  line-height: 1;
+}
+
+.alerts-panel {
+  position: absolute;
+  top: calc(100% + 10px);
+  right: 0;
+  z-index: 150;
+  width: min(420px, calc(100vw - 32px));
+  max-height: 560px;
+  overflow-y: auto;
+  overflow-x: hidden;
+  white-space: normal;
+  border: 1px solid #e2e8f0;
+  border-radius: 16px;
+  background: #ffffff;
+  box-shadow: 0 18px 45px rgb(15 23 42 / 18%);
+}
+
+.alerts-panel-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 14px;
+  border-bottom: 1px solid #e2e8f0;
+}
+
+.alerts-panel-head > div {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.alerts-panel-head strong {
+  color: #0f172a;
+  font-size: 14px;
+}
+
+.alerts-panel-head span {
+  color: #64748b;
+  font-size: 12px;
+}
+
+.alerts-refresh-btn {
+  min-height: 32px;
+  padding: 5px 9px;
+  font-size: 11px;
+}
+
+.alerts-list {
+  display: flex;
+  flex-direction: column;
+}
+
+.alerts-empty {
+  padding: 22px 16px;
+  text-align: center;
+  color: #64748b;
+  font-size: 13px;
+}
+
+.alerts-error {
+  color: #b91c1c;
+}
+
+.alert-item {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 14px;
+  border-bottom: 1px solid #eef2f7;
+  cursor: pointer;
+  transition: 0.18s ease;
+}
+
+.alert-item:last-child {
+  border-bottom: 0;
+}
+
+.alert-item:hover {
+  background: #f8fafc;
+}
+
+.alert-item-new {
+  background: #fffbeb;
+}
+
+.alert-item-viewed {
+  background: #ffffff;
+}
+
+.alert-item-top,
+.alert-item-footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.alert-item strong {
+  padding-right: 0;
+  color: #0f172a;
+  font-size: 13px;
+  white-space: normal;
+}
+
+.alert-item p {
+  margin: 0;
+  color: #475569;
+  font-size: 12px;
+  line-height: 1.45;
+  white-space: normal;
+  word-break: break-word;
+}
+
+.alert-item-footer {
+  color: #64748b;
+  font-size: 11px;
+}
+
+.alert-severity,
+.alert-status {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 4px 7px;
+  border-radius: 999px;
+  font-size: 10px;
+  font-weight: 900;
+  line-height: 1;
+}
+
+.alert-severity-critical {
+  color: #991b1b;
+  background: #fff1f2;
+  border: 1px solid #fecdd3;
+}
+
+.alert-severity-warning {
+  color: #92400e;
+  background: #fffbeb;
+  border: 1px solid #fde68a;
+}
+
+.alert-severity-info {
+  color: #1d4ed8;
+  background: #eff6ff;
+  border: 1px solid #bfdbfe;
+}
+
+.alert-status-new {
+  color: #b45309;
+  background: #fef3c7;
+  border: 1px solid #fde68a;
+}
+
+.alert-status-viewed {
+  color: #475569;
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+}
+
+.alert-resolve-btn {
+  align-self: flex-end;
+  margin-top: 2px;
+  border: 1px solid #86efac;
+  border-radius: 8px;
+  padding: 5px 8px;
+  background: #f0fdf4;
+  color: #166534;
+  font-size: 11px;
+  font-weight: 800;
+  cursor: pointer;
+}
+
+.alert-resolve-btn:hover {
+  background: #dcfce7;
+}
+
+@media (max-width: 700px) {
+  .alerts-panel {
+    position: fixed;
+    top: 64px;
+    right: 16px;
+    left: 16px;
+    width: auto;
+  }
+}
