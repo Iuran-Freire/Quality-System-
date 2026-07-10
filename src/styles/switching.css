@@ -755,3 +755,60 @@
   font-size: 11px;
   font-weight: 900;
 }
+
+/* =========================================================
+   AJUSTE FINAL — MODAL APROVAR COMUTAÇÃO
+   Tamanho e proporção visual
+   ========================================================= */
+
+.switching-approval-modal {
+  width: min(680px, calc(100vw - 48px));
+  max-width: 680px;
+}
+
+.switching-approval-modal .switching-approval-body {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.switching-approval-modal .switching-approval-body > p {
+  margin: 0;
+  color: #475569;
+  font-size: 13px;
+  line-height: 1.45;
+}
+
+.switching-approval-summary {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px 18px;
+  margin: 0;
+  padding: 16px 18px;
+}
+
+.switching-approval-summary .switching-summary-row {
+  min-height: auto;
+}
+
+.switching-approval-summary .switching-summary-row-full {
+  padding-top: 4px;
+  border-top: 1px dashed #dbe3ef;
+}
+
+.switching-approval-summary .switching-summary-row span {
+  margin-bottom: 2px;
+}
+
+.switching-approval-summary .switching-summary-row b {
+  font-size: 13px;
+  line-height: 1.35;
+}
+
+.switching-password-field {
+  margin-top: 2px;
+}
+
+.switching-approval-modal > .hr:last-of-type {
+  margin-top: 14px;
+  margin-bottom: 14px;
+}

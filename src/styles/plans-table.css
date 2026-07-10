@@ -2,12 +2,13 @@
 
 /* =========================================================
    TABELA — PLANOS DE INSPEÇÃO
-   Layout técnico, compacto e com coluna de operações limpa
+   Layout técnico, compacto e com menu de operações
    ========================================================= */
 
 .plans-table {
   table-layout: fixed;
   min-width: 1180px;
+  overflow: visible;
 }
 
 .plans-table th,
@@ -29,6 +30,7 @@
   color: #0f172a;
 }
 
+/* Larguras por coluna */
 .plans-table th:nth-child(1),
 .plans-table td:nth-child(1) {
   width: 64px;
@@ -96,6 +98,7 @@
   text-align: center;
 }
 
+/* Quebras controladas */
 .plans-table td:nth-child(3),
 .plans-table td:nth-child(5) {
   word-break: break-word;
@@ -112,6 +115,7 @@
   word-break: normal;
 }
 
+/* Badges dentro da tabela */
 .plans-table .status-pill,
 .plans-table .regime-pill,
 .plans-table .switching-pill,
@@ -128,6 +132,7 @@
   white-space: nowrap;
 }
 
+/* Hover discreto */
 .plans-table tbody tr {
   transition: background 0.15s ease;
 }
@@ -136,15 +141,35 @@
   background: #f8fafc;
 }
 
-/* Menu de operações */
+/* =========================================================
+   MENU DE OPERAÇÕES
+   ========================================================= */
+
+.tablecard {
+  overflow: visible !important;
+}
+
+.tablecard .tablewrap {
+  overflow: visible !important;
+}
+
+.plans-table thead,
+.plans-table tbody,
+.plans-table tr,
+.plans-table td {
+  overflow: visible !important;
+}
+
 .operations-cell {
+  position: relative;
   display: flex;
   justify-content: center;
-  position: relative;
+  z-index: 20;
 }
 
 .operations-menu {
   position: relative;
+  z-index: 20;
 }
 
 .operations-menu summary {
@@ -175,25 +200,44 @@
   font-size: 10px;
 }
 
+.operations-menu[open] {
+  z-index: 9999;
+}
+
 .operations-menu[open] summary {
+  position: relative;
+  z-index: 2;
   background: #fff7ed;
   color: #7c2d12;
 }
 
 .operations-list {
   position: absolute;
-  right: 0;
-  top: calc(100% + 6px);
-  z-index: 50;
+  right: 8px;
+  z-index: 10000;
+
   display: flex;
   flex-direction: column;
   gap: 4px;
-  min-width: 185px;
+
+  min-width: 215px;
   padding: 8px;
+
   border: 1px solid #e2e8f0;
   border-radius: 12px;
   background: #ffffff;
-  box-shadow: 0 14px 34px rgba(15, 23, 42, 0.16);
+  box-shadow: 0 18px 40px rgba(15, 23, 42, 0.2);
+}
+
+
+.operations-menu-down .operations-list {
+  top: calc(100% + 12px);
+  bottom: auto;
+}
+
+.operations-menu-up .operations-list {
+  bottom: calc(100% + 12px);
+  top: auto;
 }
 
 .operations-list button {
@@ -204,10 +248,11 @@
   border-radius: 8px;
   background: transparent;
   color: #0f172a;
-  font-size: 12px;
+  font-size: 11.5px;
   font-weight: 750;
   text-align: left;
   cursor: pointer;
+  line-height: 1.25;
 }
 
 .operations-list button:hover:not(:disabled) {
@@ -236,11 +281,47 @@
   background: #fff1f2;
 }
 
+/* Rodapé da tabela */
 .tablecard > .hstack {
   border-top: 1px solid #e2e8f0;
   background: #ffffff;
 }
 
+/* Card inferior do botão novo plano */
 .card:has(> .btn) {
   padding: 14px;
+}
+
+
+/* =========================================================
+   CORREÇÃO DEFINITIVA — MENU ACIMA DAS OUTRAS LINHAS
+   A linha com menu aberto fica na frente da tabela
+   ========================================================= */
+
+.plans-table tbody tr {
+  position: relative;
+  z-index: 1;
+}
+
+.plans-table tbody tr:has(.operations-menu[open]) {
+  z-index: 99999;
+}
+
+.plans-table tbody tr:has(.operations-menu[open]) td {
+  position: relative;
+  z-index: 99999;
+}
+
+.operations-cell {
+  position: relative;
+  z-index: 99999;
+}
+
+.operations-menu[open] {
+  position: relative;
+  z-index: 100000 !important;
+}
+
+.operations-menu[open] .operations-list {
+  z-index: 100001 !important;
 }

@@ -361,8 +361,16 @@ async function saveSwitchingPassword() {
   }
 }
 
+function closeOperationMenus() {
+  document.querySelectorAll(".operations-menu[open]").forEach((menu) => {
+    menu.removeAttribute("open");
+  });
+}
+
 async function analyzePlanSwitching(plan) {
   if (!plan?.id) return;
+
+  closeOperationMenus();
 
   switchingLoading.value = true;
 
@@ -450,6 +458,8 @@ async function analyzePlanSwitching(plan) {
 function openApproveSwitching(plan) {
   if (!plan?.id) return;
 
+  closeOperationMenus();
+
   switchingPlan.value = {
     ...plan,
 
@@ -473,6 +483,8 @@ function openApproveSwitching(plan) {
 
 async function confirmRemovePlan(plan) {
   if (!plan?.id) return;
+
+  closeOperationMenus();
 
   const ok = confirm(
     "Deseja realmente remover este Plano de Inspeção?\n\n" +
@@ -921,7 +933,7 @@ async function resolveAlert(item) {
                     <td colspan="12">Nenhum plano criado ainda.</td>
                   </tr>
 
-                  <tr v-else v-for="p in paginatedPlans" :key="p.id">
+                  <tr v-else v-for="(p, idx) in paginatedPlans" :key="p.id">
                     <td>
                       <span class="status-pill" :class="p.active ? 'on' : 'off'">
                         {{ p.active ? "Ativo" : "Suspenso" }}
@@ -972,7 +984,14 @@ async function resolveAlert(item) {
 
                     <td>
                       <div v-if="canEditSystem" class="operations-cell">
-                        <details class="operations-menu">
+                        <details
+                          class="operations-menu"
+                          :class="
+                            idx === paginatedPlans.length - 1
+                              ? 'operations-menu-up'
+                              : 'operations-menu-down'
+                          "
+                        >
                           <summary>Operações</summary>
 
                           <div class="operations-list">
