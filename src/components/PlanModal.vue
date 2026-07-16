@@ -596,6 +596,26 @@ function getCharFriendlyKind(char) {
   return kind || "Característica";
 }
 
+function getSamplingModeLabel(value) {
+  const mode = String(value || "")
+    .trim()
+    .toLowerCase();
+
+  if (mode === "fixed") {
+    return "Amostragem Fixa";
+  }
+
+  if (mode === "nbr5426") {
+    return "NBR 5426 — Plano de Amostragem";
+  }
+
+  if (mode === "client") {
+    return "Norma Específica do Cliente";
+  }
+
+  return "Não informado";
+}
+
 function buildRevisionComparison(revision) {
   const oldPlan = revision?.snapshot || {};
   const currentPlan = getCurrentPlanForComparison();
@@ -1044,7 +1064,7 @@ async function save() {
 
 <template>
   <div class="modal" :class="{ show: show }">
-    <div class="sheet vstack">
+    <div class="sheet vstack plan-modal-sheet">
       <div class="hstack" style="justify-content: space-between; align-items: center">
         <div class="plan-modal-title-wrap">
           <h3>{{ isEdit ? "Editar Plano de Inspeção" : "Novo Plano de Inspeção" }}</h3>
@@ -1163,10 +1183,13 @@ async function save() {
       </div>
 
       <div v-if="isEdit" class="plan-revision-box">
-        <div class="plan-revision-box-title">Registro de Alteração / Controle de Revisão</div>
+        <div class="plan-revision-box-title">
+          Registro de Alteração / Controle de Revisão
+        </div>
 
         <div class="plan-revision-box-subtitle">
-          Ao salvar, a revisão vigente será arquivada como snapshot e uma nova revisão do plano será gerada.
+          Ao salvar, a revisão vigente será arquivada como snapshot e uma nova revisão do
+          plano será gerada.
         </div>
 
         <div class="row" style="margin-top: 12px">
@@ -1733,7 +1756,9 @@ async function save() {
             <div>
               <span>Modo</span>
               <strong>
-                {{ selectedRevisionSnapshot.snapshot?.sampling?.mode || "Não informado" }}
+                {{
+                  getSamplingModeLabel(selectedRevisionSnapshot.snapshot?.sampling?.mode)
+                }}
               </strong>
             </div>
 
@@ -1769,7 +1794,7 @@ async function save() {
 
         <div class="revision-snapshot-section">
           <h4>
-            Características e testes (
+            Características e Ensaios de Inspeção (
             {{
               Array.isArray(selectedRevisionSnapshot.snapshot?.chars)
                 ? selectedRevisionSnapshot.snapshot.chars.length
@@ -1797,25 +1822,27 @@ async function save() {
               <div class="revision-snapshot-char-title">
                 <strong>{{ index + 1 }}. {{ char.name || "Sem nome" }}</strong>
 
-                <span>{{ char.kind || "característica" }}</span>
+                <span>{{ getCharFriendlyKind(char) }}</span>
               </div>
 
               <div class="revision-snapshot-char-details">
                 <span v-if="char.lsl !== '' && char.lsl != null">
-                  Mín: {{ char.lsl }}
+                  Limite Inferior: {{ char.lsl }}
                 </span>
 
                 <span v-if="char.usl !== '' && char.usl != null">
-                  Máx: {{ char.usl }}
+                  Limite Superior: {{ char.usl }}
                 </span>
 
-                <span v-if="char.unit"> Unidade: {{ char.unit }} </span>
+                <span v-if="char.unit"> Unidade de Medida: {{ char.unit }} </span>
 
-                <span v-if="char.sampleN"> Amostras: {{ char.sampleN }} </span>
+                <span v-if="char.sampleN">
+                  Quantidade de Amostras: {{ char.sampleN }}
+                </span>
 
-                <span v-if="char.method"> Método: {{ char.method }} </span>
+                <span v-if="char.method"> Método / Equipamento: {{ char.method }} </span>
 
-                <span v-if="char.category"> Categoria: {{ char.category }} </span>
+                <span v-if="char.category"> Classificação: {{ char.category }} </span>
               </div>
             </div>
           </div>
@@ -1842,7 +1869,9 @@ async function save() {
             × Revisão Atual
           </h3>
 
-          <span> Análise das alterações entre a revisão arquivada e a revisão vigente do plano. </span>
+          <span>
+            Análise das alterações entre a revisão arquivada e a revisão vigente do plano.
+          </span>
         </div>
 
         <button
@@ -1975,659 +2004,3 @@ async function save() {
     </div>
   </div>
 </template>
-
-<style scoped>
-.modal-section-title {
-  margin: 0 0 10px 0;
-  font-size: 16px;
-  font-weight: 700;
-  color: var(--text);
-}
-.clone-plan-box {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 14px;
-  padding: 14px;
-  border: 1px solid #fed7aa;
-  border-radius: 16px;
-  background: #fff7ed;
-}
-
-.clone-plan-text {
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-}
-
-.clone-plan-text strong {
-  color: #7c2d12;
-  font-size: 14px;
-}
-
-.clone-plan-text span {
-  color: #9a3412;
-  font-size: 12.5px;
-}
-
-.clone-plan-actions {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  min-width: 520px;
-}
-
-.clone-select {
-  flex: 1;
-}
-
-.clone-btn {
-  border-color: #f59e0b;
-  color: #c2410c;
-  background: #ffffff;
-  white-space: nowrap;
-}
-
-.clone-btn:hover {
-  background: #ffedd5;
-  border-color: #f97316;
-}
-
-@media (max-width: 900px) {
-  .clone-plan-box {
-    flex-direction: column;
-    align-items: stretch;
-  }
-
-  .clone-plan-actions {
-    min-width: 0;
-    width: 100%;
-    flex-direction: column;
-    align-items: stretch;
-  }
-}
-
-.move-char-btn {
-  min-width: 38px;
-  padding: 6px 10px;
-  font-size: 18px;
-  font-weight: 800;
-  line-height: 1;
-}
-
-.move-char-btn:disabled {
-  opacity: 0.35;
-  cursor: not-allowed;
-}
-
-.xrf-elements-box {
-  display: flex;
-  flex-direction: column;
-  gap: 10px;
-  margin-top: 14px;
-  padding: 14px;
-  border: 1px solid #ddd6fe;
-  border-radius: 14px;
-  background: #faf5ff;
-}
-
-.xrf-elements-head {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 12px;
-}
-
-.xrf-elements-head > div {
-  display: flex;
-  flex-direction: column;
-  gap: 3px;
-}
-
-.xrf-elements-head strong {
-  color: #5b21b6;
-  font-size: 14px;
-}
-
-.xrf-elements-head span {
-  color: #7e22ce;
-  font-size: 12px;
-}
-
-.xrf-empty {
-  padding: 10px;
-  border: 1px dashed #c4b5fd;
-  border-radius: 10px;
-  color: #6b21a8;
-  font-size: 13px;
-}
-
-.xrf-element-row {
-  display: grid;
-  grid-template-columns: 30px minmax(170px, 1fr) minmax(150px, 220px) auto auto;
-  align-items: center;
-  gap: 10px;
-}
-
-.xrf-element-index {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: 28px;
-  height: 28px;
-  border-radius: 999px;
-  background: #ede9fe;
-  color: #6d28d9;
-  font-size: 12px;
-  font-weight: 800;
-}
-
-.xrf-unit {
-  color: #6b21a8;
-  font-size: 13px;
-  font-weight: 800;
-}
-
-@media (max-width: 850px) {
-  .xrf-elements-head {
-    align-items: stretch;
-    flex-direction: column;
-  }
-
-  .xrf-element-row {
-    grid-template-columns: 30px 1fr;
-  }
-
-  .xrf-unit {
-    padding-left: 40px;
-  }
-}
-
-.plan-revision-box {
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-  padding: 14px;
-  border: 1px solid #bfdbfe;
-  border-radius: 14px;
-  background: #eff6ff;
-}
-
-.plan-revision-box-title {
-  color: #1d4ed8;
-  font-size: 14px;
-  font-weight: 750;
-}
-
-.plan-revision-box-subtitle {
-  color: #475569;
-  font-size: 12.5px;
-  line-height: 1.35;
-}
-.plan-modal-title-wrap {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-}
-
-.plan-modal-title-wrap h3 {
-  margin: 0;
-}
-
-.plan-revision-current {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  padding: 4px 9px;
-  border: 1px solid #bfdbfe;
-  border-radius: 999px;
-  background: #eff6ff;
-  color: #1d4ed8;
-  font-size: 12px;
-  font-weight: 750;
-  white-space: nowrap;
-}
-
-.revision-history-overlay {
-  position: fixed;
-  inset: 0;
-  z-index: 1200;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  padding: 24px;
-  background: rgba(15, 23, 42, 0.45);
-}
-
-.revision-history-modal {
-  width: min(760px, 100%);
-  max-height: min(760px, calc(100vh - 48px));
-  overflow: auto;
-  padding: 20px;
-  border: 1px solid #dbeafe;
-  border-radius: 18px;
-  background: #ffffff;
-  box-shadow: 0 24px 60px rgba(15, 23, 42, 0.22);
-}
-
-.revision-history-header {
-  display: flex;
-  align-items: flex-start;
-  justify-content: space-between;
-  gap: 16px;
-  padding-bottom: 14px;
-  border-bottom: 1px solid #e2e8f0;
-}
-
-.revision-history-header h3 {
-  margin: 0;
-  color: #0f172a;
-}
-
-.revision-history-header span {
-  display: block;
-  margin-top: 4px;
-  color: #64748b;
-  font-size: 13px;
-}
-
-.revision-history-list {
-  display: flex;
-  flex-direction: column;
-  gap: 12px;
-  margin-top: 16px;
-}
-
-.revision-history-item {
-  padding: 14px;
-  border: 1px solid #dbeafe;
-  border-radius: 14px;
-  background: #f8fbff;
-}
-
-.revision-history-item-top {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 12px;
-  margin-bottom: 12px;
-}
-
-.revision-history-number {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  padding: 4px 9px;
-  border: 1px solid #bfdbfe;
-  border-radius: 999px;
-  background: #eff6ff;
-  color: #1d4ed8;
-  font-size: 12px;
-  font-weight: 750;
-}
-
-.revision-history-date {
-  color: #64748b;
-  font-size: 12px;
-  text-align: right;
-}
-
-.revision-history-label {
-  margin-top: 9px;
-  color: #64748b;
-  font-size: 11px;
-  font-weight: 700;
-  text-transform: uppercase;
-}
-
-.revision-history-value {
-  margin-top: 3px;
-  color: #0f172a;
-  font-size: 13px;
-  line-height: 1.4;
-}
-
-.revision-history-author {
-  margin-top: 12px;
-  color: #475569;
-  font-size: 12px;
-}
-
-.revision-history-empty {
-  padding: 28px 14px;
-  color: #64748b;
-  font-size: 13px;
-  text-align: center;
-}
-
-.revision-history-error {
-  color: #b91c1c;
-}
-
-.revision-history-actions {
-  display: flex;
-  justify-content: flex-end;
-  margin-top: 12px;
-}
-
-.revision-history-view-btn {
-  min-width: 118px;
-  font-size: 12px;
-}
-
-.revision-snapshot-overlay {
-  position: fixed;
-  inset: 0;
-  z-index: 1300;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  padding: 24px;
-  background: rgba(15, 23, 42, 0.56);
-}
-
-.revision-snapshot-modal {
-  width: min(980px, 100%);
-  max-height: min(820px, calc(100vh - 48px));
-  overflow: auto;
-  padding: 20px;
-  border: 1px solid #dbeafe;
-  border-radius: 18px;
-  background: #ffffff;
-  box-shadow: 0 24px 60px rgba(15, 23, 42, 0.28);
-}
-
-.revision-snapshot-header {
-  display: flex;
-  align-items: flex-start;
-  justify-content: space-between;
-  gap: 16px;
-  padding-bottom: 14px;
-  border-bottom: 1px solid #e2e8f0;
-}
-
-.revision-snapshot-header h3 {
-  margin: 0;
-  color: #0f172a;
-}
-
-.revision-snapshot-header span {
-  display: block;
-  margin-top: 4px;
-  color: #64748b;
-  font-size: 13px;
-}
-
-.revision-snapshot-content {
-  display: flex;
-  flex-direction: column;
-  gap: 18px;
-  margin-top: 18px;
-}
-
-.revision-snapshot-section {
-  padding: 14px;
-  border: 1px solid #e2e8f0;
-  border-radius: 14px;
-  background: #f8fafc;
-}
-
-.revision-snapshot-section h4 {
-  margin: 0 0 12px;
-  color: #0f172a;
-  font-size: 14px;
-}
-
-.revision-snapshot-grid {
-  display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 12px;
-}
-
-.revision-snapshot-grid > div {
-  display: flex;
-  flex-direction: column;
-  gap: 3px;
-}
-
-.revision-snapshot-grid span {
-  color: #64748b;
-  font-size: 11px;
-  font-weight: 700;
-  text-transform: uppercase;
-}
-
-.revision-snapshot-grid strong {
-  color: #0f172a;
-  font-size: 13px;
-  line-height: 1.35;
-}
-
-.revision-snapshot-chars {
-  display: flex;
-  flex-direction: column;
-  gap: 10px;
-}
-
-.revision-snapshot-char {
-  padding: 12px;
-  border: 1px solid #dbeafe;
-  border-radius: 12px;
-  background: #ffffff;
-}
-
-.revision-snapshot-char-title {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 12px;
-}
-
-.revision-snapshot-char-title strong {
-  color: #0f172a;
-  font-size: 13px;
-}
-
-.revision-snapshot-char-title span {
-  color: #2563eb;
-  font-size: 11px;
-  font-weight: 700;
-}
-
-.revision-snapshot-char-details {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 7px 12px;
-  margin-top: 8px;
-  color: #475569;
-  font-size: 12px;
-}
-
-.revision-snapshot-empty {
-  color: #64748b;
-  font-size: 13px;
-}
-
-@media (max-width: 760px) {
-  .revision-snapshot-grid {
-    grid-template-columns: 1fr;
-  }
-
-  .revision-snapshot-header,
-  .revision-snapshot-char-title {
-    align-items: stretch;
-    flex-direction: column;
-  }
-}
-
-.revision-compare-overlay {
-  position: fixed;
-  inset: 0;
-  z-index: 1400;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  padding: 24px;
-  background: rgba(15, 23, 42, 0.62);
-}
-
-.revision-compare-modal {
-  width: min(980px, 100%);
-  max-height: min(820px, calc(100vh - 48px));
-  overflow: auto;
-  padding: 20px;
-  border: 1px solid #dbeafe;
-  border-radius: 18px;
-  background: #ffffff;
-  box-shadow: 0 24px 60px rgba(15, 23, 42, 0.3);
-}
-
-.revision-compare-header {
-  display: flex;
-  align-items: flex-start;
-  justify-content: space-between;
-  gap: 16px;
-  padding-bottom: 14px;
-  border-bottom: 1px solid #e2e8f0;
-}
-
-.revision-compare-header h3 {
-  margin: 0;
-  color: #0f172a;
-}
-
-.revision-compare-header span {
-  display: block;
-  margin-top: 4px;
-  color: #64748b;
-  font-size: 13px;
-}
-
-.revision-compare-content {
-  display: flex;
-  flex-direction: column;
-  gap: 18px;
-  margin-top: 18px;
-}
-
-.revision-compare-section {
-  padding: 14px;
-  border: 1px solid #e2e8f0;
-  border-radius: 14px;
-  background: #f8fafc;
-}
-
-.revision-compare-section h4 {
-  margin: 0 0 12px;
-  color: #0f172a;
-  font-size: 14px;
-}
-
-.revision-compare-table {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-}
-
-.revision-compare-row {
-  display: grid;
-  grid-template-columns: minmax(150px, 1fr) minmax(120px, 1fr) 24px minmax(120px, 1fr);
-  align-items: center;
-  gap: 8px;
-  padding: 9px 10px;
-  border: 1px solid #e2e8f0;
-  border-radius: 10px;
-  background: #ffffff;
-  font-size: 12px;
-}
-
-.revision-compare-label {
-  color: #475569;
-  font-weight: 700;
-}
-
-.revision-compare-before {
-  color: #b91c1c;
-  text-decoration: line-through;
-}
-
-.revision-compare-arrow {
-  color: #64748b;
-  text-align: center;
-  font-weight: 800;
-}
-
-.revision-compare-after {
-  color: #15803d;
-  font-weight: 700;
-}
-
-.revision-compare-chip-list {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 8px;
-}
-
-.revision-compare-chip {
-  display: inline-flex;
-  padding: 6px 9px;
-  border-radius: 8px;
-  font-size: 12px;
-  font-weight: 650;
-}
-
-.revision-compare-chip.added {
-  border: 1px solid #bbf7d0;
-  background: #f0fdf4;
-  color: #15803d;
-}
-
-.revision-compare-chip.removed {
-  border: 1px solid #fecaca;
-  background: #fef2f2;
-  color: #b91c1c;
-}
-
-.revision-compare-char-list {
-  display: flex;
-  flex-direction: column;
-  gap: 10px;
-}
-
-.revision-compare-char {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-  padding: 12px;
-  border: 1px solid #dbeafe;
-  border-radius: 12px;
-  background: #ffffff;
-}
-
-.revision-compare-char > strong {
-  color: #0f172a;
-  font-size: 13px;
-}
-
-.revision-compare-empty {
-  padding: 34px 16px;
-  color: #64748b;
-  font-size: 13px;
-  text-align: center;
-}
-
-@media (max-width: 760px) {
-  .revision-compare-header {
-    align-items: stretch;
-    flex-direction: column;
-  }
-
-  .revision-compare-row {
-    grid-template-columns: 1fr;
-  }
-
-  .revision-compare-arrow {
-    display: none;
-  }
-}
-</style>

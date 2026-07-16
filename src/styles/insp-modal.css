@@ -1,0 +1,380 @@
+/* src/styles/insp-modal.css */
+
+/* =========================================================
+   MODAL DE INSPEÇÃO
+   Estrutura geral, dados, regime, reinspeção e comutação
+   ========================================================= */
+
+/* Cabeçalho de seção */
+
+.inspection-section-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 12px;
+}
+
+.inspection-section-heading .insp-section-title {
+  margin: 0;
+}
+
+/* Horários da inspeção */
+
+.inspection-time-box {
+  display: flex;
+  gap: 12px;
+  flex-wrap: wrap;
+  padding: 12px;
+  border: 1px solid #e2e8f0;
+  border-radius: 14px;
+  background: #f8fafc;
+}
+
+.inspection-time-box > div {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  min-width: 220px;
+}
+
+.inspection-time-box span {
+  color: var(--muted, #64748b);
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.inspection-time-box b {
+  color: var(--text, #111827);
+  font-size: 14px;
+}
+
+/* =========================================================
+   REGIME DE INSPEÇÃO
+   ========================================================= */
+
+.regime-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  margin-left: 8px;
+  padding: 5px 10px;
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 800;
+  line-height: 1;
+  letter-spacing: 0.2px;
+  vertical-align: middle;
+  white-space: nowrap;
+}
+
+.inspection-section-heading .regime-badge {
+  margin-left: 0;
+  padding: 6px 12px;
+  font-size: 12px;
+  box-shadow: 0 1px 2px rgb(0 0 0 / 8%);
+}
+
+.regime-normal {
+  color: #1d4ed8;
+  background: #dbeafe;
+  border: 1px solid #93c5fd;
+}
+
+.regime-atenuada {
+  color: #166534;
+  background: #dcfce7;
+  border: 1px solid #86efac;
+}
+
+.regime-severa {
+  color: #991b1b;
+  background: #fee2e2;
+  border: 1px solid #fca5a5;
+}
+
+/* =========================================================
+   REINSPEÇÃO
+   ========================================================= */
+
+.reinspection-btn {
+  background: #f59e0b;
+  border-color: #f59e0b;
+  color: #ffffff;
+  font-weight: 700;
+}
+
+.reinspection-btn:hover:not(:disabled) {
+  background: #d97706;
+  border-color: #d97706;
+}
+
+.reinspection-header {
+  display: inline-flex;
+  align-items: center;
+  margin-top: 4px;
+  padding: 4px 10px;
+  border: 1px solid #f59e0b;
+  border-radius: 999px;
+  background: #fff7ed;
+  color: #c2410c;
+  font-size: 12px;
+  font-weight: 800;
+  letter-spacing: 0.3px;
+}
+
+.reinspection-info {
+  display: grid;
+  grid-template-columns: 1fr 100px 2fr;
+  gap: 12px;
+  margin-bottom: 12px;
+  padding: 12px;
+  border: 1px solid #fed7aa;
+  border-radius: 14px;
+  background: #fff7ed;
+}
+
+.reinspection-info > div {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.reinspection-info span {
+  color: #9a3412;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.reinspection-info b {
+  color: #7c2d12;
+  font-size: 14px;
+}
+
+.origin-inspection-info {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.origin-inspection-info small {
+  color: #9a3412;
+  font-size: 12px;
+  font-weight: 600;
+  line-height: 1.35;
+}
+
+.linked-reinspection-alert {
+  margin-bottom: 12px;
+  padding: 12px 14px;
+  border: 1px solid #fdba74;
+  border-radius: 14px;
+  background: #fff7ed;
+}
+
+.linked-reinspection-alert > div {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.linked-reinspection-alert strong {
+  color: #9a3412;
+  font-size: 14px;
+}
+
+.linked-reinspection-alert span {
+  color: #c2410c;
+  font-size: 13px;
+  font-weight: 600;
+}
+
+/* =========================================================
+   RASTREABILIDADE POR CARACTERÍSTICA
+   ========================================================= */
+
+.char-trace-box {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-width: 260px;
+  padding: 8px 10px;
+  border: 1px solid #e2e8f0;
+  border-radius: 12px;
+  background: #f8fafc;
+}
+
+.char-trace-box > div {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.char-trace-box span {
+  color: var(--muted, #64748b);
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.char-trace-box b {
+  color: var(--text, #111827);
+  font-size: 12px;
+  font-weight: 700;
+}
+
+/* =========================================================
+   RESUMO NBR
+   ========================================================= */
+
+.nbr-summary {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  padding: 10px 12px;
+  border-left: 3px solid #f59e0b;
+  border-radius: 8px;
+  background: #fffbeb;
+}
+
+.nbr-summary-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.nbr-summary-header b {
+  color: #92400e;
+  font-size: 13px;
+}
+
+.nbr-summary-result {
+  color: var(--muted);
+  font-size: 13px;
+}
+
+/* =========================================================
+   BLOQUEIO / COMUTAÇÃO
+   ========================================================= */
+
+.switching-gate {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-top: 12px;
+  padding: 14px;
+  border: 1px solid #e2e8f0;
+  border-radius: 14px;
+}
+
+.switching-gate strong {
+  font-size: 14px;
+  font-weight: 900;
+}
+
+.switching-gate span {
+  font-size: 13px;
+  line-height: 1.4;
+}
+
+.switching-gate small {
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.switching-gate.checking {
+  color: #475569;
+  background: #f8fafc;
+}
+
+.switching-gate.suggestion {
+  color: #9a3412;
+  background: #fff7ed;
+  border-color: #fdba74;
+}
+
+.switching-gate.blocked {
+  color: #991b1b;
+  background: #fff1f2;
+  border-color: #fecdd3;
+}
+
+.switching-gate-details {
+  display: flex;
+  gap: 14px;
+  flex-wrap: wrap;
+  font-size: 13px;
+}
+
+.switching-password-modal {
+  width: min(520px, calc(100vw - 48px));
+  max-width: 520px;
+}
+
+.switching-password-text {
+  margin: 0;
+  color: var(--muted, #64748b);
+  font-size: 14px;
+}
+
+.btn-switching-blocked {
+  background: #e5e7eb !important;
+  border-color: #d1d5db !important;
+  color: #6b7280 !important;
+}
+
+/* =========================================================
+   RESUMO VISUAL
+   ========================================================= */
+
+.visual-summary {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+  margin-top: 8px;
+  font-size: 13px;
+}
+
+.visual-summary .ok {
+  color: #16a34a;
+  font-weight: 700;
+}
+
+.visual-summary .ng {
+  color: #dc2626;
+  font-weight: 700;
+}
+
+.visual-summary .total {
+  color: var(--muted);
+  font-weight: 600;
+}
+
+/* =========================================================
+   RESPONSIVIDADE
+   ========================================================= */
+
+@media (max-width: 800px) {
+  .reinspection-info {
+    grid-template-columns: 1fr;
+  }
+
+  .inspection-section-heading {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .inspection-time-box > div {
+    min-width: 0;
+    width: 100%;
+  }
+
+  .char-trace-box {
+    min-width: 0;
+    width: 100%;
+  }
+}
+
+.inspection-modal-sheet .btn:disabled {
+  filter: grayscale(0.35);
+}

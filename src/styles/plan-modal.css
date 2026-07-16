@@ -1,0 +1,363 @@
+/* src/styles/plan-modal.css */
+
+/* =========================================================
+   PLAN MODAL — PLANO DE INSPEÇÃO
+   Estilos específicos do cadastro/edição de plano
+   ========================================================= */
+
+.modal-section-title {
+  margin: 0 0 10px 0;
+  font-size: 16px;
+  font-weight: 700;
+  color: var(--text);
+}
+
+/* Cabeçalho do modal */
+
+.plan-modal-title-wrap {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.plan-modal-title-wrap h3 {
+  margin: 0;
+}
+
+.plan-revision-current {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 4px 9px;
+  border: 1px solid #bfdbfe;
+  border-radius: 999px;
+  background: #eff6ff;
+  color: #1d4ed8;
+  font-size: 12px;
+  font-weight: 750;
+  white-space: nowrap;
+}
+
+/* Clonagem de plano */
+
+.clone-plan-box {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+  padding: 14px;
+  border: 1px solid #fed7aa;
+  border-radius: 16px;
+  background: #fff7ed;
+}
+
+.clone-plan-text {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.clone-plan-text strong {
+  color: #7c2d12;
+  font-size: 14px;
+}
+
+.clone-plan-text span {
+  color: #9a3412;
+  font-size: 12.5px;
+}
+
+.clone-plan-actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 520px;
+}
+
+.clone-select {
+  flex: 1;
+}
+
+.clone-btn {
+  border-color: #f59e0b;
+  color: #c2410c;
+  background: #ffffff;
+  white-space: nowrap;
+}
+
+.clone-btn:hover {
+  background: #ffedd5;
+  border-color: #f97316;
+}
+
+/* Controle de revisão */
+
+.plan-revision-box {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 14px;
+  border: 1px solid #bfdbfe;
+  border-radius: 14px;
+  background: #eff6ff;
+}
+
+.plan-revision-box-title {
+  color: #1d4ed8;
+  font-size: 14px;
+  font-weight: 750;
+}
+
+.plan-revision-box-subtitle {
+  color: #475569;
+  font-size: 12.5px;
+  line-height: 1.35;
+}
+
+/* Botões de ordenação das características */
+
+.move-char-btn {
+  min-width: 38px;
+  padding: 6px 10px;
+  font-size: 18px;
+  font-weight: 800;
+  line-height: 1;
+}
+
+.move-char-btn:disabled {
+  opacity: 0.35;
+  cursor: not-allowed;
+}
+
+/* XRF / RoHS */
+
+.xrf-elements-box {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin-top: 14px;
+  padding: 14px;
+  border: 1px solid #ddd6fe;
+  border-radius: 14px;
+  background: #faf5ff;
+}
+
+.xrf-elements-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.xrf-elements-head > div {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.xrf-elements-head strong {
+  color: #5b21b6;
+  font-size: 14px;
+}
+
+.xrf-elements-head span {
+  color: #7e22ce;
+  font-size: 12px;
+}
+
+.xrf-empty {
+  padding: 10px;
+  border: 1px dashed #c4b5fd;
+  border-radius: 10px;
+  color: #6b21a8;
+  font-size: 13px;
+}
+
+.xrf-element-row {
+  display: grid;
+  grid-template-columns: 30px minmax(170px, 1fr) minmax(150px, 220px) auto auto;
+  align-items: center;
+  gap: 10px;
+}
+
+.xrf-element-index {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  border-radius: 999px;
+  background: #ede9fe;
+  color: #6d28d9;
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.xrf-unit {
+  color: #6b21a8;
+  font-size: 13px;
+  font-weight: 800;
+}
+
+/* Responsivo */
+
+@media (max-width: 900px) {
+  .clone-plan-box {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .clone-plan-actions {
+    min-width: 0;
+    width: 100%;
+    flex-direction: column;
+    align-items: stretch;
+  }
+}
+
+@media (max-width: 850px) {
+  .xrf-elements-head {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .xrf-element-row {
+    grid-template-columns: 30px 1fr;
+  }
+
+  .xrf-unit {
+    padding-left: 40px;
+  }
+}
+
+/* =========================================================
+   CAMPOS DO PLAN MODAL
+   Remove bordas duplicadas e padroniza o float label
+   ========================================================= */
+
+.plan-modal-sheet .float-label {
+  position: relative;
+  display: block;
+  width: 100%;
+  margin: 0;
+  padding: 0;
+  border: 0 !important;
+  border-radius: 0;
+  background: transparent !important;
+  box-shadow: none !important;
+}
+
+.plan-modal-sheet .float-label input,
+.plan-modal-sheet .float-label select,
+.plan-modal-sheet .float-label textarea {
+  box-sizing: border-box;
+  width: 100%;
+  min-height: 52px;
+  margin: 0;
+  padding: 16px 16px 8px;
+
+  border: 1px solid #dbe3ef;
+  border-radius: 14px;
+  background: #ffffff;
+
+  color: #0f172a;
+  font-size: 14px;
+  font-weight: 600;
+
+  outline: none;
+  box-shadow: none;
+
+  transition:
+    border-color 0.18s ease,
+    box-shadow 0.18s ease,
+    background 0.18s ease;
+}
+
+.plan-modal-sheet .float-label textarea {
+  min-height: 88px;
+  resize: vertical;
+}
+
+.plan-modal-sheet .float-label input:hover:not(:disabled),
+.plan-modal-sheet .float-label select:hover:not(:disabled),
+.plan-modal-sheet .float-label textarea:hover:not(:disabled) {
+  border-color: #cbd5e1;
+}
+
+.plan-modal-sheet .float-label input:focus,
+.plan-modal-sheet .float-label select:focus,
+.plan-modal-sheet .float-label textarea:focus {
+  border-color: #f59e0b;
+  box-shadow: 0 0 0 3px rgba(245, 158, 11, 0.12);
+}
+
+.plan-modal-sheet .float-label input:disabled,
+.plan-modal-sheet .float-label select:disabled,
+.plan-modal-sheet .float-label textarea:disabled {
+  background: #f8fafc;
+  color: #94a3b8;
+  cursor: not-allowed;
+}
+
+/* Label centralizada enquanto o campo está vazio */
+.plan-modal-sheet .float-label > span {
+  position: absolute;
+  top: 50%;
+  left: 14px;
+  z-index: 2;
+
+  transform: translateY(-50%);
+
+  padding: 0 6px;
+  border: 0;
+  border-radius: 999px;
+  background: #ffffff;
+
+  color: #64748b;
+  font-size: 13px;
+  font-weight: 750;
+  line-height: 1;
+
+  pointer-events: none;
+
+  transition:
+    top 0.16s ease,
+    transform 0.16s ease,
+    color 0.16s ease,
+    font-size 0.16s ease;
+}
+
+/* Label sobe ao focar ou quando o input possui valor */
+.plan-modal-sheet .float-label input:focus + span,
+.plan-modal-sheet .float-label input:not(:placeholder-shown) + span,
+.plan-modal-sheet .float-label textarea:focus + span,
+.plan-modal-sheet .float-label textarea:not(:placeholder-shown) + span {
+  top: 0;
+  transform: translateY(-50%);
+  color: #c2410c;
+  font-size: 11px;
+  font-weight: 900;
+}
+
+/* Select sempre mantém o título elevado */
+.plan-modal-sheet .float-label select + span {
+  top: 0;
+  transform: translateY(-50%);
+  color: #c2410c;
+  font-size: 11px;
+  font-weight: 900;
+}
+
+/* Garante espaçamento uniforme no grid */
+.plan-modal-sheet .row {
+  align-items: start;
+}
+
+.plan-modal-sheet .span-1,
+.plan-modal-sheet .span-2,
+.plan-modal-sheet .span-3,
+.plan-modal-sheet .span-4,
+.plan-modal-sheet .span-5,
+.plan-modal-sheet .span-6 {
+  min-width: 0;
+}

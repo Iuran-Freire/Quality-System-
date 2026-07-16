@@ -1,0 +1,481 @@
+/* src/styles/plan-revisions.css */
+
+/* =========================================================
+   HISTÓRICO DE REVISÕES DO PLANO
+   ========================================================= */
+
+.revision-history-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 1200;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+  background: rgba(15, 23, 42, 0.45);
+}
+
+.revision-history-modal {
+  width: min(760px, 100%);
+  max-height: min(760px, calc(100vh - 48px));
+  overflow: auto;
+  padding: 20px;
+  border: 1px solid #dbeafe;
+  border-radius: 18px;
+  background: #ffffff;
+  box-shadow: 0 24px 60px rgba(15, 23, 42, 0.22);
+}
+
+.revision-history-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+  padding-bottom: 14px;
+  border-bottom: 1px solid #e2e8f0;
+}
+
+.revision-history-header h3 {
+  margin: 0;
+  color: #0f172a;
+}
+
+.revision-history-header span {
+  display: block;
+  margin-top: 4px;
+  color: #64748b;
+  font-size: 13px;
+}
+
+.revision-history-list {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  margin-top: 16px;
+}
+
+.revision-history-item {
+  padding: 14px;
+  border: 1px solid #dbeafe;
+  border-radius: 14px;
+  background: #f8fbff;
+}
+
+.revision-history-item-top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 12px;
+}
+
+.revision-history-number {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 4px 9px;
+  border: 1px solid #bfdbfe;
+  border-radius: 999px;
+  background: #eff6ff;
+  color: #1d4ed8;
+  font-size: 12px;
+  font-weight: 750;
+}
+
+.revision-history-date {
+  color: #64748b;
+  font-size: 12px;
+  text-align: right;
+}
+
+.revision-history-label {
+  margin-top: 9px;
+  color: #64748b;
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+}
+
+.revision-history-value {
+  margin-top: 3px;
+  color: #0f172a;
+  font-size: 13px;
+  line-height: 1.4;
+}
+
+.revision-history-author {
+  margin-top: 12px;
+  color: #475569;
+  font-size: 12px;
+}
+
+.revision-history-empty {
+  padding: 28px 14px;
+  color: #64748b;
+  font-size: 13px;
+  text-align: center;
+}
+
+.revision-history-error {
+  color: #b91c1c;
+}
+
+.revision-history-actions {
+  display: flex;
+  justify-content: flex-end;
+  margin-top: 12px;
+}
+
+.revision-history-view-btn {
+  min-width: 118px;
+  font-size: 12px;
+}
+
+/* =========================================================
+   SNAPSHOT DA REVISÃO ARQUIVADA
+   ========================================================= */
+
+.revision-snapshot-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 1300;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+  background: rgba(15, 23, 42, 0.56);
+}
+
+.revision-snapshot-modal {
+  width: min(980px, 100%);
+  max-height: min(820px, calc(100vh - 48px));
+  overflow: auto;
+  padding: 20px;
+  border: 1px solid #dbeafe;
+  border-radius: 18px;
+  background: #ffffff;
+  box-shadow: 0 24px 60px rgba(15, 23, 42, 0.28);
+}
+
+.revision-snapshot-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+  padding-bottom: 14px;
+  border-bottom: 1px solid #e2e8f0;
+}
+
+.revision-snapshot-header h3 {
+  margin: 0;
+  color: #0f172a;
+}
+
+.revision-snapshot-header span {
+  display: block;
+  margin-top: 4px;
+  color: #64748b;
+  font-size: 13px;
+}
+
+.revision-snapshot-content {
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+  margin-top: 18px;
+}
+
+.revision-snapshot-section {
+  padding: 14px;
+  border: 1px solid #e2e8f0;
+  border-radius: 14px;
+  background: #f8fafc;
+}
+
+.revision-snapshot-section h4 {
+  margin: 0 0 12px;
+  color: #0f172a;
+  font-size: 14px;
+}
+
+.revision-snapshot-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.revision-snapshot-grid > div {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.revision-snapshot-grid span {
+  color: #64748b;
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+}
+
+.revision-snapshot-grid strong {
+  color: #0f172a;
+  font-size: 13px;
+  line-height: 1.35;
+}
+
+.revision-snapshot-chars {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.revision-snapshot-char {
+  padding: 12px;
+  border: 1px solid #dbeafe;
+  border-radius: 12px;
+  background: #ffffff;
+}
+
+.revision-snapshot-char-title {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.revision-snapshot-char-title strong {
+  color: #0f172a;
+  font-size: 13px;
+}
+
+.revision-snapshot-char-title span {
+  color: #2563eb;
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.revision-snapshot-char-details {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 7px 12px;
+  margin-top: 8px;
+  color: #475569;
+  font-size: 12px;
+}
+
+.revision-snapshot-empty {
+  color: #64748b;
+  font-size: 13px;
+}
+
+/* =========================================================
+   COMPARATIVO DE REVISÕES
+   ========================================================= */
+
+.revision-compare-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 1400;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+  background: rgba(15, 23, 42, 0.62);
+}
+
+.revision-compare-modal {
+  width: min(980px, 100%);
+  max-height: min(820px, calc(100vh - 48px));
+  overflow: auto;
+  padding: 20px;
+  border: 1px solid #dbeafe;
+  border-radius: 18px;
+  background: #ffffff;
+  box-shadow: 0 24px 60px rgba(15, 23, 42, 0.3);
+}
+
+.revision-compare-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+  padding-bottom: 14px;
+  border-bottom: 1px solid #e2e8f0;
+}
+
+.revision-compare-header h3 {
+  margin: 0;
+  color: #0f172a;
+}
+
+.revision-compare-header span {
+  display: block;
+  margin-top: 4px;
+  color: #64748b;
+  font-size: 13px;
+}
+
+.revision-compare-content {
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+  margin-top: 18px;
+}
+
+.revision-compare-section {
+  padding: 14px;
+  border: 1px solid #e2e8f0;
+  border-radius: 14px;
+  background: #f8fafc;
+}
+
+.revision-compare-section h4 {
+  margin: 0 0 12px;
+  color: #0f172a;
+  font-size: 14px;
+}
+
+.revision-compare-table {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.revision-compare-row {
+  display: grid;
+  grid-template-columns:
+    minmax(150px, 1fr)
+    minmax(120px, 1fr)
+    24px
+    minmax(120px, 1fr);
+  align-items: center;
+  gap: 8px;
+  padding: 9px 10px;
+  border: 1px solid #e2e8f0;
+  border-radius: 10px;
+  background: #ffffff;
+  font-size: 12px;
+}
+
+.revision-compare-label {
+  color: #475569;
+  font-weight: 700;
+}
+
+.revision-compare-before {
+  color: #b91c1c;
+  text-decoration: line-through;
+}
+
+.revision-compare-arrow {
+  color: #64748b;
+  text-align: center;
+  font-weight: 800;
+}
+
+.revision-compare-after {
+  color: #15803d;
+  font-weight: 700;
+}
+
+.revision-compare-chip-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.revision-compare-chip {
+  display: inline-flex;
+  padding: 6px 9px;
+  border-radius: 8px;
+  font-size: 12px;
+  font-weight: 650;
+}
+
+.revision-compare-chip.added {
+  border: 1px solid #bbf7d0;
+  background: #f0fdf4;
+  color: #15803d;
+}
+
+.revision-compare-chip.removed {
+  border: 1px solid #fecaca;
+  background: #fef2f2;
+  color: #b91c1c;
+}
+
+.revision-compare-char-list {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.revision-compare-char {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 12px;
+  border: 1px solid #dbeafe;
+  border-radius: 12px;
+  background: #ffffff;
+}
+
+.revision-compare-char > strong {
+  color: #0f172a;
+  font-size: 13px;
+}
+
+.revision-compare-empty {
+  padding: 34px 16px;
+  color: #64748b;
+  font-size: 13px;
+  text-align: center;
+}
+
+/* =========================================================
+   RESPONSIVIDADE
+   ========================================================= */
+
+@media (max-width: 760px) {
+  .revision-history-overlay,
+  .revision-snapshot-overlay,
+  .revision-compare-overlay {
+    padding: 14px;
+  }
+
+  .revision-history-modal,
+  .revision-snapshot-modal,
+  .revision-compare-modal {
+    max-height: calc(100vh - 28px);
+    padding: 16px;
+  }
+
+  .revision-history-header,
+  .revision-snapshot-header,
+  .revision-snapshot-char-title,
+  .revision-compare-header {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .revision-snapshot-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .revision-compare-row {
+    grid-template-columns: 1fr;
+  }
+
+  .revision-compare-arrow {
+    display: none;
+  }
+
+  .revision-history-item-top {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .revision-history-date {
+    text-align: left;
+  }
+}

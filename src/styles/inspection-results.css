@@ -1,0 +1,290 @@
+/* src/styles/inspection-results.css */
+
+/* =========================================================
+   RESULTADOS DAS CARACTERÍSTICAS
+   Status ao vivo, scanner e XRF / RoHS
+   ========================================================= */
+
+/* =========================================================
+   STATUS AO VIVO
+   ========================================================= */
+
+.char-live-status {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 92px;
+  padding: 5px 8px;
+  border-radius: 999px;
+  font-size: 10px;
+  font-weight: 900;
+  line-height: 1;
+  white-space: nowrap;
+}
+
+.char-status-pending {
+  color: #64748b;
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+}
+
+.char-status-progress {
+  color: #1d4ed8;
+  background: #eff6ff;
+  border: 1px solid #bfdbfe;
+}
+
+.char-status-ok {
+  color: #166534;
+  background: #f0fdf4;
+  border: 1px solid #bbf7d0;
+}
+
+.char-status-ng {
+  color: #991b1b;
+  background: #fff1f2;
+  border: 1px solid #fecdd3;
+}
+
+.char-status-delta {
+  color: #9a3412;
+  background: #fff7ed;
+  border: 1px solid #fdba74;
+}
+
+/* =========================================================
+   SCANNER / RASTREABILIDADE
+   ========================================================= */
+
+.scanner-pill {
+  color: #7c3aed;
+  background: #f3e8ff;
+  border: 1px solid #d8b4fe;
+}
+
+.scanner-input-wrap input {
+  font-family: ui-monospace, SFMono-Regular, Consolas, "Liberation Mono", monospace;
+  letter-spacing: 0.4px;
+}
+
+.scanner-duplicate {
+  border-color: #ef4444 !important;
+  background: #fff1f2 !important;
+}
+
+.scanner-duplicate-text {
+  display: block;
+  margin-top: 4px;
+  color: #b91c1c;
+  font-size: 11px;
+  font-weight: 800;
+}
+
+/* =========================================================
+   XRF / RoHS
+   ========================================================= */
+
+.xrf-pill {
+  color: #6d28d9;
+  background: #f5f3ff;
+  border: 1px solid #ddd6fe;
+}
+
+.xrf-sample-cell {
+  grid-column: 1 / -1;
+}
+
+.xrf-inspection-box {
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  gap: 14px;
+  padding: 16px;
+  border: 1px solid #ddd6fe;
+  border-radius: 14px;
+  background: #faf5ff;
+  box-sizing: border-box;
+}
+
+.xrf-inspection-top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.xrf-inspection-top > div {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.xrf-inspection-top strong {
+  color: #5b21b6;
+  font-size: 15px;
+}
+
+.xrf-inspection-top span {
+  color: #7e22ce;
+  font-size: 12px;
+}
+
+.xrf-sample-status,
+.xrf-reading-status {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 800;
+  white-space: nowrap;
+}
+
+.xrf-sample-status {
+  min-width: 88px;
+  padding: 6px 10px;
+}
+
+.xrf-reading-status {
+  min-width: 74px;
+  padding: 5px 8px;
+}
+
+.xrf-readings-list {
+  display: flex;
+  flex-direction: column;
+  gap: 9px;
+}
+
+.xrf-reading-row {
+  display: grid;
+  grid-template-columns:
+    minmax(160px, 1.2fr)
+    minmax(180px, 1fr)
+    minmax(110px, 0.7fr)
+    minmax(82px, 0.45fr);
+  align-items: center;
+  gap: 12px;
+  padding: 11px 12px;
+  border: 1px solid #e9d5ff;
+  border-radius: 12px;
+  background: #ffffff;
+}
+
+.xrf-element-info {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.xrf-element-info strong {
+  color: #4c1d95;
+  font-size: 13px;
+}
+
+.xrf-element-info span {
+  color: #7e22ce;
+  font-size: 11px;
+}
+
+.xrf-value-input {
+  position: relative;
+  display: block;
+}
+
+.xrf-value-input input {
+  box-sizing: border-box;
+  width: 100%;
+  min-height: 42px;
+  padding: 9px 44px 9px 12px;
+  border: 1px solid #d8b4fe;
+  border-radius: 10px;
+  background: #ffffff;
+  color: #0f172a;
+  font-size: 14px;
+  outline: none;
+}
+
+.xrf-value-input input:focus {
+  border-color: #7c3aed;
+  box-shadow: 0 0 0 3px rgb(124 58 237 / 12%);
+}
+
+.xrf-value-input span {
+  position: absolute;
+  top: 50%;
+  right: 12px;
+  transform: translateY(-50%);
+  color: #6d28d9;
+  font-size: 12px;
+  font-weight: 800;
+  pointer-events: none;
+}
+
+.xrf-limit {
+  color: #6b21a8;
+  font-size: 13px;
+  font-weight: 800;
+}
+
+/* Estados do XRF */
+
+.xrf-status-empty,
+.xrf-status-pendente {
+  color: #64748b;
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+}
+
+.xrf-status-pass {
+  color: #166534;
+  background: #f0fdf4;
+  border: 1px solid #bbf7d0;
+}
+
+.xrf-status-fail {
+  color: #991b1b;
+  background: #fff1f2;
+  border: 1px solid #fecdd3;
+}
+
+.xrf-status-invalid {
+  color: #9a3412;
+  background: #fff7ed;
+  border: 1px solid #fdba74;
+}
+
+.xrf-reading-pass {
+  border-color: #bbf7d0;
+  background: #f0fdf4;
+}
+
+.xrf-reading-fail {
+  border-color: #fecdd3;
+  background: #fff1f2;
+}
+
+.xrf-reading-invalid {
+  border-color: #fdba74;
+  background: #fff7ed;
+}
+
+/* =========================================================
+   RESPONSIVIDADE
+   ========================================================= */
+
+@media (max-width: 850px) {
+  .xrf-inspection-top {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .xrf-reading-row {
+    grid-template-columns: 1fr;
+    gap: 8px;
+  }
+
+  .xrf-reading-status {
+    justify-self: flex-start;
+  }
+}

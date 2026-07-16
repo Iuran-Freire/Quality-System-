@@ -1,0 +1,126 @@
+/* src/styles/conditional-approval.css */
+
+/* =========================================================
+   APROVAÇÃO CONDICIONAL
+   Botão, modal e registro da disposição operacional
+   ========================================================= */
+
+.conditional-approval-btn {
+  background: #b45309;
+  border-color: #b45309;
+  color: #ffffff;
+  font-weight: 800;
+}
+
+.conditional-approval-btn:hover:not(:disabled) {
+  background: #92400e;
+  border-color: #92400e;
+}
+
+.conditional-approval-modal {
+  width: min(640px, calc(100vw - 48px));
+  max-width: 640px;
+}
+
+.conditional-approval-modal-body {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.conditional-approval-warning {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 13px;
+  border: 1px solid #fdba74;
+  border-radius: 14px;
+  background: #fff7ed;
+}
+
+.conditional-approval-warning strong {
+  color: #9a3412;
+  font-size: 14px;
+}
+
+.conditional-approval-warning span {
+  color: #c2410c;
+  font-size: 13px;
+  line-height: 1.4;
+}
+
+/* Registro exibido na inspeção finalizada */
+
+.conditional-approval-info {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  margin-bottom: 12px;
+  padding: 14px;
+  border: 1px solid #fcd34d;
+  border-radius: 14px;
+  background: #fffbeb;
+}
+
+.conditional-approval-head {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.conditional-approval-head strong {
+  color: #92400e;
+  font-size: 14px;
+}
+
+.conditional-approval-head span {
+  color: #a16207;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.conditional-approval-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.conditional-approval-grid > div {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 10px;
+  border: 1px solid #fde68a;
+  border-radius: 10px;
+  background: #ffffff;
+}
+
+.conditional-approval-grid .span-full {
+  grid-column: 1 / -1;
+}
+
+.conditional-approval-grid span {
+  color: #a16207;
+  font-size: 11px;
+  font-weight: 800;
+}
+
+.conditional-approval-grid b {
+  color: #713f12;
+  font-size: 13px;
+  line-height: 1.4;
+}
+
+@media (max-width: 700px) {
+  .conditional-approval-modal {
+    width: calc(100vw - 28px);
+  }
+
+  .conditional-approval-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .conditional-approval-grid .span-full {
+    grid-column: auto;
+  }
+}

@@ -201,12 +201,12 @@
 }
 
 .operations-menu[open] {
-  z-index: 9999;
+  z-index: 50;
 }
 
 .operations-menu[open] summary {
   position: relative;
-  z-index: 2;
+  z-index: 51;
   background: #fff7ed;
   color: #7c2d12;
 }
@@ -214,7 +214,7 @@
 .operations-list {
   position: absolute;
   right: 8px;
-  z-index: 10000;
+  z-index: 60;
 
   display: flex;
   flex-direction: column;
@@ -298,30 +298,32 @@
    A linha com menu aberto fica na frente da tabela
    ========================================================= */
 
+/* A linha aberta fica acima das demais linhas,
+   mas continua abaixo dos modais do sistema */
 .plans-table tbody tr {
   position: relative;
   z-index: 1;
 }
 
 .plans-table tbody tr:has(.operations-menu[open]) {
-  z-index: 99999;
+  z-index: 40;
 }
 
 .plans-table tbody tr:has(.operations-menu[open]) td {
   position: relative;
-  z-index: 99999;
+  z-index: 40;
 }
 
 .operations-cell {
   position: relative;
-  z-index: 99999;
+  z-index: 40;
 }
 
 .operations-menu[open] {
   position: relative;
-  z-index: 100000 !important;
+  z-index: 50 !important;
 }
 
 .operations-menu[open] .operations-list {
-  z-index: 100001 !important;
+  z-index: 60 !important;
 }

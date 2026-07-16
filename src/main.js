@@ -10,5 +10,11 @@ import "./styles/shell.css";
 import "./styles/management.css";
 import "./styles/switching.css";
 import "./styles/badges.css";
+import "./styles/plan-modal.css";
+import "./styles/plans-revisions.css";
+import "./styles/insp-modal.css";
+import "./styles/inspection-results.css";
+import "./styles/conditional-approval.css";
+import "./styles/inspections-page.css";
 
 createApp(App).use(createPinia()).mount("#app");

@@ -223,7 +223,7 @@ function pdfDisabledTitle(x) {
 
 <template>
   <div class="vstack">
-    <div class="title">Inspeção</div>
+    <div class="title">Registros de Inspeção</div>
     <div class="tabline"></div>
 
     <div class="filterbar inspect-filter-card">
@@ -231,66 +231,70 @@ function pdfDisabledTitle(x) {
         <div class="field">
           <label class="float-label">
             <select v-model="fStatus">
-              <option value="">Status (todos)</option>
-              <option value="draft">Em edição</option>
-              <option value="done">Finalizada</option>
+              <option value="">Todas as situações</option>
+              <option value="draft">Inspeções em andamento</option>
+              <option value="done">Inspeções finalizadas</option>
             </select>
-            <span>Status</span>
+            <span>Situação do registro</span>
           </label>
         </div>
 
         <div class="field">
           <label class="float-label">
             <select v-model="fResult">
-              <option value="">Resultado (todos)</option>
-              <option value="PASS">PASS</option>
-              <option value="FAIL">FAIL</option>
+              <option value="">Todos os resultados</option>
+              <option value="PASS">Aprovado — PASS</option>
+              <option value="FAIL">Reprovado — FAIL</option>
             </select>
-            <span>Resultado</span>
+            <span>Resultado técnico</span>
           </label>
         </div>
 
         <div class="field">
           <label class="float-label">
             <select v-model="fType">
-              <option value="">Tipo (todos)</option>
-              <option value="OQC">OQC</option>
-              <option value="IQC">IQC</option>
+              <option value="">Todas as áreas</option>
+              <option value="OQC">OQC — Qualidade de Saída</option>
+              <option value="IQC">IQC — Qualidade de Entrada</option>
             </select>
-            <span>Tipo</span>
+            <span>Área de inspeção</span>
           </label>
         </div>
 
         <div class="field">
           <label class="float-label">
             <select v-model="fRecordType">
-              <option value="">Registro (todos)</option>
-              <option value="normal">Inspeções normais</option>
-              <option value="reinspection">Reinspeções</option>
+              <option value="">Todos os registros</option>
+              <option value="normal">Inspeções originais</option>
+              <option value="reinspection">Registros de reinspeção</option>
             </select>
-            <span>Registro</span>
+            <span>Tipo de registro</span>
           </label>
         </div>
 
         <div class="field">
           <label class="float-label">
             <input v-model="fFrom" type="date" placeholder=" " />
-            <span>De</span>
+            <span>Período inicial</span>
           </label>
         </div>
 
         <div class="field">
           <label class="float-label">
             <input v-model="fTo" type="date" placeholder=" " />
-            <span>Até</span>
+            <span>Período final</span>
           </label>
         </div>
       </div>
 
       <div class="inspect-actions-row">
-        <button class="btn ghost" type="button" @click="exportCsv()">Exportar CSV</button>
+        <button class="btn ghost" type="button" @click="exportCsv()">
+          Exportar registros
+        </button>
 
-        <button class="btn" type="button" @click="openNew()">+ Nova Inspeção</button>
+        <button class="btn" type="button" @click="openNew()">
+          + Iniciar nova inspeção
+        </button>
       </div>
     </div>
 
@@ -299,17 +303,17 @@ function pdfDisabledTitle(x) {
         <table class="inspect-table">
           <thead>
             <tr>
-              <th>Data</th>
-              <th>Tipo</th>
-              <th>Plano</th>
+              <th>Data do registro</th>
+              <th>Área</th>
+              <th>Plano de Inspeção</th>
               <th>PN</th>
               <th>Modelo</th>
               <th>Lote</th>
               <th>Turno</th>
-              <th>Responsável</th>
-              <th>Status</th>
-              <th>Resultado</th>
-              <th class="actions-col">Ações</th>
+              <th>Responsável Técnico</th>
+              <th>Situação</th>
+              <th>Resultado Técnico</th>
+              <th class="actions-col">Operações</th>
             </tr>
           </thead>
 
@@ -331,7 +335,7 @@ function pdfDisabledTitle(x) {
                   </span>
 
                   <span v-if="x.isReinspection" class="reinspection-table-badge">
-                    Reinspeção {{ x.inspectionCycle || 2 }}
+                    Reinspeção — Ciclo {{ x.inspectionCycle || 2 }}
                   </span>
                 </div>
               </td>
@@ -343,7 +347,7 @@ function pdfDisabledTitle(x) {
               <td>{{ x.resp }}</td>
               <td>
                 <span class="status-pill" :class="x.status === 'done' ? 'on' : 'off'">
-                  {{ x.status === "done" ? "Finalizada" : "Em edição" }}
+                  {{ x.status === "done" ? "Finalizada" : "Em andamento" }}
                 </span>
               </td>
               <td>
@@ -368,7 +372,7 @@ function pdfDisabledTitle(x) {
               <td class="actions-col">
                 <div class="actions-cell">
                   <button class="btn ghost action-btn" type="button" @click="openEdit(x)">
-                    Abrir
+                    Visualizar
                   </button>
 
                   <button
@@ -377,7 +381,7 @@ function pdfDisabledTitle(x) {
                     type="button"
                     @click="exportPdf(x)"
                   >
-                    PDF
+                     Relatório PDF
                   </button>
 
                   <button
@@ -406,149 +410,3 @@ function pdfDisabledTitle(x) {
     "
   />
 </template>
-
-<style scoped>
-.actions-col {
-  width: 220px;
-  min-width: 220px;
-}
-
-.actions-cell {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  flex-wrap: nowrap;
-}
-
-.actions-cell .action-btn {
-  min-width: 64px;
-  height: 36px;
-  padding: 0 12px;
-}
-
-.table th {
-  text-align: center;
-  vertical-align: middle;
-}
-
-.table td {
-  vertical-align: middle;
-}
-
-.table td:nth-child(1),
-.table td:nth-child(2),
-.table td:nth-child(4),
-.table td:nth-child(5),
-.table td:nth-child(6),
-.table td:nth-child(7),
-.table td:nth-child(8),
-.table td:nth-child(9),
-.table td:nth-child(10),
-.table td:nth-child(11) {
-  text-align: center;
-}
-
-.table td:nth-child(3) {
-  text-align: left;
-}
-
-.inspect-table th {
-  text-align: center !important;
-  vertical-align: middle !important;
-}
-
-.inspect-table td {
-  vertical-align: middle !important;
-  text-align: center;
-}
-
-.inspect-filter-card {
-  display: flex;
-  flex-direction: column;
-  gap: 14px;
-}
-
-.inspect-search-row {
-  display: flex;
-  justify-content: center;
-  width: 100%;
-}
-
-.inspect-search-row .field {
-  width: 100%;
-  max-width: 760px;
-}
-
-.inspect-filter-row {
-  display: flex;
-  justify-content: center;
-  align-items: center;
-  gap: 12px;
-  flex-wrap: wrap;
-  width: 100%;
-}
-
-.inspect-filter-row .field {
-  min-width: 170px;
-}
-
-.inspect-actions-row {
-  display: flex;
-  justify-content: center;
-  gap: 10px;
-  padding-top: 5px;
-  width: 100%;
-}
-
-.inspect-actions-row .btn {
-  min-width: 150px;
-  white-space: nowrap;
-}
-.inspection-type-cell {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 5px;
-}
-
-.inspection-type-text {
-  font-weight: 500;
-}
-
-.reinspection-table-badge {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  padding: 3px 8px;
-  border: 1px solid #f59e0b;
-  border-radius: 999px;
-  background: #fff7ed;
-  color: #c2410c;
-  font-size: 10px;
-  font-weight: 645;
-  white-space: nowrap;
-}
-
-.inspection-result-cell {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 4px;
-}
-
-.conditional-approval-table-badge {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  padding: 3px 8px;
-  border: 1px solid #86efac;
-  border-radius: 6px;
-  background: #f0fdf4;
-  color: #15803d;
-  font-size: 8px;
-  font-weight: 750;
-  line-height: 1;
-  letter-spacing: 0.1px;
-  white-space: nowrap;
-}
-</style>
