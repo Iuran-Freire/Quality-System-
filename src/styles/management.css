@@ -1,8 +1,12 @@
 /* src/styles/management.css */
 
 /* =========================================================
-   GERENCIAMENTO
-   Cards de usuários, modal de usuário e configuração do sistema
+   ADMINISTRAÇÃO DO SISTEMA
+   Indicadores, autorização de regime, histórico e usuários
+   ========================================================= */
+
+/* =========================================================
+   INDICADORES DE USUÁRIOS
    ========================================================= */
 
 .management-summary {
@@ -12,49 +16,58 @@
 }
 
 .mg-card {
-  padding: 14px;
-  border: 1px solid #e2e8f0;
-  border-radius: 16px;
-  background: #ffffff;
-  box-shadow: var(--shadow-min);
   display: flex;
   flex-direction: column;
   gap: 6px;
+
+  min-width: 0;
+  padding: 14px;
+
+  border: 1px solid #e2e8f0;
+  border-radius: 16px;
+  background: #ffffff;
+
+  box-shadow: var(
+    --qs-shadow-sm,
+    0 1px 2px rgba(15, 23, 42, 0.05)
+  );
 }
 
 .mg-card span {
-  color: var(--muted, #64748b);
+  color: #64748b;
   font-size: 12px;
-  font-weight: 700;
+  font-weight: 500;
+  line-height: 1.3;
 }
 
 .mg-card b {
-  color: var(--text, #111827);
-  font-size: 24px;
-  font-weight: 900;
+  color: #0f172a;
+  font-size: 23px;
+  font-weight: 600;
+  line-height: 1;
 }
 
-.user-sheet {
-  max-width: 920px;
-}
-
-.modal-section-title {
-  margin: 0 0 10px 0;
-  font-size: 16px;
-  font-weight: 700;
-  color: var(--text);
-}
-
-/* Configuração de senha de comutação */
+/* =========================================================
+   AUTORIZAÇÃO DE ALTERAÇÃO DO REGIME
+   ========================================================= */
 
 .switching-config-card {
-  margin-top: 14px;
-  margin-bottom: 14px;
+  margin: 14px 0;
   padding: 16px;
+
   border: 1px solid #fed7aa;
   border-radius: 18px;
-  background: #fff7ed;
-  box-shadow: var(--shadow-min);
+
+  background: linear-gradient(
+    180deg,
+    rgba(255, 247, 237, 0.72),
+    rgba(255, 255, 255, 0.94)
+  );
+
+  box-shadow: var(
+    --qs-shadow-sm,
+    0 1px 2px rgba(15, 23, 42, 0.05)
+  );
 }
 
 .switching-config-head {
@@ -67,54 +80,293 @@
 
 .switching-config-head h3 {
   margin: 0;
-  font-size: 18px;
   color: #7c2d12;
+  font-size: 17px;
+  font-weight: 500;
+  line-height: 1.3;
 }
 
 .switching-config-head p {
-  margin: 4px 0 0 0;
-  font-size: 13px;
+  margin: 4px 0 0;
   color: #9a3412;
+  font-size: 13px;
+  font-weight: 400;
+  line-height: 1.45;
 }
 
+/* Status da senha */
+
 .switching-password-status {
-  padding: 6px 10px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+
+  min-height: 26px;
+  padding: 5px 10px;
+
   border-radius: 999px;
-  font-size: 12px;
-  font-weight: 800;
+
+  font-size: 11px;
+  font-weight: 600;
+  line-height: 1;
   white-space: nowrap;
 }
 
 .switching-password-status.ok {
   color: #166534;
-  background: #dcfce7;
+  background: #f0fdf4;
   border: 1px solid #bbf7d0;
 }
 
 .switching-password-status.warn {
   color: #92400e;
-  background: #fef3c7;
+  background: #fffbeb;
   border: 1px solid #fde68a;
 }
 
+/* =========================================================
+   FORMULÁRIO DA SENHA DE AUTORIZAÇÃO
+   ========================================================= */
+
 .switching-password-form {
   display: grid;
-  grid-template-columns: 1fr 1fr auto;
-  gap: 12px;
+  grid-template-columns:
+    minmax(0, 1fr)
+    minmax(0, 1fr)
+    auto;
   align-items: center;
+  gap: 12px;
 }
 
-/* Área de usuário */
+.switching-password-form > * {
+  min-width: 0;
+}
+
+/* Remove caixa externa */
+
+.switching-password-form .float-label {
+  position: relative;
+  display: block;
+
+  width: 100%;
+  margin: 0;
+  padding: 0;
+
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+}
+
+.switching-password-form .float-label:focus-within {
+  border: 0;
+  background: transparent;
+  box-shadow: none;
+}
+
+/* Apenas o input possui a caixa visual */
+
+.switching-password-form .float-label input {
+  box-sizing: border-box;
+  display: block;
+
+  width: 100%;
+  min-height: 50px;
+  margin: 0;
+  padding: 15px 14px 7px;
+
+  border: 1px solid #dbe3ef;
+  border-radius: 14px;
+  background: #ffffff;
+
+  color: #0f172a;
+  font-size: 13px;
+  font-weight: 400;
+
+  outline: none;
+  box-shadow: none;
+
+  transition:
+    border-color 0.18s ease,
+    box-shadow 0.18s ease,
+    background 0.18s ease;
+}
+
+.switching-password-form .float-label input:hover:not(:disabled) {
+  border-color: #cbd5e1;
+}
+
+.switching-password-form .float-label input:focus,
+.switching-password-form .float-label input:focus-visible {
+  border-color: #f59e0b;
+  outline: none;
+  box-shadow: 0 0 0 3px rgba(245, 158, 11, 0.1);
+}
+
+.switching-password-form .float-label input:disabled {
+  background: #f8fafc;
+  color: #94a3b8;
+  cursor: not-allowed;
+}
+
+/* Label centralizado */
+
+.switching-password-form .float-label > span {
+  position: absolute;
+  top: 50%;
+  left: 10px;
+  z-index: 2;
+
+  transform: translateY(-50%);
+  padding: 0 5px;
+
+  border: 0;
+  border-radius: 999px;
+  background: #ffffff;
+
+  color: #64748b;
+  font-size: 12px;
+  font-weight: 400;
+  line-height: 1;
+
+  pointer-events: none;
+
+  transition:
+    top 0.16s ease,
+    transform 0.16s ease,
+    color 0.16s ease,
+    font-size 0.16s ease;
+}
+
+/* Label elevado */
+
+.switching-password-form .float-label input:focus + span,
+.switching-password-form .float-label input:not(:placeholder-shown) + span {
+  top: 0;
+  transform: translateY(-50%);
+
+  color: #c2410c;
+  font-size: 10.5px;
+  font-weight: 500;
+}
+
+/* Botão da configuração */
+
+.switching-password-form .btn {
+  min-height: 38px;
+  padding: 8px 14px;
+
+  font-size: 12px;
+  font-weight: 500;
+
+  white-space: nowrap;
+  box-shadow: none;
+}
+
+.switching-password-form .btn:hover:not(:disabled) {
+  transform: none;
+}
+
+/* =========================================================
+   CARDS ADMINISTRATIVOS
+   Histórico e gestão de usuários
+   ========================================================= */
+
+.management-card {
+  padding: 14px;
+
+  border: 1px solid #e2e8f0;
+  border-radius: 16px;
+  background: #ffffff;
+
+  box-shadow: var(
+    --qs-shadow-sm,
+    0 1px 2px rgba(15, 23, 42, 0.05)
+  );
+}
+
+.management-card-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 10px;
+}
+
+.management-card-header h3 {
+  margin: 0;
+  color: #0f172a;
+  font-size: 15px;
+  font-weight: 500;
+}
+
+.management-card-header p {
+  margin: 4px 0 0;
+  color: #64748b;
+  font-size: 12.5px;
+  font-weight: 400;
+  line-height: 1.4;
+}
+
+/* =========================================================
+   TABELAS ADMINISTRATIVAS
+   ========================================================= */
+
+.management-card table,
+.management-table {
+  width: 100%;
+}
+
+.management-card th,
+.management-table th {
+  color: #475569;
+  font-size: 11px;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.management-card td,
+.management-table td {
+  color: #0f172a;
+  font-size: 12px;
+  font-weight: 400;
+  vertical-align: middle;
+}
+
+.management-card .btn,
+.management-table .btn {
+  min-height: 32px;
+  padding: 6px 11px;
+
+  font-size: 11.5px;
+  font-weight: 500;
+
+  box-shadow: none;
+}
+
+.management-card .btn:hover:not(:disabled),
+.management-table .btn:hover:not(:disabled) {
+  transform: none;
+}
+
+/* =========================================================
+   ÁREA DE ATUAÇÃO DO USUÁRIO
+   ========================================================= */
 
 .area-pill {
   display: inline-flex;
   align-items: center;
   justify-content: center;
+
   min-width: 58px;
-  padding: 5px 9px;
+  min-height: 22px;
+  padding: 4px 9px;
+
   border-radius: 999px;
-  font-size: 11px;
-  font-weight: 800;
+
+  font-size: 10.5px;
+  font-weight: 600;
+  line-height: 1;
   white-space: nowrap;
 }
 
@@ -142,7 +394,268 @@
   border: 1px solid #e2e8f0;
 }
 
-/* Responsividade */
+/* =========================================================
+   AÇÕES DE USUÁRIOS
+   ========================================================= */
+
+.management-user-actions {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  flex-wrap: nowrap;
+}
+
+.management-user-actions .btn {
+  min-width: 104px;
+  min-height: 32px;
+  padding: 6px 10px;
+
+  font-size: 11.5px;
+  font-weight: 500;
+  white-space: nowrap;
+}
+
+.management-user-role {
+  text-transform: capitalize;
+}
+
+/* =========================================================
+   MODAL — CADASTRO E EDIÇÃO DE USUÁRIOS
+   ========================================================= */
+
+.user-sheet {
+  width: min(900px, calc(100vw - 48px));
+  max-width: 900px;
+  max-height: calc(100vh - 48px);
+  padding: 20px;
+
+  color: #0f172a;
+  font-weight: 400;
+
+  overflow-y: auto;
+}
+
+/* Cabeçalho */
+
+.user-sheet > .hstack:first-child h3 {
+  margin: 0;
+  color: #0f172a;
+  font-size: 17px;
+  font-weight: 500;
+  line-height: 1.3;
+}
+
+.user-sheet .modal-section-title {
+  margin: 0 0 14px;
+  color: #0f172a;
+  font-size: 15px;
+  font-weight: 500;
+  line-height: 1.35;
+}
+
+/* =========================================================
+   GRID DO MODAL
+   ========================================================= */
+
+.user-sheet .row {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 14px;
+  align-items: start;
+}
+
+.user-sheet .row > .span-1,
+.user-sheet .row > .span-2,
+.user-sheet .row > .span-3,
+.user-sheet .row > .span-4,
+.user-sheet .row > .span-5,
+.user-sheet .row > .span-6 {
+  min-width: 0;
+  margin: 0;
+  padding: 0;
+
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+}
+
+.user-sheet .span-1,
+.user-sheet .span-2,
+.user-sheet .span-3 {
+  grid-column: span 1;
+}
+
+.user-sheet .span-4,
+.user-sheet .span-5,
+.user-sheet .span-6 {
+  grid-column: span 2;
+}
+
+/* =========================================================
+   CAMPOS DO MODAL
+   ========================================================= */
+
+.user-sheet .float-label {
+  position: relative;
+  display: block;
+
+  width: 100%;
+  margin: 0;
+  padding: 0;
+
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+}
+
+.user-sheet .float-label:focus-within {
+  border: 0;
+  background: transparent;
+  box-shadow: none;
+}
+
+.user-sheet .float-label input,
+.user-sheet .float-label select {
+  box-sizing: border-box;
+  display: block;
+
+  width: 100%;
+  min-height: 50px;
+  margin: 0;
+  padding: 15px 14px 7px;
+
+  border: 1px solid #dbe3ef;
+  border-radius: 14px;
+  background: #ffffff;
+
+  color: #0f172a;
+  font-size: 13px;
+  font-weight: 400;
+
+  outline: none;
+  box-shadow: none;
+
+  transition:
+    border-color 0.18s ease,
+    box-shadow 0.18s ease,
+    background 0.18s ease;
+}
+
+.user-sheet .float-label input:hover:not(:disabled),
+.user-sheet .float-label select:hover:not(:disabled) {
+  border-color: #cbd5e1;
+}
+
+.user-sheet .float-label input:focus,
+.user-sheet .float-label select:focus,
+.user-sheet .float-label input:focus-visible,
+.user-sheet .float-label select:focus-visible {
+  border-color: #f59e0b;
+  outline: none;
+  box-shadow: 0 0 0 3px rgba(245, 158, 11, 0.1);
+}
+
+.user-sheet .float-label input:disabled,
+.user-sheet .float-label select:disabled {
+  background: #f8fafc;
+  color: #94a3b8;
+  cursor: not-allowed;
+}
+
+.user-sheet .float-label select {
+  appearance: none;
+  -webkit-appearance: none;
+  -moz-appearance: none;
+
+  padding-right: 42px;
+
+  background-image:
+    linear-gradient(45deg, transparent 50%, #334155 50%),
+    linear-gradient(135deg, #334155 50%, transparent 50%);
+
+  background-position:
+    calc(100% - 18px) 22px,
+    calc(100% - 13px) 22px;
+
+  background-size:
+    5px 5px,
+    5px 5px;
+
+  background-repeat: no-repeat;
+}
+
+/* =========================================================
+   LABEL FLUTUANTE
+   ========================================================= */
+
+.user-sheet .float-label > span {
+  position: absolute;
+  top: 50%;
+  left: 10px;
+  z-index: 2;
+
+  transform: translateY(-50%);
+  padding: 0 5px;
+
+  border: 0;
+  border-radius: 999px;
+  background: #ffffff;
+
+  color: #64748b;
+  font-size: 12px;
+  font-weight: 400;
+  line-height: 1;
+
+  pointer-events: none;
+
+  transition:
+    top 0.16s ease,
+    transform 0.16s ease,
+    color 0.16s ease,
+    font-size 0.16s ease;
+}
+
+/* Campos preenchidos ou selecionados */
+
+.user-sheet .float-label input:focus + span,
+.user-sheet .float-label input:not(:placeholder-shown) + span,
+.user-sheet .float-label select + span {
+  top: 0;
+  transform: translateY(-50%);
+
+  color: #c2410c;
+  font-size: 10.5px;
+  font-weight: 500;
+}
+
+/* =========================================================
+   RODAPÉ E BOTÕES DO MODAL
+   ========================================================= */
+
+.user-sheet > .hstack:last-child {
+  justify-content: flex-end;
+  gap: 8px;
+}
+
+.user-sheet .btn {
+  min-height: 34px;
+  padding: 7px 12px;
+
+  font-size: 12px;
+  font-weight: 500;
+
+  box-shadow: none;
+}
+
+.user-sheet .btn:hover:not(:disabled) {
+  transform: none;
+}
+
+/* =========================================================
+   RESPONSIVIDADE DA PÁGINA
+   ========================================================= */
 
 @media (max-width: 1100px) {
   .management-summary {
@@ -151,11 +664,59 @@
 }
 
 @media (max-width: 900px) {
-  .switching-config-head {
+  .switching-config-head,
+  .management-card-header {
     flex-direction: column;
   }
 
   .switching-password-form {
     grid-template-columns: 1fr;
+  }
+
+  .switching-password-form .btn {
+    width: 100%;
+  }
+
+  .management-user-actions {
+    flex-wrap: wrap;
+  }
+}
+
+@media (max-width: 760px) {
+  .user-sheet {
+    width: calc(100vw - 28px);
+    padding: 16px;
+  }
+
+  .user-sheet .row {
+    grid-template-columns: 1fr;
+  }
+
+  .user-sheet .row > .span-1,
+  .user-sheet .row > .span-2,
+  .user-sheet .row > .span-3,
+  .user-sheet .row > .span-4,
+  .user-sheet .row > .span-5,
+  .user-sheet .row > .span-6 {
+    grid-column: span 1;
+  }
+
+  .user-sheet > .hstack:last-child {
+    flex-direction: column-reverse;
+  }
+
+  .user-sheet > .hstack:last-child .btn {
+    width: 100%;
+  }
+}
+
+@media (max-width: 600px) {
+  .management-summary {
+    grid-template-columns: 1fr;
+  }
+
+  .switching-config-card,
+  .management-card {
+    padding: 12px;
   }
 }

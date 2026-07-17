@@ -773,7 +773,7 @@ async function resolveAlert(item) {
           :class="{ active: isManagement }"
           @click="ui.setPage('management')"
         >
-          ⚙️<span class="mi-label">Gerenciamento</span>
+          ⚙️<span class="mi-label">Administração</span>
         </div>
       </nav>
     </aside>
@@ -1107,32 +1107,32 @@ async function resolveAlert(item) {
         <!-- ================= GERENCIAMENTO ================= -->
 
         <div v-else-if="isManagement" class="vstack">
-          <div class="title">Gerenciamento</div>
+          <div class="title">Administração do Sistema</div>
           <div class="tabline"></div>
 
           <div class="management-summary">
             <div class="mg-card">
-              <span>Total de usuários</span>
+              <span>Total de usuários cadastrados</span>
               <b>{{ users.totalUsers }}</b>
             </div>
 
             <div class="mg-card">
-              <span>Ativos</span>
+              <span>Usuários com acesso ativo</span>
               <b>{{ users.totalActive }}</b>
             </div>
 
             <div class="mg-card">
-              <span>Nível 1</span>
+              <span>Administradores — Nível 1</span>
               <b>{{ users.totalAdmins }}</b>
             </div>
 
             <div class="mg-card">
-              <span>Nível 2</span>
+              <span>Liderança — Nível 2</span>
               <b>{{ users.totalLevel2 }}</b>
             </div>
 
             <div class="mg-card">
-              <span>Inspetores</span>
+              <span>Inspetores — Nível 3</span>
               <b>{{ users.totalInspectors }}</b>
             </div>
           </div>
@@ -1140,9 +1140,11 @@ async function resolveAlert(item) {
           <div class="switching-config-card">
             <div class="switching-config-head">
               <div>
-                <h3>Configuração de Comutação</h3>
+                <h3>Autorização de Alteração do Regime</h3>
+
                 <p>
-                  Cadastre a senha usada para confirmar alterações de regime de inspeção.
+                  Defina a senha utilizada pela liderança para autorizar alterações do
+                  regime de inspeção.
                 </p>
               </div>
 
@@ -1150,7 +1152,11 @@ async function resolveAlert(item) {
                 class="switching-password-status"
                 :class="switching.hasPassword ? 'ok' : 'warn'"
               >
-                {{ switching.hasPassword ? "Senha cadastrada" : "Senha não cadastrada" }}
+                {{
+                  switching.hasPassword
+                    ? "Senha de autorização cadastrada"
+                    : "Senha de autorização não cadastrada"
+                }}
               </span>
             </div>
 
@@ -1162,11 +1168,12 @@ async function resolveAlert(item) {
                   placeholder=" "
                   :disabled="!canEditSystem"
                 />
+
                 <span>
                   {{
                     switching.hasPassword
-                      ? "Nova senha de comutação"
-                      : "Senha de comutação"
+                      ? "Nova senha de autorização"
+                      : "Senha de autorização"
                   }}
                 </span>
               </label>
@@ -1178,7 +1185,8 @@ async function resolveAlert(item) {
                   placeholder=" "
                   :disabled="!canEditSystem"
                 />
-                <span>Confirmar senha</span>
+
+                <span>Confirmar senha de autorização</span>
               </label>
 
               <button
@@ -1187,28 +1195,24 @@ async function resolveAlert(item) {
                 :disabled="!canEditSystem"
                 @click="saveSwitchingPassword"
               >
-                {{ switching.hasPassword ? "Alterar senha" : "Cadastrar senha" }}
+                {{ switching.hasPassword ? "Atualizar senha" : "Cadastrar senha" }}
               </button>
             </div>
 
             <p v-if="!canEditSystem" class="muted-text">
-              Apenas usuários Nível 1 ou Nível 2 podem configurar a senha de comutação.
+              Apenas usuários de Nível 1 ou Nível 2 podem configurar a senha de
+              autorização.
             </p>
           </div>
 
-          <div class="card tablecard">
-            <div
-              class="hstack"
-              style="
-                justify-content: space-between;
-                align-items: center;
-                margin-bottom: 12px;
-              "
-            >
+          <div class="card tablecard management-card">
+            <div class="management-card-header">
               <div>
-                <h3 style="margin: 0">Histórico de Comutação</h3>
-                <p class="muted-text" style="margin: 4px 0 0 0">
-                  Registro das alterações de regime aprovadas no sistema.
+                <h3>Histórico de Alterações do Regime</h3>
+
+                <p>
+                  Registro das alterações de regime autorizadas e aplicadas aos planos de
+                  inspeção.
                 </p>
               </div>
 
@@ -1218,7 +1222,7 @@ async function resolveAlert(item) {
                 :disabled="switching.loading"
                 @click="switching.loadHistory()"
               >
-                Atualizar
+                Atualizar registros
               </button>
             </div>
 
@@ -1226,15 +1230,15 @@ async function resolveAlert(item) {
               <table>
                 <thead>
                   <tr>
-                    <th>Data</th>
-                    <th>Plano</th>
+                    <th>Data da alteração</th>
+                    <th>Plano de Inspeção</th>
                     <th>PN</th>
                     <th>Modelo</th>
-                    <th>Anterior</th>
-                    <th>Novo</th>
-                    <th>Motivo</th>
-                    <th>Aprovado por</th>
-                    <th>Nível</th>
+                    <th>Regime anterior</th>
+                    <th>Novo regime</th>
+                    <th>Critério da alteração</th>
+                    <th>Autorizado por</th>
+                    <th>Nível de acesso</th>
                   </tr>
                 </thead>
 
@@ -1244,7 +1248,9 @@ async function resolveAlert(item) {
                   </tr>
 
                   <tr v-else-if="!switching.history.length">
-                    <td colspan="9">Nenhuma comutação registrada ainda.</td>
+                    <td colspan="9">
+                      Nenhuma alteração de regime foi registrada até o momento.
+                    </td>
                   </tr>
 
                   <tr v-else v-for="h in switching.history" :key="h.id">
@@ -1285,16 +1291,13 @@ async function resolveAlert(item) {
             </div>
           </div>
 
-          <div class="card tablecard">
-            <div
-              class="hstack"
-              style="
-                justify-content: space-between;
-                align-items: center;
-                margin-bottom: 12px;
-              "
-            >
-              <h3 style="margin: 0">Usuários cadastrados</h3>
+          <div class="card tablecard management-card">
+            <div class="management-card-header">
+              <div>
+                <h3>Gestão de Usuários</h3>
+
+                <p>Administração dos acessos, níveis de permissão e áreas de inspeção.</p>
+              </div>
 
               <button
                 v-if="canManageUsers"
@@ -1302,7 +1305,7 @@ async function resolveAlert(item) {
                 type="button"
                 @click="openNewUser"
               >
-                + Novo usuário
+                + Cadastrar usuário
               </button>
             </div>
 
@@ -1310,14 +1313,14 @@ async function resolveAlert(item) {
               <table>
                 <thead>
                   <tr>
-                    <th>Status</th>
-                    <th>Nome</th>
-                    <th>Usuário</th>
+                    <th>Situação</th>
+                    <th>Nome completo</th>
+                    <th>Identificação de acesso</th>
                     <th>Matrícula</th>
-                    <th>Cargo</th>
-                    <th>Área</th>
-                    <th>Nível</th>
-                    <th>Ações</th>
+                    <th>Função</th>
+                    <th>Área de atuação</th>
+                    <th>Nível de acesso</th>
+                    <th>Operações</th>
                   </tr>
                 </thead>
 
@@ -1344,7 +1347,9 @@ async function resolveAlert(item) {
                     <td>{{ u.name }}</td>
                     <td>{{ u.username }}</td>
                     <td>{{ u.matricula || "—" }}</td>
-                    <td>{{ u.cargo || "—" }}</td>
+                    <td class="management-user-role">
+                      {{ u.cargo || "—" }}
+                    </td>
 
                     <td>
                       <span
@@ -1362,9 +1367,9 @@ async function resolveAlert(item) {
                     <td>Nível {{ u.accessLevel || 3 }}</td>
 
                     <td>
-                      <div v-if="canManageUsers" class="actions-wrap">
+                      <div v-if="canManageUsers" class="management-user-actions">
                         <button class="btn ghost" type="button" @click="openEditUser(u)">
-                          Editar
+                          Editar acesso
                         </button>
 
                         <button
@@ -1373,7 +1378,7 @@ async function resolveAlert(item) {
                           :disabled="String(u.id) === String(auth.user?.id)"
                           @click="toggleUserActive(u)"
                         >
-                          {{ u.active ? "Inativar" : "Ativar" }}
+                          {{ u.active ? "Desativar acesso" : "Ativar acesso" }}
                         </button>
                       </div>
 
@@ -1401,7 +1406,9 @@ async function resolveAlert(item) {
   <div class="modal" :class="{ show: showUserModal }">
     <div class="sheet vstack user-sheet">
       <div class="hstack" style="justify-content: space-between; align-items: center">
-        <h3>{{ editUserId ? "Editar usuário" : "Novo usuário" }}</h3>
+        <h3>
+          {{ editUserId ? "Editar Cadastro de Usuário" : "Cadastrar Novo Usuário" }}
+        </h3>
 
         <button class="btn ghost" type="button" @click="showUserModal = false">
           Fechar
@@ -1410,20 +1417,20 @@ async function resolveAlert(item) {
 
       <div class="hr"></div>
 
-      <h4 class="modal-section-title">Dados do usuário</h4>
+      <h4 class="modal-section-title">Identificação e Permissões de Acesso</h4>
 
       <div class="row">
         <div class="span-3">
           <label class="float-label">
             <input v-model="userForm.name" placeholder=" " />
-            <span>Nome *</span>
+            <span>Nome completo *</span>
           </label>
         </div>
 
         <div class="span-3">
           <label class="float-label">
             <input v-model="userForm.username" placeholder=" " />
-            <span>Usuário / Login *</span>
+            <span>Identificação de acesso *</span>
           </label>
         </div>
 
@@ -1444,7 +1451,7 @@ async function resolveAlert(item) {
         <div class="span-3">
           <label class="float-label">
             <input v-model="userForm.cargo" placeholder=" " />
-            <span>Cargo *</span>
+            <span>Função / Cargo *</span>
           </label>
         </div>
 
@@ -1454,11 +1461,11 @@ async function resolveAlert(item) {
               v-model.number="userForm.accessLevel"
               @change="syncUserRoleByAccessLevel"
             >
-              <option :value="1">Nível 1 - Controle total</option>
-              <option :value="2">Nível 2 - Controle total</option>
-              <option :value="3">Nível 3 - Operacional</option>
+              <option :value="1">Nível 1 — Administração total</option>
+              <option :value="2">Nível 2 — Gestão e aprovação</option>
+              <option :value="3">Nível 3 — Operação de inspeção</option>
             </select>
-            <span>Nível *</span>
+            <span>Nível de acesso *</span>
           </label>
         </div>
 
@@ -1479,7 +1486,7 @@ async function resolveAlert(item) {
               <option :value="true">Ativo</option>
               <option :value="false">Inativo</option>
             </select>
-            <span>Status</span>
+            <span>Situação do acesso</span>
           </label>
         </div>
       </div>
@@ -1492,7 +1499,7 @@ async function resolveAlert(item) {
         </button>
 
         <button class="btn" type="button" @click="saveUser">
-          {{ editUserId ? "Salvar alterações" : "Salvar usuário" }}
+          {{ editUserId ? "Salvar alterações" : "Cadastrar usuário" }}
         </button>
       </div>
     </div>
@@ -1744,5 +1751,3 @@ async function resolveAlert(item) {
     </div>
   </div>
 </template>
-
-<style scoped></style>
