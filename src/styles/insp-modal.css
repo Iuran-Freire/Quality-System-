@@ -2,10 +2,17 @@
 
 /* =========================================================
    MODAL DE INSPEÇÃO
-   Estrutura geral, dados, regime, reinspeção e comutação
+   Estrutura, formulário, reinspeção e comutação
    ========================================================= */
 
-/* Cabeçalho de seção */
+/* =========================================================
+   ESTRUTURA PRINCIPAL
+   ========================================================= */
+
+.inspection-modal-sheet {
+  color: #0f172a;
+  font-weight: 400;
+}
 
 .inspection-section-heading {
   display: flex;
@@ -19,12 +26,226 @@
   margin: 0;
 }
 
-/* Horários da inspeção */
+/* =========================================================
+   TIPOGRAFIA
+   ========================================================= */
+
+.inspection-modal-sheet > .hstack:first-child h3 {
+  margin: 0;
+  color: #0f172a;
+  font-size: 17px;
+  font-weight: 500;
+  line-height: 1.3;
+}
+
+.inspection-modal-sheet .insp-section-title,
+.inspection-modal-sheet .modal-section-title,
+.inspection-modal-sheet h4 {
+  color: #0f172a;
+  font-size: 14px;
+  font-weight: 500;
+  line-height: 1.35;
+}
+
+.inspection-modal-sheet p,
+.inspection-modal-sheet small,
+.inspection-modal-sheet .muted-text {
+  font-weight: 400;
+}
+
+.inspection-draft-guidance {
+  color: #64748b;
+  font-size: 13px;
+  font-weight: 400;
+  line-height: 1.5;
+}
+
+/* =========================================================
+   GRID DO FORMULÁRIO
+   As classes span controlam somente a largura
+   ========================================================= */
+
+.inspection-modal-sheet .row {
+  align-items: start;
+}
+
+.inspection-modal-sheet .row > .span-1,
+.inspection-modal-sheet .row > .span-2,
+.inspection-modal-sheet .row > .span-3,
+.inspection-modal-sheet .row > .span-4,
+.inspection-modal-sheet .row > .span-5,
+.inspection-modal-sheet .row > .span-6 {
+  min-width: 0;
+  margin: 0;
+  padding: 0;
+
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+}
+
+/* =========================================================
+   CAMPOS DO FORMULÁRIO
+   Somente input/select/textarea possuem caixa visual
+   ========================================================= */
+
+.inspection-modal-sheet .float-label {
+  position: relative;
+  display: block;
+  width: 100%;
+  margin: 0;
+  padding: 0;
+
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+}
+
+.inspection-modal-sheet .float-label input,
+.inspection-modal-sheet .float-label select,
+.inspection-modal-sheet .float-label textarea {
+  box-sizing: border-box;
+  display: block;
+  width: 100%;
+  margin: 0;
+
+  border: 1px solid #dbe3ef;
+  border-radius: 14px;
+  background: #ffffff;
+
+  color: #0f172a;
+  font-size: 13px;
+  font-weight: 400;
+
+  outline: none;
+  box-shadow: none;
+
+  transition:
+    border-color 0.18s ease,
+    box-shadow 0.18s ease,
+    background 0.18s ease;
+}
+
+.inspection-modal-sheet .float-label input,
+.inspection-modal-sheet .float-label select {
+  min-height: 50px;
+  padding: 15px 14px 7px;
+}
+
+.inspection-modal-sheet .float-label textarea {
+  min-height: 84px;
+  padding: 20px 14px 10px;
+  resize: vertical;
+}
+
+.inspection-modal-sheet .float-label input:hover:not(:disabled),
+.inspection-modal-sheet .float-label select:hover:not(:disabled),
+.inspection-modal-sheet .float-label textarea:hover:not(:disabled) {
+  border-color: #cbd5e1;
+}
+
+.inspection-modal-sheet .float-label input:focus,
+.inspection-modal-sheet .float-label select:focus,
+.inspection-modal-sheet .float-label textarea:focus {
+  border-color: #f59e0b;
+  box-shadow: 0 0 0 3px rgba(245, 158, 11, 0.1);
+}
+
+.inspection-modal-sheet .float-label input:disabled,
+.inspection-modal-sheet .float-label select:disabled,
+.inspection-modal-sheet .float-label textarea:disabled {
+  background: #f8fafc;
+  color: #94a3b8;
+  cursor: not-allowed;
+}
+
+.inspection-modal-sheet input[type="date"] {
+  padding-right: 14px;
+}
+
+/* =========================================================
+   FLOAT LABEL
+   ========================================================= */
+
+.inspection-modal-sheet .float-label > span {
+  position: absolute;
+  top: 50%;
+  left: 10px;
+  z-index: 2;
+
+  transform: translateY(-50%);
+
+  padding: 0 5px;
+  border: 0;
+  border-radius: 999px;
+  background: #ffffff;
+
+  color: #64748b;
+  font-size: 12px;
+  font-weight: 400;
+  line-height: 1;
+
+  pointer-events: none;
+
+  transition:
+    top 0.16s ease,
+    transform 0.16s ease,
+    color 0.16s ease,
+    font-size 0.16s ease;
+}
+
+.inspection-modal-sheet .float-label input:focus + span,
+.inspection-modal-sheet .float-label input:not(:placeholder-shown) + span,
+.inspection-modal-sheet .float-label textarea:focus + span,
+.inspection-modal-sheet .float-label textarea:not(:placeholder-shown) + span,
+.inspection-modal-sheet .float-label select + span {
+  top: 0;
+  transform: translateY(-50%);
+
+  color: #c2410c;
+  font-size: 10.5px;
+  font-weight: 500;
+}
+
+/* Textarea vazio mantém o rótulo centralizado */
+
+.inspection-modal-sheet .float-label textarea + span {
+  top: 26px;
+}
+
+.inspection-modal-sheet .float-label textarea:focus + span,
+.inspection-modal-sheet .float-label textarea:not(:placeholder-shown) + span {
+  top: 0;
+}
+
+/* =========================================================
+   BOTÕES DO MODAL
+   ========================================================= */
+
+.inspection-modal-sheet .btn {
+  font-weight: 500;
+  box-shadow: none;
+}
+
+.inspection-modal-sheet .btn:hover:not(:disabled) {
+  transform: none;
+}
+
+.inspection-modal-sheet .btn:disabled {
+  filter: grayscale(0.35);
+}
+
+/* =========================================================
+   HORÁRIOS DA INSPEÇÃO
+   ========================================================= */
 
 .inspection-time-box {
   display: flex;
   gap: 12px;
   flex-wrap: wrap;
+
   padding: 12px;
   border: 1px solid #e2e8f0;
   border-radius: 14px;
@@ -39,14 +260,15 @@
 }
 
 .inspection-time-box span {
-  color: var(--muted, #64748b);
+  color: #64748b;
   font-size: 12px;
-  font-weight: 700;
+  font-weight: 400;
 }
 
 .inspection-time-box b {
-  color: var(--text, #111827);
+  color: #0f172a;
   font-size: 14px;
+  font-weight: 500;
 }
 
 /* =========================================================
@@ -57,11 +279,14 @@
   display: inline-flex;
   align-items: center;
   justify-content: center;
+
   margin-left: 8px;
   padding: 5px 10px;
+
   border-radius: 999px;
+
   font-size: 11px;
-  font-weight: 800;
+  font-weight: 700;
   line-height: 1;
   letter-spacing: 0.2px;
   vertical-align: middle;
@@ -72,7 +297,7 @@
   margin-left: 0;
   padding: 6px 12px;
   font-size: 12px;
-  box-shadow: 0 1px 2px rgb(0 0 0 / 8%);
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.08);
 }
 
 .regime-normal {
@@ -98,28 +323,31 @@
    ========================================================= */
 
 .reinspection-btn {
-  background: #f59e0b;
   border-color: #f59e0b;
+  background: #f59e0b;
   color: #ffffff;
-  font-weight: 700;
+  font-weight: 600;
 }
 
 .reinspection-btn:hover:not(:disabled) {
-  background: #d97706;
   border-color: #d97706;
+  background: #d97706;
 }
 
 .reinspection-header {
   display: inline-flex;
   align-items: center;
+
   margin-top: 4px;
   padding: 4px 10px;
+
   border: 1px solid #f59e0b;
   border-radius: 999px;
   background: #fff7ed;
+
   color: #c2410c;
   font-size: 12px;
-  font-weight: 800;
+  font-weight: 700;
   letter-spacing: 0.3px;
 }
 
@@ -127,8 +355,10 @@
   display: grid;
   grid-template-columns: 1fr 100px 2fr;
   gap: 12px;
+
   margin-bottom: 12px;
   padding: 12px;
+
   border: 1px solid #fed7aa;
   border-radius: 14px;
   background: #fff7ed;
@@ -143,12 +373,13 @@
 .reinspection-info span {
   color: #9a3412;
   font-size: 12px;
-  font-weight: 700;
+  font-weight: 500;
 }
 
 .reinspection-info b {
   color: #7c2d12;
   font-size: 14px;
+  font-weight: 600;
 }
 
 .origin-inspection-info {
@@ -160,13 +391,14 @@
 .origin-inspection-info small {
   color: #9a3412;
   font-size: 12px;
-  font-weight: 600;
+  font-weight: 400;
   line-height: 1.35;
 }
 
 .linked-reinspection-alert {
   margin-bottom: 12px;
   padding: 12px 14px;
+
   border: 1px solid #fdba74;
   border-radius: 14px;
   background: #fff7ed;
@@ -181,24 +413,27 @@
 .linked-reinspection-alert strong {
   color: #9a3412;
   font-size: 14px;
+  font-weight: 600;
 }
 
 .linked-reinspection-alert span {
   color: #c2410c;
   font-size: 13px;
-  font-weight: 600;
+  font-weight: 400;
 }
 
 /* =========================================================
-   RASTREABILIDADE POR CARACTERÍSTICA
+   RASTREABILIDADE
    ========================================================= */
 
 .char-trace-box {
   display: flex;
   flex-direction: column;
   gap: 6px;
+
   min-width: 260px;
   padding: 8px 10px;
+
   border: 1px solid #e2e8f0;
   border-radius: 12px;
   background: #f8fafc;
@@ -211,15 +446,15 @@
 }
 
 .char-trace-box span {
-  color: var(--muted, #64748b);
+  color: #64748b;
   font-size: 11px;
-  font-weight: 700;
+  font-weight: 500;
 }
 
 .char-trace-box b {
-  color: var(--text, #111827);
+  color: #0f172a;
   font-size: 12px;
-  font-weight: 700;
+  font-weight: 500;
 }
 
 /* =========================================================
@@ -230,7 +465,9 @@
   display: flex;
   flex-direction: column;
   gap: 5px;
+
   padding: 10px 12px;
+
   border-left: 3px solid #f59e0b;
   border-radius: 8px;
   background: #fffbeb;
@@ -246,10 +483,11 @@
 .nbr-summary-header b {
   color: #92400e;
   font-size: 13px;
+  font-weight: 600;
 }
 
 .nbr-summary-result {
-  color: var(--muted);
+  color: #64748b;
   font-size: 13px;
 }
 
@@ -261,15 +499,17 @@
   display: flex;
   flex-direction: column;
   gap: 8px;
+
   margin-top: 12px;
   padding: 14px;
+
   border: 1px solid #e2e8f0;
   border-radius: 14px;
 }
 
 .switching-gate strong {
   font-size: 14px;
-  font-weight: 900;
+  font-weight: 600;
 }
 
 .switching-gate span {
@@ -279,7 +519,7 @@
 
 .switching-gate small {
   font-size: 12px;
-  font-weight: 700;
+  font-weight: 400;
 }
 
 .switching-gate.checking {
@@ -313,13 +553,13 @@
 
 .switching-password-text {
   margin: 0;
-  color: var(--muted, #64748b);
+  color: #64748b;
   font-size: 14px;
 }
 
 .btn-switching-blocked {
-  background: #e5e7eb !important;
   border-color: #d1d5db !important;
+  background: #e5e7eb !important;
   color: #6b7280 !important;
 }
 
@@ -331,23 +571,24 @@
   display: flex;
   gap: 10px;
   flex-wrap: wrap;
+
   margin-top: 8px;
   font-size: 13px;
 }
 
 .visual-summary .ok {
   color: #16a34a;
-  font-weight: 700;
+  font-weight: 600;
 }
 
 .visual-summary .ng {
   color: #dc2626;
-  font-weight: 700;
+  font-weight: 600;
 }
 
 .visual-summary .total {
-  color: var(--muted);
-  font-weight: 600;
+  color: #64748b;
+  font-weight: 400;
 }
 
 /* =========================================================
@@ -373,8 +614,4 @@
     min-width: 0;
     width: 100%;
   }
-}
-
-.inspection-modal-sheet .btn:disabled {
-  filter: grayscale(0.35);
 }

@@ -465,11 +465,11 @@ function xrfReadingState(element, rawValue) {
 function xrfReadingStatusLabel(element, rawValue) {
   const state = xrfReadingState(element, rawValue);
 
-  if (state === "pass") return "Dentro";
-  if (state === "fail") return "Acima";
-  if (state === "invalid") return "Inválido";
+  if (state === "pass") return "PASS";
+  if (state === "fail") return "FAIL";
+  if (state === "invalid") return "INVÁLIDO";
 
-  return "Pendente";
+  return "PENDENTE";
 }
 
 function xrfSampleStatus(c, sample) {
@@ -481,10 +481,16 @@ function xrfSampleStatus(c, sample) {
     xrfReadingState(element, sample?.[element.id])
   );
 
-  if (states.some((state) => state === "fail")) return "FAIL";
-
+  // Enquanto houver leitura vazia ou inválida,
+  // a amostra ainda não possui resultado técnico definitivo.
   if (states.some((state) => state === "empty" || state === "invalid")) {
     return "PENDENTE";
+  }
+
+  // Somente depois de preencher todos os elementos
+  // o resultado pode ser definido como FAIL.
+  if (states.some((state) => state === "fail")) {
+    return "FAIL";
   }
 
   return "PASS";
@@ -497,11 +503,17 @@ function xrfOverallStatus(c) {
 
   const results = samples.map((sample) => xrfSampleStatus(c, sample));
 
-  if (results.some((result) => result === "FAIL")) return "FAIL";
+  // Se qualquer amostra ainda estiver incompleta,
+  // o ensaio permanece pendente/em andamento.
+  if (results.some((result) => result === "PENDENTE")) {
+    return "PENDENTE";
+  }
 
-  if (results.every((result) => result === "PASS")) return "PASS";
+  if (results.some((result) => result === "FAIL")) {
+    return "FAIL";
+  }
 
-  return "PENDENTE";
+  return results.every((result) => result === "PASS") ? "PASS" : "PENDENTE";
 }
 
 function unitSuffix(c) {
@@ -513,21 +525,34 @@ function getCharLiveStatus(c) {
   const values = localSamples.value?.[c.id] || [];
 
   if (isXrfChar(c)) {
-    const xrfStatus = xrfOverallStatus(c);
-
-    if (xrfStatus === "PASS") {
-      return { key: "ok", label: "DENTRO DO LIMITE" };
-    }
-
-    if (xrfStatus === "FAIL") {
-      return { key: "ng", label: "ACIMA DO LIMITE" };
-    }
-
+    const status = xrfOverallStatus(c);
     const filled = xrfFilledReadings(c);
+    const total = xrfTotalReadings(c);
+
+    if (filled === 0) {
+      return {
+        key: "pending",
+        label: "PENDENTE",
+      };
+    }
+
+    if (filled < total || status === "PENDENTE") {
+      return {
+        key: "progress",
+        label: "EM ANDAMENTO",
+      };
+    }
+
+    if (status === "FAIL") {
+      return {
+        key: "ng",
+        label: "FAIL",
+      };
+    }
 
     return {
-      key: filled > 0 ? "progress" : "pending",
-      label: filled > 0 ? "EM ANDAMENTO" : "PENDENTE",
+      key: "ok",
+      label: "PASS",
     };
   }
 
@@ -1761,7 +1786,9 @@ Motivo: ${p.reason}`;
     <div class="sheet vstack inspection-modal-sheet">
       <div class="hstack" style="justify-content: space-between; align-items: center">
         <div>
-          <h3>{{ isEdit ? "Editar Inspeção" : "Nova Inspeção" }}</h3>
+          <h3>
+            {{ isEdit ? "Registro de Inspeção" : "Novo Registro de Inspeção" }}
+          </h3>
 
           <div v-if="insp?.isReinspection" class="reinspection-header">
             REINSPEÇÃO — CICLO {{ insp?.inspectionCycle || 2 }}
@@ -1793,7 +1820,7 @@ Motivo: ${p.reason}`;
       <div class="hr"></div>
 
       <div class="inspection-section-heading">
-        <h4 class="insp-section-title">Dados da inspeção</h4>
+        <h4 class="insp-section-title">Identificação da Inspeção</h4>
 
         <span
           v-if="selectedPlan"
@@ -1908,7 +1935,7 @@ Motivo: ${p.reason}`;
               @change="selectPlanBySearch"
               @blur="selectPlanBySearch"
             />
-            <span>Plano * / PN *</span>
+            <span>Plano de Inspeção / PN *</span>
           </label>
 
           <datalist id="plans-list">
@@ -1926,7 +1953,7 @@ Motivo: ${p.reason}`;
         <div class="span-3">
           <label class="float-label">
             <input v-model="invoice" placeholder=" " :disabled="isDone" />
-            <span>Invoice / NF</span>
+            <span>Nota Fiscal / Invoice</span>
           </label>
         </div>
 
@@ -1940,7 +1967,7 @@ Motivo: ${p.reason}`;
               placeholder=" "
               :disabled="isDone || isEdit"
             />
-            <span>Tamanho do lote (Lot Size) *</span>
+            <span>Quantidade do Lote *</span>
           </label>
         </div>
 
@@ -1954,7 +1981,7 @@ Motivo: ${p.reason}`;
         <div class="span-3">
           <label class="float-label">
             <input v-model="resp" placeholder=" " :disabled="isDone" />
-            <span>Responsável *</span>
+            <span>Responsável pela Inspeção *</span>
           </label>
         </div>
 
@@ -1973,7 +2000,7 @@ Motivo: ${p.reason}`;
         <div class="span-2">
           <label class="float-label">
             <input :value="supplier" disabled />
-            <span>Fornecedor (do plano)</span>
+            <span>Fornecedor Cadastrado</span>
           </label>
         </div>
 
@@ -1985,7 +2012,7 @@ Motivo: ${p.reason}`;
               :disabled="isDone"
               placeholder=" "
             ></textarea>
-            <span>Observações</span>
+            <span>Observações da Inspeção</span>
           </label>
         </div>
 
@@ -2106,11 +2133,11 @@ Motivo: ${p.reason}`;
 
       <div class="hr"></div>
 
-      <h4 class="insp-section-title">Características e amostras</h4>
+      <h4 class="insp-section-title">Características e Resultados da Inspeção</h4>
 
-      <div v-if="!isEdit" style="color: var(--muted); font-size: 13px">
-        Crie a inspeção (rascunho) primeiro. Depois clique em <b>Abrir</b> na tabela para
-        preencher.
+      <div v-if="!isEdit" class="inspection-draft-guidance">
+        Registre primeiro os dados de identificação. Após salvar, acesse o registro para
+        preencher os resultados das características de inspeção.
       </div>
 
       <div v-else class="vstack" style="gap: 12px">
@@ -2524,18 +2551,18 @@ Motivo: ${p.reason}`;
         >
           {{
             inspectionBlockedBySwitching
-              ? "Bloqueado: aprovação necessária"
-              : "Criar inspeção (rascunho)"
+              ? "Bloqueado — aprovação necessária"
+              : "Registrar inspeção"
           }}
         </button>
 
         <template v-else>
           <button v-if="!isDone" class="btn ghost" type="button" @click="saveDraft">
-            Salvar rascunho
+            Salvar alterações
           </button>
 
           <button v-if="!isDone" class="btn" type="button" @click="finalizeInspection">
-            Finalizar inspeção
+            Concluir inspeção
           </button>
 
           <span v-else style="font-size: 13px; color: var(--muted)">
@@ -2548,7 +2575,7 @@ Motivo: ${p.reason}`;
   <div v-if="showSwitchingApprovalModal" class="modal show">
     <div class="sheet vstack switching-password-modal">
       <div class="hstack" style="justify-content: space-between; align-items: center">
-        <h3>Aprovar comutação</h3>
+        <h3>Autorizar Alteração do Regime de Inspeção</h3>
 
         <button
           class="btn ghost"
@@ -2572,7 +2599,7 @@ Motivo: ${p.reason}`;
           placeholder=" "
           @keyup.enter="approveSwitchingFromInspection"
         />
-        <span>Senha de comutação</span>
+        <span>Senha de autorização da comutação</span>
       </label>
 
       <div class="hstack" style="justify-content: flex-end; gap: 8px">
@@ -2590,7 +2617,7 @@ Motivo: ${p.reason}`;
           :disabled="switchingActionLoading"
           @click="approveSwitchingFromInspection"
         >
-          Confirmar e liberar plano
+          Confirmar autorização
         </button>
       </div>
     </div>

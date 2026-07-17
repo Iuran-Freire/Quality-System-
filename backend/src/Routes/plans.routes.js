@@ -85,14 +85,14 @@ router.get("/", async (req, res) => {
             ORDER BY created_at DESC, id DESC
           `)
         : await db.query(
-            `
+          `
             SELECT *
             FROM plans
             WHERE UPPER(TRIM(type)) = $1
             ORDER BY created_at DESC, id DESC
             `,
-            [userArea]
-          );
+          [userArea]
+        );
 
     res.json({
       ok: true,
@@ -406,64 +406,65 @@ router.put("/:id", async (req, res) => {
       });
     }
 
-const revisionNumber = Number(existingPlan.revision_number || 1);
+    const revisionNumber = Number(existingPlan.revision_number || 1);
 
-const snapshot = {
-  id: String(existingPlan.id),
-  name: existingPlan.name,
-  type: existingPlan.type,
-  pn: existingPlan.pn,
-  model: existingPlan.model,
-  client: existingPlan.client,
-  supplier: existingPlan.supplier,
-  resp: existingPlan.resp,
-  active: existingPlan.active,
-  n: existingPlan.n,
-  boxQty: existingPlan.box_qty,
-  sampling: existingPlan.sampling || {},
-  chars: existingPlan.chars || {},
+    const snapshot = {
+      id: String(existingPlan.id),
+      name: existingPlan.name,
+      type: existingPlan.type,
+      pn: existingPlan.pn,
+      model: existingPlan.model,
+      client: existingPlan.client,
+      supplier: existingPlan.supplier,
+      resp: existingPlan.resp,
+      active: existingPlan.active,
+      n: existingPlan.n,
+      boxQty: existingPlan.box_qty,
+      sampling: existingPlan.sampling || {},
+      chars: existingPlan.chars || {},
 
-  inspectionRegime: existingPlan.inspection_regime || "normal",
-  switchingStatus: existingPlan.switching_status || "sem_pendencia",
-  suggestedRegime: existingPlan.suggested_regime || null,
-  switchingReason: existingPlan.switching_reason || "",
-  currentSampleN: existingPlan.current_sample_n ?? null,
-  suggestedSampleN: existingPlan.suggested_sample_n ?? null,
+      inspectionRegime: existingPlan.inspection_regime || "normal",
+      switchingStatus: existingPlan.switching_status || "sem_pendencia",
+      suggestedRegime: existingPlan.suggested_regime || null,
+      switchingReason: existingPlan.switching_reason || "",
+      currentSampleN: existingPlan.current_sample_n ?? null,
+      suggestedSampleN: existingPlan.suggested_sample_n ?? null,
 
-  revisionNumber,
-  createdAt: existingPlan.created_at,
-  updatedAt: existingPlan.updated_at,
-};
+      revisionNumber,
+      createdAt: existingPlan.created_at,
+      updatedAt: existingPlan.updated_at,
+    };
 
-const changedByUserId = req.user?.id ?? null;
-const changedByName =
-  req.user?.name ||
-  req.user?.username ||
-  req.user?.matricula ||
-  "Usuário não identificado";
+    const changedByUserId = req.user?.id ?? null;
+    const changedByName =
+      req.user?.name ||
+      req.user?.username ||
+      req.user?.matricula ||
+      "Usuário não identificado";
 
-const changedByRole =
-  req.user?.cargo ||
-  req.user?.role ||
-  null;
+    const changedByRole =
+      req.user?.cargo ||
+      req.user?.role ||
+      null;
 
-const changeReason = String(p.changeReason || "").trim();
-const changeNote = String(p.changeNote || "").trim();
+    const changeReason = String(p.changeReason || "").trim();
+    const changeNote = String(p.changeNote || "").trim();
 
-if (!changeReason) {
-  return res.status(400).json({
-    ok: false,
-    message: "Informe o motivo da alteração para gerar uma nova revisão do plano.",
-  });
-}
+    if (!changeReason) {
+      return res.status(400).json({
+        ok: false,
+        message: "Informe o motivo da alteração para gerar uma nova revisão do plano.",
+      });
+    }
 
-const client = await db.connect();
+    const client = await db.connect();
+    let updatedPlan = null;
 
-try {
-  await client.query("BEGIN");
+    try {
+      await client.query("BEGIN");
 
-  await client.query(
-    `
+      await client.query(
+        `
     INSERT INTO plan_revisions (
       plan_id,
       revision_number,
@@ -478,20 +479,20 @@ try {
       $1, $2, $3, $4, $5, $6, $7, $8::jsonb
     )
     `,
-    [
-      existingPlan.id,
-      revisionNumber,
-      changeReason,
-      changeNote || null,
-      changedByUserId,
-      changedByName,
-      changedByRole,
-      JSON.stringify(snapshot),
-    ]
-  );
+        [
+          existingPlan.id,
+          revisionNumber,
+          changeReason,
+          changeNote || null,
+          changedByUserId,
+          changedByName,
+          changedByRole,
+          JSON.stringify(snapshot),
+        ]
+      );
 
-  const result = await client.query(
-    `
+      const updateResult = await client.query(
+        `
     UPDATE plans
     SET
       name = $1,
@@ -511,36 +512,38 @@ try {
     WHERE id = $14
     RETURNING *
     `,
-    [
-      p.name || "",
-      planType,
-      p.pn || "",
-      p.model || "",
-      p.client || "",
-      p.supplier || "",
-      p.resp || "",
-      p.active !== false,
-      Number(p.n ?? 5),
-      Number(p.boxQty ?? p.box_qty ?? 2),
-      JSON.stringify(p.sampling || {}),
-      JSON.stringify(p.chars || []),
-      revisionNumber + 1,
-      id,
-    ]
-  );
+        [
+          p.name || "",
+          planType,
+          p.pn || "",
+          p.model || "",
+          p.client || "",
+          p.supplier || "",
+          p.resp || "",
+          p.active !== false,
+          Number(p.n ?? 5),
+          Number(p.boxQty ?? p.box_qty ?? 2),
+          JSON.stringify(p.sampling || {}),
+          JSON.stringify(p.chars || []),
+          revisionNumber + 1,
+          id,
+        ]
+      );
 
-  await client.query("COMMIT");
+      updatedPlan = updateResult.rows[0];
 
-} catch (transactionError) {
-  await client.query("ROLLBACK");
-  throw transactionError;
-} finally {
-  client.release();
-}
+      await client.query("COMMIT");
+
+    } catch (transactionError) {
+      await client.query("ROLLBACK");
+      throw transactionError;
+    } finally {
+      client.release();
+    }
 
     res.json({
       ok: true,
-      item: mapPlan(result.rows[0]),
+      item: mapPlan(updatedPlan),
     });
   } catch (error) {
     console.error("Erro ao atualizar plano:", error);

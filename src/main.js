@@ -16,5 +16,6 @@ import "./styles/insp-modal.css";
 import "./styles/inspection-results.css";
 import "./styles/conditional-approval.css";
 import "./styles/inspections-page.css";
+import "./styles/login-page.css";
 
 createApp(App).use(createPinia()).mount("#app");
