@@ -1,5 +1,5 @@
 <script setup>
-import { ref, computed, onMounted } from "vue";
+import { ref, computed, onMounted, watch } from "vue";
 import { useInspectionsStore } from "../stores/inspections";
 import InspModal from "../components/InspModal.vue";
 import { useAuthStore } from "../stores/auth";
@@ -26,7 +26,33 @@ const insps = useInspectionsStore();
 const ui = useUiStore();
 
 const auth = useAuthStore();
+
 const isAdmin = computed(() => auth.role === "admin");
+
+/**
+ * Área de inspeção vinculada ao usuário autenticado.
+ *
+ * IQC = visualiza somente registros IQC
+ * OQC = visualiza somente registros OQC
+ * ALL = visualiza registros IQC e OQC
+ */
+const loggedInspectionArea = computed(() => {
+  const rawArea =
+    auth.user?.inspectionArea ??
+    auth.user?.inspection_area ??
+    auth.inspectionArea ??
+    auth.inspection_area ??
+    "";
+
+  const area = String(rawArea).trim().toUpperCase();
+
+  return ["IQC", "OQC", "ALL"].includes(area) ? area : null;
+});
+
+console.log("Usuário autenticado:", auth.user);
+console.log("Área autenticada:", loggedInspectionArea.value);
+
+const canSelectInspectionArea = computed(() => loggedInspectionArea.value === "ALL");
 
 const showInsp = ref(false);
 const editingId = ref(null);
@@ -38,6 +64,21 @@ const fType = ref(""); // "" | "OQC" | "IQC"
 const fRecordType = ref("");
 const fFrom = ref(""); // yyyy-mm-dd
 const fTo = ref(""); // yyyy-mm-dd
+
+watch(
+  loggedInspectionArea,
+  (area) => {
+    if (area === "IQC" || area === "OQC") {
+      fType.value = area;
+      return;
+    }
+
+    if (area === "ALL") {
+      fType.value = "";
+    }
+  },
+  { immediate: true }
+);
 
 function openNew() {
   editingId.value = null;
@@ -70,18 +111,35 @@ const filtered = computed(() => {
   const s = String(ui.q || "")
     .trim()
     .toLowerCase();
-  // garante ordenação por data decrescente
+
+  const userArea = loggedInspectionArea.value;
+
+  // Segurança: usuário sem área válida não visualiza registros.
+  if (!userArea) {
+    return [];
+  }
+
   const base = [...(insps.items || [])].sort((a, b) =>
     String(b.createdAt || "").localeCompare(String(a.createdAt || ""))
   );
 
   return base.filter((x) => {
+    const inspectionArea = String(x.type || x.inspectionArea || x.inspection_area || "")
+      .trim()
+      .toUpperCase();
+
+    // Filtro obrigatório conforme a área do usuário autenticado.
+    if (userArea !== "ALL" && inspectionArea !== userArea) {
+      return false;
+    }
     // filtros de combo
     if (fStatus.value && x.status !== fStatus.value) return false;
     if (fResult.value && x.result !== fResult.value) return false;
 
     // type pode não existir em inspeções antigas (fallback: do planoName não dá)
-    if (fType.value && String(x.type || "") !== fType.value) return false;
+    if (fType.value && inspectionArea !== String(fType.value).trim().toUpperCase()) {
+      return false;
+    }
 
     // filtro: normal / reinspeção
     if (fRecordType.value === "normal" && x.isReinspection) return false;
@@ -252,11 +310,24 @@ function pdfDisabledTitle(x) {
 
         <div class="field">
           <label class="float-label">
-            <select v-model="fType">
-              <option value="">Todas as áreas</option>
-              <option value="OQC">OQC — Qualidade de Saída</option>
-              <option value="IQC">IQC — Qualidade de Entrada</option>
+            <select v-model="fType" :disabled="!canSelectInspectionArea">
+              <option v-if="canSelectInspectionArea" value="">Todas as áreas</option>
+
+              <option
+                v-if="canSelectInspectionArea || loggedInspectionArea === 'IQC'"
+                value="IQC"
+              >
+                IQC — Qualidade de Entrada
+              </option>
+
+              <option
+                v-if="canSelectInspectionArea || loggedInspectionArea === 'OQC'"
+                value="OQC"
+              >
+                OQC — Qualidade de Saída
+              </option>
             </select>
+
             <span>Área de inspeção</span>
           </label>
         </div>
@@ -381,7 +452,7 @@ function pdfDisabledTitle(x) {
                     type="button"
                     @click="exportPdf(x)"
                   >
-                     Relatório PDF
+                    Relatório PDF
                   </button>
 
                   <button

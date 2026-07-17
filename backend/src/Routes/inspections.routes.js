@@ -4,6 +4,42 @@ import { createInspectionFailAlert, createDeltaReturnAlert } from "../services/a
 
 const router = express.Router();
 
+function normalizeInspectionArea(value) {
+  const area = String(value || "")
+    .trim()
+    .toUpperCase();
+
+  return ["IQC", "OQC", "ALL"].includes(area) ? area : null;
+}
+
+function getLoggedUserArea(req) {
+  return normalizeInspectionArea(
+    req.user?.inspectionArea ??
+      req.user?.inspection_area ??
+      req.user?.area ??
+      ""
+  );
+}
+
+function userCanAccessArea(req, inspectionArea) {
+  const userArea = getLoggedUserArea(req);
+  const targetArea = normalizeInspectionArea(inspectionArea);
+
+  if (!userArea || !targetArea) {
+    return false;
+  }
+
+  return userArea === "ALL" || userArea === targetArea;
+}
+
+function sendInvalidUserArea(res) {
+  return res.status(403).json({
+    ok: false,
+    message:
+      "Seu usuário não possui uma área de inspeção válida. Verifique o cadastro do usuário.",
+  });
+}
+
 function normalizeResult(value) {
   const result = String(value || "").trim().toUpperCase();
 
@@ -380,11 +416,28 @@ conditionalApprovalNote:
 
 router.get("/", async (req, res) => {
   try {
-    const result = await db.query(`
-      SELECT *
-      FROM inspections
-      ORDER BY created_at DESC, id DESC
-    `);
+    const userArea = getLoggedUserArea(req);
+
+    if (!userArea) {
+      return sendInvalidUserArea(res);
+    }
+
+    const result =
+      userArea === "ALL"
+        ? await db.query(`
+            SELECT *
+            FROM public.inspections
+            ORDER BY created_at DESC, id DESC
+          `)
+        : await db.query(
+            `
+            SELECT *
+            FROM public.inspections
+            WHERE UPPER(TRIM(type)) = $1
+            ORDER BY created_at DESC, id DESC
+            `,
+            [userArea]
+          );
 
     res.json({
       ok: true,
@@ -404,26 +457,41 @@ router.get("/", async (req, res) => {
 router.get("/:id", async (req, res) => {
   try {
     const { id } = req.params;
+    const userArea = getLoggedUserArea(req);
+
+    if (!userArea) {
+      return sendInvalidUserArea(res);
+    }
 
     const result = await db.query(
       `
       SELECT *
-      FROM inspections
-      WHERE id = $1
+      FROM public.inspections
+      WHERE id::text = $1::text
       `,
-      [id]
+      [String(id)]
     );
 
-    if (!result.rows[0]) {
+    const inspection = result.rows[0];
+
+    if (!inspection) {
       return res.status(404).json({
         ok: false,
         message: "Inspeção não encontrada.",
       });
     }
 
+    if (!userCanAccessArea(req, inspection.type)) {
+      return res.status(403).json({
+        ok: false,
+        message:
+          "Você não possui autorização para acessar inspeções desta área.",
+      });
+    }
+
     res.json({
       ok: true,
-      item: mapInspection(result.rows[0]),
+      item: mapInspection(inspection),
     });
   } catch (error) {
     console.error("Erro ao buscar inspeção:", error);
@@ -439,20 +507,26 @@ router.get("/:id", async (req, res) => {
 router.post("/", async (req, res) => {
   try {
     const p = req.body || {};
+    const userArea = getLoggedUserArea(req);
 
-    let planSnapshot = null;
+    if (!userArea) {
+      return sendInvalidUserArea(res);
+    }
+
+let planSnapshot = null;
 
     if (p.plan_id || p.planId) {
       const planResult = await db.query(
         `
         SELECT
-          id,
-          inspection_regime,
-          switching_status,
-          suggested_regime,
-          switching_reason,
-          revision_number,
-          n
+        id,
+        type,
+        inspection_regime,
+        switching_status,
+        suggested_regime,
+        switching_reason,
+        revision_number,
+        n
         FROM public.plans
         WHERE id = $1
         `,
@@ -460,6 +534,31 @@ router.post("/", async (req, res) => {
       );
 
       planSnapshot = planResult.rows[0] || null;
+
+      if (!planSnapshot) {
+  return res.status(404).json({
+    ok: false,
+    message: "Plano de inspeção não encontrado.",
+  });
+}
+
+const planArea = normalizeInspectionArea(planSnapshot.type);
+
+if (!planArea) {
+  return res.status(409).json({
+    ok: false,
+    message:
+      "O plano selecionado não possui uma área de inspeção válida.",
+  });
+}
+
+if (!userCanAccessArea(req, planArea)) {
+  return res.status(403).json({
+    ok: false,
+    message:
+      `Este plano pertence à área ${planArea} e não pode ser utilizado por um usuário da área ${userArea}.`,
+  });
+}
     }
 
     const inspectionRegimeSnapshot =
@@ -596,7 +695,7 @@ router.post("/", async (req, res) => {
         p.planId || p.plan_id || null,
         p.planName || "",
 
-        p.type || "IQC",
+        planSnapshot.type,
         p.pn || "",
         p.model || "",
         p.client || "",
@@ -672,6 +771,7 @@ router.put("/:id", async (req, res) => {
       `
       SELECT
         i.id,
+        i.type,
         i.plan_id,
         i.plan_revision_number,
         p.revision_number AS current_plan_revision_number
@@ -691,6 +791,20 @@ router.put("/:id", async (req, res) => {
         message: "Inspeção não encontrada.",
       });
     }
+
+    const userArea = getLoggedUserArea(req);
+
+if (!userArea) {
+  return sendInvalidUserArea(res);
+}
+
+if (!userCanAccessArea(req, currentInspection.type)) {
+  return res.status(403).json({
+    ok: false,
+    message:
+      "Você não possui autorização para alterar inspeções desta área.",
+  });
+}
 
     const dbRevision = Number(currentInspection.plan_revision_number || 0);
     const bodyRevision = Number(p.planRevisionNumber || p.plan_revision_number || 0);
@@ -753,7 +867,7 @@ router.put("/:id", async (req, res) => {
         p.planId || p.plan_id || null,
         p.planName || p.plan_name || "",
 
-        p.type || "IQC",
+        currentInspection.type,
         p.pn || "",
         p.model || "",
         p.client || "",
@@ -921,6 +1035,20 @@ router.patch("/:id/conditional-approval", async (req, res) => {
       });
     }
 
+    const userArea = getLoggedUserArea(req);
+
+if (!userArea) {
+  return sendInvalidUserArea(res);
+}
+
+if (!userCanAccessArea(req, current.type)) {
+  return res.status(403).json({
+    ok: false,
+    message:
+      "Você não possui autorização para aprovar inspeções desta área.",
+  });
+}
+
     if (String(current.type || "").trim().toUpperCase() !== "IQC") {
       return res.status(409).json({
         ok: false,
@@ -1015,22 +1143,46 @@ router.patch("/:id/conditional-approval", async (req, res) => {
 router.delete("/:id", async (req, res) => {
   try {
     const { id } = req.params;
+    const userArea = getLoggedUserArea(req);
 
-    const result = await db.query(
+    if (!userArea) {
+      return sendInvalidUserArea(res);
+    }
+
+    const inspectionResult = await db.query(
       `
-      DELETE FROM inspections
-      WHERE id = $1
-      RETURNING id
+      SELECT id, type
+      FROM public.inspections
+      WHERE id::text = $1::text
       `,
-      [id]
+      [String(id)]
     );
 
-    if (!result.rows[0]) {
+    const inspection = inspectionResult.rows[0];
+
+    if (!inspection) {
       return res.status(404).json({
         ok: false,
         message: "Inspeção não encontrada.",
       });
     }
+
+    if (!userCanAccessArea(req, inspection.type)) {
+      return res.status(403).json({
+        ok: false,
+        message:
+          "Você não possui autorização para excluir inspeções desta área.",
+      });
+    }
+
+    const result = await db.query(
+      `
+      DELETE FROM public.inspections
+      WHERE id::text = $1::text
+      RETURNING id
+      `,
+      [String(id)]
+    );
 
     res.json({
       ok: true,

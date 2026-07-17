@@ -152,11 +152,47 @@ const canReinspect = computed(() => {
   );
 });
 
-// lista de planos
-const planList = computed(() => plans.items || []);
-const selectedPlan = computed(
-  () => planList.value.find((p) => String(p.id) === String(planId.value)) || null
-);
+// ----------------- ÁREA DO USUÁRIO / LISTA DE PLANOS -----------------
+
+const loggedInspectionArea = computed(() => {
+  const rawArea =
+    auth.user?.inspectionArea ??
+    auth.user?.inspection_area ??
+    auth.inspectionArea ??
+    auth.inspection_area ??
+    "";
+
+  const area = String(rawArea).trim().toUpperCase();
+
+  return ["IQC", "OQC", "ALL"].includes(area) ? area : null;
+});
+
+const planList = computed(() => {
+  const userArea = loggedInspectionArea.value;
+  const list = Array.isArray(plans.items) ? plans.items : [];
+
+  if (!userArea) {
+    return [];
+  }
+
+  if (userArea === "ALL") {
+    return list;
+  }
+
+  return list.filter((plan) => {
+    const planArea = String(
+      plan?.type ?? plan?.inspectionArea ?? plan?.inspection_area ?? ""
+    )
+      .trim()
+      .toUpperCase();
+
+    return planArea === userArea;
+  });
+});
+
+const selectedPlan = computed(() => {
+  return planList.value.find((p) => String(p.id) === String(planId.value)) || null;
+});
 
 const canManageSwitching = computed(() => {
   return Number(auth.accessLevel || 3) <= 2;
@@ -1607,6 +1643,31 @@ async function approveSwitchingFromInspection() {
 // ----------------- AÇÕES -----------------
 async function createDraft() {
   const p = selectedPlan.value;
+  const userArea = loggedInspectionArea.value;
+
+  if (!userArea) {
+    return alert("Seu usuário não possui uma área de inspeção válida.");
+  }
+
+  if (!p) {
+    return alert("Selecione um plano de inspeção permitido para a sua área.");
+  }
+
+  const planArea = String(p?.type ?? p?.inspectionArea ?? p?.inspection_area ?? "")
+    .trim()
+    .toUpperCase();
+
+  if (userArea !== "ALL" && planArea !== userArea) {
+    planId.value = "";
+    planSearch.value = "";
+    supplier.value = "";
+
+    return alert(
+      `Este plano pertence à área ${
+        planArea || "não informada"
+      } e não pode ser utilizado por um usuário da área ${userArea}.`
+    );
+  }
 
   if (inspectionBlockedBySwitching.value) {
     return alert(
@@ -1614,7 +1675,6 @@ async function createDraft() {
         "Solicite a confirmação da liderança antes de continuar."
     );
   }
-  if (!p) return alert("Selecione um plano");
   if (!lot.value.trim()) return alert("Preencha o lote");
   if (!resp.value.trim()) return alert("Preencha o responsável");
   if (!supplier.value.trim())
