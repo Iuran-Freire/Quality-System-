@@ -15,9 +15,7 @@ router.post(
 
 router.post(
   "/seed-inspector",
-  authController.seedInspector.bind(
-    authController
-  )
+  authController.seedInspector.bind(authController)
 );
 
 export default router;

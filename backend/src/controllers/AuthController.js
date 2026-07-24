@@ -1,211 +1,91 @@
-import bcrypt from "bcryptjs";
-import jwt from "jsonwebtoken";
-import { userRepository } from "../repositories/UserRepository.js";
+import { authService } from "../services/AuthService.js";
 
-function createServiceError(message, statusCode) {
-  const error = new Error(message);
-  error.statusCode = statusCode;
-  return error;
-}
+export class AuthController {
+  async login(req, res) {
+    try {
+      const result = await authService.login(
+        req.body || {}
+      );
 
-function normalizeInspectionArea(value) {
-  const area = String(value || "")
-    .trim()
-    .toUpperCase();
+      return res.json({
+        ok: true,
+        message: "Login realizado com sucesso.",
+        token: result.token,
+        user: result.user,
+      });
+    } catch (error) {
+      console.error("Erro no login:", error);
 
-  if (["IQC", "OQC", "ALL"].includes(area)) {
-    return area;
+      return res
+        .status(error.statusCode || 500)
+        .json({
+          ok: false,
+
+          message: error.statusCode
+            ? error.message
+            : "Erro no login.",
+
+          ...(!error.statusCode && {
+            error: error.message,
+          }),
+        });
+    }
   }
 
-  return null;
-}
+  async seedAdmin(req, res) {
+    try {
+      const result =
+        await authService.seedAdmin();
 
-function mapSafeUser(user) {
-  const inspectionArea =
-    normalizeInspectionArea(user.inspection_area);
+      return res.json({
+        ok: true,
+        message: result.message,
 
-  if (!inspectionArea) {
-    throw createServiceError(
-      "Usuário sem área de inspeção definida. Solicite a classificação como IQC, OQC ou Ambos.",
-      403
-    );
+        ...(result.user && {
+          user: result.user,
+        }),
+      });
+    } catch (error) {
+      console.error(
+        "Erro ao criar admin:",
+        error
+      );
+
+      return res.status(500).json({
+        ok: false,
+        message: "Erro ao criar admin.",
+        error: error.message,
+      });
+    }
   }
 
-  return {
-    id: user.id,
-    name: user.name,
-    username: user.username,
-    matricula: user.matricula || "",
-    cargo: user.cargo || "",
-    role: user.role,
-    accessLevel: Number(user.access_level || 3),
-    inspectionArea,
-    active: Boolean(user.active),
-  };
-}
+  async seedInspector(req, res) {
+    try {
+      const result =
+        await authService.seedInspector();
 
-export class AuthService {
-  async login({ username, password } = {}) {
-    const cleanUsername = String(username || "")
-      .trim()
-      .toLowerCase();
+      return res.json({
+        ok: true,
+        message: result.message,
 
-    const user =
-      await userRepository.findAuthByUsername(
-        cleanUsername
+        ...(result.user && {
+          user: result.user,
+        }),
+      });
+    } catch (error) {
+      console.error(
+        "Erro ao criar inspetor:",
+        error
       );
 
-    if (!user || !user.active) {
-      throw createServiceError(
-        "Usuário ou senha inválidos.",
-        401
-      );
+      return res.status(500).json({
+        ok: false,
+        message: "Erro ao criar inspetor.",
+        error: error.message,
+      });
     }
-
-    const passwordOk = await bcrypt.compare(
-      String(password || ""),
-      user.password_hash
-    );
-
-    if (!passwordOk) {
-      throw createServiceError(
-        "Usuário ou senha inválidos.",
-        401
-      );
-    }
-
-    const safeUser = mapSafeUser(user);
-
-    const token = jwt.sign(
-      safeUser,
-      process.env.JWT_SECRET,
-      {
-        expiresIn: "8h",
-      }
-    );
-
-    return {
-      token,
-      user: safeUser,
-    };
-  }
-
-  async seedAdmin() {
-    const userData = {
-      name: "Iuran",
-      username: "iuran",
-      password: "1234",
-      matricula: "8919",
-      cargo: "Admin",
-      role: "admin",
-      accessLevel: 1,
-      inspectionArea: "ALL",
-    };
-
-    const existing =
-      await userRepository.findByUsername(
-        userData.username
-      );
-
-    if (existing) {
-      return {
-        created: false,
-        message: "Usuário admin já existe.",
-      };
-    }
-
-    const passwordHash = await bcrypt.hash(
-      userData.password,
-      10
-    );
-
-    await userRepository.create({
-      name: userData.name,
-      username: userData.username,
-      passwordHash,
-      matricula: userData.matricula,
-      cargo: userData.cargo,
-      role: userData.role,
-      accessLevel: userData.accessLevel,
-      inspectionArea: userData.inspectionArea,
-      active: true,
-    });
-
-    return {
-      created: true,
-      message: "Usuário admin criado com sucesso.",
-
-      user: {
-        name: userData.name,
-        username: userData.username,
-        matricula: userData.matricula,
-        cargo: userData.cargo,
-        role: userData.role,
-        accessLevel: userData.accessLevel,
-        inspectionArea:
-          userData.inspectionArea,
-      },
-    };
-  }
-
-  async seedInspector() {
-    const userData = {
-      name: "Inspetor Teste",
-      username: "inspetor",
-      password: "1234",
-      matricula: "0003",
-      cargo: "Inspetor IQC",
-      role: "inspetor",
-      accessLevel: 3,
-      inspectionArea: "IQC",
-    };
-
-    const existing =
-      await userRepository.findByUsername(
-        userData.username
-      );
-
-    if (existing) {
-      return {
-        created: false,
-        message: "Usuário inspetor já existe.",
-      };
-    }
-
-    const passwordHash = await bcrypt.hash(
-      userData.password,
-      10
-    );
-
-    await userRepository.create({
-      name: userData.name,
-      username: userData.username,
-      passwordHash,
-      matricula: userData.matricula,
-      cargo: userData.cargo,
-      role: userData.role,
-      accessLevel: userData.accessLevel,
-      inspectionArea: userData.inspectionArea,
-      active: true,
-    });
-
-    return {
-      created: true,
-      message:
-        "Usuário inspetor criado com sucesso.",
-
-      user: {
-        name: userData.name,
-        username: userData.username,
-        matricula: userData.matricula,
-        cargo: userData.cargo,
-        role: userData.role,
-        accessLevel: userData.accessLevel,
-        inspectionArea:
-          userData.inspectionArea,
-      },
-    };
   }
 }
 
-export const authService = new AuthService();
+export const authController =
+  new AuthController();
