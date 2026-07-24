@@ -54,6 +54,31 @@ export class UserRepository {
     return result.rows[0] || null;
   }
 
+  async findAuthByUsername(username) {
+  const result = await db.query(
+    `
+    SELECT
+      id,
+      name,
+      username,
+      password_hash,
+      matricula,
+      cargo,
+      role,
+      access_level,
+      inspection_area,
+      active,
+      created_at,
+      updated_at
+    FROM users
+    WHERE username = $1
+    `,
+    [username]
+  );
+
+  return result.rows[0] || null;
+}
+
   async findByUsernameExcludingId(username, id) {
     const result = await db.query(
       `
