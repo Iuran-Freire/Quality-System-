@@ -399,97 +399,12 @@ const last1 = consecutiveHistory.slice(0, 1);
 }
 
 // analisar histórico de um plano e retornar sugestão
-router.get("/plans/:planId/analyze", async (req, res) => {
-  try {
-    const { planId } = req.params;
-
-    const planResult = await db.query(
-      `
-      SELECT
-  id,
-  name,
-  pn,
-  model,
-  client,
-  n,
-  sampling,
-  inspection_regime,
-  switching_status,
-  suggested_regime,
-  switching_reason,
-  current_sample_n,
-  suggested_sample_n
-FROM plans
-WHERE id = $1
-      `,
-      [planId]
-    );
-
-    const plan = planResult.rows[0];
-
-    if (!plan) {
-      return res.status(404).json({
-        ok: false,
-        message: "Plano não encontrado.",
-      });
-    }
-
-    const inspectionsResult = await db.query(
-      `
-      SELECT
-        id,
-        plan_id,
-        lot,
-        invoice,
-        result,
-        sampling,
-        chars,
-        samples,
-        inspection_regime_snapshot,
-        finished_at,
-        created_at
-      FROM inspections
-      WHERE plan_id = $1
-        AND finished_at IS NOT NULL
-        AND result IS NOT NULL
-      ORDER BY finished_at DESC, created_at DESC
-      LIMIT 10
-      `,
-      [planId]
-    );
-
-    const analysis = analyzeSwitchingRule(
-      plan.inspection_regime,
-      inspectionsResult.rows
-    );
-
-    res.json({
-      ok: true,
-      plan: {
-        id: plan.id,
-        name: plan.name,
-        pn: plan.pn,
-        model: plan.model,
-        client: plan.client,
-        currentRegime: normalizeRegime(plan.inspection_regime),
-        switchingStatus: plan.switching_status || "sem_pendencia",
-        suggestedRegime: plan.suggested_regime,
-        switchingReason: plan.switching_reason,
-        currentSampleN: plan.current_sample_n,
-        suggestedSampleN: plan.suggested_sample_n,
-      },
-      analysis,
-    });
-  } catch (error) {
-    console.error("Erro ao analisar comutação:", error);
-
-    res.status(500).json({
-      ok: false,
-      message: "Erro ao analisar comutação.",
-      error: error.message,
-    });
-  }
-});
+router.get(
+  "/plans/:planId/analyze",
+  switchingController.analyzePlan.bind(
+    switchingController
+  )
+);
 
 // gravar sugestão de comutação no plano
 router.post("/plans/:planId/suggest", async (req, res) => {

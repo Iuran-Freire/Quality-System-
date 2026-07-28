@@ -99,6 +99,32 @@ export class SwitchingController {
       );
     }
   }
+
+  async analyzePlan(req, res) {
+  try {
+    const result =
+      await switchingService.analyzePlan(
+        req.params.planId
+      );
+
+    return res.json({
+      ok: true,
+      plan: result.plan,
+      analysis: result.analysis,
+    });
+  } catch (error) {
+    console.error(
+      "Erro ao analisar comutação:",
+      error
+    );
+
+    return sendError(
+      res,
+      error,
+      "Erro ao analisar comutação."
+    );
+  }
+}
 }
 
 export const switchingController =

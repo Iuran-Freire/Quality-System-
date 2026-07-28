@@ -47,6 +47,60 @@ export class SwitchingRepository {
       ]
     );
   }
+
+  async findPlanForAnalysis(planId) {
+  const result = await db.query(
+    `
+    SELECT
+      id,
+      name,
+      pn,
+      model,
+      client,
+      n,
+      sampling,
+      inspection_regime,
+      switching_status,
+      suggested_regime,
+      switching_reason,
+      current_sample_n,
+      suggested_sample_n
+    FROM plans
+    WHERE id = $1
+    `,
+    [planId]
+  );
+
+  return result.rows[0] || null;
+}
+
+async findInspectionHistory(planId) {
+  const result = await db.query(
+    `
+    SELECT
+      id,
+      plan_id,
+      lot,
+      invoice,
+      result,
+      sampling,
+      chars,
+      samples,
+      inspection_regime_snapshot,
+      finished_at,
+      created_at
+    FROM inspections
+    WHERE plan_id = $1
+      AND finished_at IS NOT NULL
+      AND result IS NOT NULL
+    ORDER BY finished_at DESC, created_at DESC
+    LIMIT 10
+    `,
+    [planId]
+  );
+
+  return result.rows;
+}
 }
 
 export const switchingRepository =
