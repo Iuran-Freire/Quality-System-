@@ -272,6 +272,48 @@ async approveSwitchingWithHistory({
     client.release();
   }
 }
+
+async findSwitchingHistory() {
+  const result = await db.query(
+    `
+    SELECT
+      h.id,
+      h.plan_id,
+      p.name AS plan_name,
+      p.pn,
+      p.model,
+      p.client,
+
+      h.previous_regime,
+      h.new_regime,
+      h.previous_sample_n,
+      h.new_sample_n,
+      h.switching_type,
+      h.switching_status,
+      h.reason,
+      h.approved_by_name,
+      h.approved_by_username,
+      h.approved_by_role,
+      h.approved_by_level,
+      h.approved_at,
+      h.created_at
+
+    FROM public.plan_switching_history h
+
+    LEFT JOIN public.plans p
+      ON p.id = h.plan_id
+
+    ORDER BY
+      h.approved_at DESC,
+      h.id DESC
+
+    LIMIT 100
+    `
+  );
+
+  return result.rows;
+}
+
 }
 
 export const switchingRepository =

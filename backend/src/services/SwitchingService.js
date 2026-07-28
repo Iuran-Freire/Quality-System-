@@ -1082,6 +1082,68 @@ async approvePlan(
   };
 }
 
+async getHistory() {
+  const rows =
+    await switchingRepository.findSwitchingHistory();
+
+  return rows.map((row) => ({
+    id: row.id,
+
+    planId: row.plan_id,
+
+    planName:
+      row.plan_name || "",
+
+    pn:
+      row.pn || "",
+
+    model:
+      row.model || "",
+
+    client:
+      row.client || "",
+
+    previousRegime:
+      row.previous_regime,
+
+    newRegime:
+      row.new_regime,
+
+    previousSampleN:
+      row.previous_sample_n,
+
+    newSampleN:
+      row.new_sample_n,
+
+    switchingType:
+      row.switching_type,
+
+    switchingStatus:
+      row.switching_status,
+
+    reason:
+      row.reason || "",
+
+    approvedByName:
+      row.approved_by_name || "",
+
+    approvedByUsername:
+      row.approved_by_username || "",
+
+    approvedByRole:
+      row.approved_by_role || "",
+
+    approvedByLevel:
+      row.approved_by_level,
+
+    approvedAt:
+      row.approved_at,
+
+    createdAt:
+      row.created_at,
+  }));
+}
+
 }
 
 export const switchingService =
