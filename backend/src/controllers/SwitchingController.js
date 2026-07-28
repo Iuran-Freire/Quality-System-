@@ -125,6 +125,83 @@ export class SwitchingController {
     );
   }
 }
+async suggestPlan(req, res) {
+  try {
+    const result =
+      await switchingService.suggestPlan(
+        req.params.planId
+      );
+
+    return res.json({
+      ok: true,
+
+      message:
+        "Sugestão de comutação registrada com sucesso.",
+
+      plan:
+        result.plan,
+
+      analysis:
+        result.analysis,
+    });
+  } catch (error) {
+    console.error(
+      "Erro ao registrar sugestão de comutação:",
+      error
+    );
+
+    if (
+      error.statusCode === 400 &&
+      error.analysis
+    ) {
+      return res
+        .status(400)
+        .json({
+          ok: false,
+          message: error.message,
+          analysis: error.analysis,
+        });
+    }
+
+    return sendError(
+      res,
+      error,
+      "Erro ao registrar sugestão de comutação."
+    );
+  }
+}
+
+async approvePlan(req, res) {
+  try {
+    const plan =
+      await switchingService.approvePlan(
+        req.user,
+        req.params.planId,
+        req.body || {}
+      );
+
+    return res.json({
+      ok: true,
+
+      message:
+        "Comutação aprovada com sucesso.",
+
+      plan,
+    });
+  } catch (error) {
+    console.error(
+      "Erro ao aprovar comutação:",
+      error
+    );
+
+    return sendError(
+      res,
+      error,
+      "Erro ao aprovar comutação."
+    );
+  }
+}
+
 }
 
 export const switchingController =

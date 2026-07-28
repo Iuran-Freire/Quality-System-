@@ -57,6 +57,7 @@ export class SwitchingRepository {
       pn,
       model,
       client,
+      type,
       n,
       sampling,
       inspection_regime,
@@ -100,6 +101,176 @@ async findInspectionHistory(planId) {
   );
 
   return result.rows;
+}
+async saveSuggestion({
+  planId,
+  suggestedRegime,
+  reason,
+  currentSampleN,
+  suggestedSampleN,
+}) {
+  const result = await db.query(
+    `
+    UPDATE plans
+    SET
+      switching_status = 'pendente',
+      suggested_regime = $1,
+      switching_reason = $2,
+      current_sample_n = $3,
+      suggested_sample_n = $4,
+      switching_suggested_at = NOW(),
+      switching_suggested_by = 'Sistema',
+      switching_updated_at = NOW()
+    WHERE id = $5
+    RETURNING
+      id,
+      name,
+      pn,
+      model,
+      client,
+      type,
+      inspection_regime,
+      switching_status,
+      suggested_regime,
+      switching_reason,
+      current_sample_n,
+      suggested_sample_n,
+      switching_suggested_at,
+      switching_suggested_by,
+      switching_updated_at
+    `,
+    [
+      suggestedRegime,
+      reason,
+      currentSampleN,
+      suggestedSampleN,
+      planId,
+    ]
+  );
+
+  return result.rows[0] || null;
+}
+async approveSwitchingWithHistory({
+  plan,
+  previousRegime,
+  newRegime,
+  previousSampleN,
+  newSampleN,
+  approvedBy,
+}) {
+  const client = await db.connect();
+
+  try {
+    await client.query("BEGIN");
+
+    const updateResult = await client.query(
+      `
+      UPDATE plans
+      SET
+        inspection_regime = $1,
+        n = $2,
+        switching_status = 'aprovado',
+        suggested_regime = NULL,
+        switching_reason = NULL,
+        current_sample_n = $2,
+        suggested_sample_n = NULL,
+        switching_updated_at = NOW()
+      WHERE id = $3
+      RETURNING
+        id,
+        name,
+        pn,
+        model,
+        client,
+        inspection_regime,
+        switching_status,
+        suggested_regime,
+        switching_reason,
+        current_sample_n,
+        suggested_sample_n,
+        switching_updated_at
+      `,
+      [
+        newRegime,
+        newSampleN,
+        plan.id,
+      ]
+    );
+
+    await client.query(
+      `
+      INSERT INTO plan_switching_history (
+        plan_id,
+        previous_regime,
+        new_regime,
+        previous_sample_n,
+        new_sample_n,
+        switching_type,
+        switching_status,
+        reason,
+        history_snapshot,
+        approved_by_id,
+        approved_by_name,
+        approved_by_username,
+        approved_by_role,
+        approved_by_level,
+        approved_at,
+        created_at
+      )
+      VALUES (
+        $1,
+        $2,
+        $3,
+        $4,
+        $5,
+        'sugerida',
+        'aprovado',
+        $6,
+        $7,
+        $8,
+        $9,
+        $10,
+        $11,
+        $12,
+        NOW(),
+        NOW()
+      )
+      `,
+      [
+        plan.id,
+        previousRegime,
+        newRegime,
+        previousSampleN,
+        newSampleN,
+        plan.switching_reason,
+
+        JSON.stringify({
+          planId: plan.id,
+          pn: plan.pn,
+          model: plan.model,
+          client: plan.client,
+          previousRegime,
+          newRegime,
+          reason: plan.switching_reason,
+        }),
+
+        approvedBy.id || null,
+        approvedBy.name || "Não informado",
+        approvedBy.username || "",
+        approvedBy.role || "",
+        approvedBy.accessLevel,
+      ]
+    );
+
+    await client.query("COMMIT");
+
+    return updateResult.rows[0] || null;
+  } catch (error) {
+    await client.query("ROLLBACK");
+    throw error;
+  } finally {
+    client.release();
+  }
 }
 }
 

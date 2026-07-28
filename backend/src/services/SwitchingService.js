@@ -1,5 +1,6 @@
 import bcrypt from "bcryptjs";
 import { switchingRepository } from "../repositories/SwitchingRepository.js";
+import { upsertQualityAlert , resolveQualityAlertBySourceKey } from "./alerts.service.js";
 
 const SWITCHING_PASSWORD_KEY =
   "switching_password_hash";
@@ -340,6 +341,54 @@ function getSwitchingOutcome(insp) {
 
     xrfOnlyFailure,
   };
+}
+
+function getSampleNByRegime(plan, regime) {
+  const sampling = safeJson(
+    plan?.sampling,
+    {}
+  );
+
+  const targetRegime =
+    normalizeRegime(regime);
+
+  const normalN =
+    Number(
+      sampling.fixedNormalN ||
+      sampling.normalN ||
+      plan?.n ||
+      0
+    ) || null;
+
+  const reducedN =
+    Number(
+      sampling.fixedReducedN ||
+      sampling.reducedN ||
+      sampling.atenuadaN ||
+      normalN ||
+      plan?.n ||
+      0
+    ) || null;
+
+  const tightenedN =
+    Number(
+      sampling.fixedTightenedN ||
+      sampling.tightenedN ||
+      sampling.severaN ||
+      normalN ||
+      plan?.n ||
+      0
+    ) || null;
+
+  if (targetRegime === "atenuada") {
+    return reducedN;
+  }
+
+  if (targetRegime === "severa") {
+    return tightenedN;
+  }
+
+  return normalN;
 }
 
 function analyzeSwitchingRule(
@@ -704,6 +753,335 @@ export class SwitchingService {
     analysis,
   };
 }
+
+async suggestPlan(planId) {
+  const plan =
+    await switchingRepository.findPlanForAnalysis(
+      planId
+    );
+
+  if (!plan) {
+    throw createServiceError(
+      "Plano não encontrado.",
+      404
+    );
+  }
+
+  const inspections =
+    await switchingRepository.findInspectionHistory(
+      planId
+    );
+
+  const analysis =
+    analyzeSwitchingRule(
+      plan.inspection_regime,
+      inspections
+    );
+
+  if (!analysis.hasSuggestion) {
+    const error = createServiceError(
+      "O histórico ainda não atende critério para comutação.",
+      400
+    );
+
+    error.analysis = analysis;
+
+    throw error;
+  }
+
+  const currentSampleN =
+    getSampleNByRegime(
+      plan,
+      analysis.currentRegime
+    );
+
+  const suggestedSampleN =
+    getSampleNByRegime(
+      plan,
+      analysis.suggestedRegime
+    );
+
+  const updatedPlan =
+    await switchingRepository.saveSuggestion({
+      planId,
+
+      suggestedRegime:
+        analysis.suggestedRegime,
+
+      reason:
+        analysis.reason,
+
+      currentSampleN,
+      suggestedSampleN,
+    });
+
+  try {
+    await upsertQualityAlert({
+      alertType:
+        "SWITCHING_PENDING",
+
+      severity:
+        "warning",
+
+      title:
+        "Comutação NBR pendente",
+
+      message:
+        `Plano: ${plan.name || "-"} | ` +
+        `PN: ${plan.pn || "-"} | ` +
+        `Regime atual: ${analysis.currentRegime} | ` +
+        `Regime sugerido: ${analysis.suggestedRegime}. ` +
+        `Motivo: ${analysis.reason}`,
+
+      planId:
+        plan.id,
+
+      inspectionArea:
+        plan.type || "ALL",
+
+      sourceKey:
+        `SWITCHING_PENDING:PLAN:${plan.id}`,
+
+      context: {
+        planName:
+          plan.name || "",
+
+        pn:
+          plan.pn || "",
+
+        model:
+          plan.model || "",
+
+        currentRegime:
+          analysis.currentRegime,
+
+        suggestedRegime:
+          analysis.suggestedRegime,
+
+        reason:
+          analysis.reason,
+      },
+    });
+  } catch (alertError) {
+    console.error(
+      "Sugestão registrada, mas não foi possível criar o alerta de comutação:",
+      alertError
+    );
+  }
+
+  return {
+    plan: {
+      id:
+        updatedPlan.id,
+
+      name:
+        updatedPlan.name,
+
+      pn:
+        updatedPlan.pn,
+
+      model:
+        updatedPlan.model,
+
+      client:
+        updatedPlan.client,
+
+      currentRegime:
+        normalizeRegime(
+          updatedPlan.inspection_regime
+        ),
+
+      switchingStatus:
+        updatedPlan.switching_status,
+
+      suggestedRegime:
+        updatedPlan.suggested_regime,
+
+      switchingReason:
+        updatedPlan.switching_reason,
+
+      currentSampleN:
+        updatedPlan.current_sample_n,
+
+      suggestedSampleN:
+        updatedPlan.suggested_sample_n,
+
+      switchingSuggestedAt:
+        updatedPlan.switching_suggested_at,
+
+      switchingSuggestedBy:
+        updatedPlan.switching_suggested_by,
+
+      switchingUpdatedAt:
+        updatedPlan.switching_updated_at,
+    },
+
+    analysis,
+  };
+}
+
+async approvePlan(
+  user,
+  planId,
+  { password } = {}
+) {
+  if (!String(password || "").trim()) {
+    throw createServiceError(
+      "Informe a senha de comutação.",
+      400
+    );
+  }
+
+  const userLevel = Number(
+    user?.accessLevel ||
+    user?.access_level ||
+    3
+  );
+
+  if (userLevel > 2) {
+    throw createServiceError(
+      "Usuário sem permissão para aprovar comutação.",
+      403
+    );
+  }
+
+  // Reaproveita a validação de senha
+  // que já criamos anteriormente.
+  await this.checkPassword(password);
+
+  const plan =
+    await switchingRepository.findPlanForAnalysis(
+      planId
+    );
+
+  if (!plan) {
+    throw createServiceError(
+      "Plano não encontrado.",
+      404
+    );
+  }
+
+  if (
+    plan.switching_status !== "pendente" ||
+    !plan.suggested_regime
+  ) {
+    throw createServiceError(
+      "Este plano não possui comutação pendente.",
+      400
+    );
+  }
+
+  const previousRegime =
+    normalizeRegime(
+      plan.inspection_regime
+    );
+
+  const newRegime =
+    normalizeRegime(
+      plan.suggested_regime
+    );
+
+  const previousSampleN =
+    Number(
+      plan.current_sample_n ||
+      plan.n ||
+      0
+    ) || null;
+
+  const newSampleN =
+    Number(
+      plan.suggested_sample_n ||
+      getSampleNByRegime(
+        plan,
+        newRegime
+      ) ||
+      previousSampleN ||
+      0
+    ) || null;
+
+  const approvedBy = {
+    id:
+      user?.id || null,
+
+    name:
+      user?.name ||
+      user?.username ||
+      "Não informado",
+
+    username:
+      user?.username || "",
+
+    role:
+      user?.role ||
+      user?.cargo ||
+      "",
+
+    accessLevel:
+      userLevel,
+  };
+
+  const updated =
+    await switchingRepository.approveSwitchingWithHistory({
+      plan,
+      previousRegime,
+      newRegime,
+      previousSampleN,
+      newSampleN,
+      approvedBy,
+    });
+
+  try {
+    await resolveQualityAlertBySourceKey({
+      sourceKey:
+        `SWITCHING_PENDING:PLAN:${plan.id}`,
+
+      resolvedBy:
+        approvedBy.name ||
+        approvedBy.username ||
+        "Sistema",
+
+      resolutionNote:
+        `Comutação aprovada: ${previousRegime} → ${newRegime}.`,
+    });
+  } catch (alertError) {
+    console.error(
+      "Comutação aprovada, mas não foi possível resolver o alerta:",
+      alertError
+    );
+  }
+
+  return {
+    id: updated.id,
+    name: updated.name,
+    pn: updated.pn,
+    model: updated.model,
+    client: updated.client,
+
+    currentRegime:
+      normalizeRegime(
+        updated.inspection_regime
+      ),
+
+    switchingStatus:
+      updated.switching_status,
+
+    suggestedRegime:
+      updated.suggested_regime,
+
+    switchingReason:
+      updated.switching_reason,
+
+    currentSampleN:
+      updated.current_sample_n,
+
+    suggestedSampleN:
+      updated.suggested_sample_n,
+
+    switchingUpdatedAt:
+      updated.switching_updated_at,
+  };
+}
+
 }
 
 export const switchingService =
