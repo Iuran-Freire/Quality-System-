@@ -5,6 +5,7 @@ import {
   upsertQualityAlert,
   resolveQualityAlertBySourceKey,
 } from "../services/alerts.service.js";
+import { switchingController } from "../controllers/SwitchingController.js";
 
 const router = express.Router();
 
@@ -15,155 +16,26 @@ function canManageSwitching(user) {
 }
 
 // verificar se existe senha de comutação cadastrada
-router.get("/password-status", async (req, res) => {
-  try {
-    const result = await db.query(
-      `
-      SELECT setting_value
-      FROM system_settings
-      WHERE setting_key = $1
-      `,
-      [SWITCHING_PASSWORD_KEY]
-    );
-
-    const row = result.rows[0];
-
-    res.json({
-      ok: true,
-      hasPassword: Boolean(row?.setting_value),
-    });
-  } catch (error) {
-    console.error("Erro ao verificar senha de comutação:", error);
-
-    res.status(500).json({
-      ok: false,
-      message: "Erro ao verificar senha de comutação.",
-      error: error.message,
-    });
-  }
-});
-
+router.get(
+  "/password-status",
+  switchingController.getPasswordStatus.bind(
+    switchingController
+  )
+);
 // cadastrar ou alterar senha de comutação
-router.post("/password", async (req, res) => {
-  try {
-    const { password, confirmPassword } = req.body;
-
-    if (!String(password || "").trim()) {
-      return res.status(400).json({
-        ok: false,
-        message: "Informe a senha de comutação.",
-      });
-    }
-
-    if (String(password) !== String(confirmPassword)) {
-      return res.status(400).json({
-        ok: false,
-        message: "A confirmação da senha não confere.",
-      });
-    }
-
-    if (String(password).length < 4) {
-      return res.status(400).json({
-        ok: false,
-        message: "A senha de comutação deve ter pelo menos 4 caracteres.",
-      });
-    }
-
-    const passwordHash = await bcrypt.hash(String(password), 10);
-
-    await db.query(
-      `
-      INSERT INTO system_settings (
-        setting_key,
-        setting_value,
-        description,
-        created_at,
-        updated_at
-      )
-      VALUES (
-        $1,
-        $2,
-        'Senha criptografada para confirmação de comutação de regime de inspeção',
-        NOW(),
-        NOW()
-      )
-      ON CONFLICT (setting_key)
-      DO UPDATE SET
-        setting_value = EXCLUDED.setting_value,
-        updated_at = NOW()
-      `,
-      [SWITCHING_PASSWORD_KEY, passwordHash]
-    );
-
-    res.json({
-      ok: true,
-      message: "Senha de comutação salva com sucesso.",
-      hasPassword: true,
-    });
-  } catch (error) {
-    console.error("Erro ao salvar senha de comutação:", error);
-
-    res.status(500).json({
-      ok: false,
-      message: "Erro ao salvar senha de comutação.",
-      error: error.message,
-    });
-  }
-});
-
+router.post(
+  "/passoword",
+  switchingController.savePassword.bind(
+    switchingController
+  )
+);
 // validar senha de comutação
-router.post("/password/check", async (req, res) => {
-  try {
-    const { password } = req.body;
-
-    if (!String(password || "").trim()) {
-      return res.status(400).json({
-        ok: false,
-        message: "Informe a senha de comutação.",
-      });
-    }
-
-    const result = await db.query(
-      `
-      SELECT setting_value
-      FROM system_settings
-      WHERE setting_key = $1
-      `,
-      [SWITCHING_PASSWORD_KEY]
-    );
-
-    const passwordHash = result.rows[0]?.setting_value;
-
-    if (!passwordHash) {
-      return res.status(400).json({
-        ok: false,
-        message: "Senha de comutação ainda não cadastrada.",
-      });
-    }
-
-    const valid = await bcrypt.compare(String(password), passwordHash);
-
-    if (!valid) {
-      return res.status(401).json({
-        ok: false,
-        message: "Senha de comutação inválida.",
-      });
-    }
-
-    res.json({
-      ok: true,
-      message: "Senha validada com sucesso.",
-    });
-  } catch (error) {
-    console.error("Erro ao validar senha de comutação:", error);
-
-    res.status(500).json({
-      ok: false,
-      message: "Erro ao validar senha de comutação.",
-      error: error.message,
-    });
-  }
-});
+router.post(
+  "/passoword/check",
+  switchingController.checkPassword.bind(
+    switchingController
+  )
+);
 
 function normalizeResult(value) {
   const result = String(value || "").trim().toUpperCase();
