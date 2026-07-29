@@ -75,6 +75,46 @@ export class InspectionController {
       );
     }
   }
+  async create(req, res) {
+  try {
+    const item =
+      await inspectionService.create(
+        req.user,
+        req.body || {}
+      );
+
+    return res
+      .status(201)
+      .json({
+        ok: true,
+        item,
+      });
+  } catch (error) {
+    console.error(
+      "Erro ao criar inspeção:",
+      error
+    );
+
+    if (
+      error.statusCode === 409 &&
+      error.switching
+    ) {
+      return res
+        .status(409)
+        .json({
+          ok: false,
+          message: error.message,
+          switching: error.switching,
+        });
+    }
+
+    return sendError(
+      res,
+      error,
+      "Erro ao criar inspeção."
+    );
+  }
+}
 }
 
 export const inspectionController =
