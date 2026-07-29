@@ -449,63 +449,11 @@ router.patch(
   )
 );
 
-router.delete("/:id", async (req, res) => {
-  try {
-    const { id } = req.params;
-    const userArea = getLoggedUserArea(req);
-
-    if (!userArea) {
-      return sendInvalidUserArea(res);
-    }
-
-    const inspectionResult = await db.query(
-      `
-      SELECT id, type
-      FROM public.inspections
-      WHERE id::text = $1::text
-      `,
-      [String(id)]
-    );
-
-    const inspection = inspectionResult.rows[0];
-
-    if (!inspection) {
-      return res.status(404).json({
-        ok: false,
-        message: "Inspeção não encontrada.",
-      });
-    }
-
-    if (!userCanAccessArea(req, inspection.type)) {
-      return res.status(403).json({
-        ok: false,
-        message:
-          "Você não possui autorização para excluir inspeções desta área.",
-      });
-    }
-
-    const result = await db.query(
-      `
-      DELETE FROM public.inspections
-      WHERE id::text = $1::text
-      RETURNING id
-      `,
-      [String(id)]
-    );
-
-    res.json({
-      ok: true,
-      message: "Inspeção excluída com sucesso.",
-    });
-  } catch (error) {
-    console.error("Erro ao excluir inspeção:", error);
-
-    res.status(500).json({
-      ok: false,
-      message: "Erro ao excluir inspeção.",
-      error: error.message,
-    });
-  }
-});
+router.delete(
+  "/:id",
+  inspectionController.delete.bind(
+    inspectionController
+  )
+);
 
 export default router;

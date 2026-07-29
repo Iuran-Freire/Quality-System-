@@ -23,7 +23,7 @@ export class InspectionRepository {
     );
 
     return result.rows;
-  }
+}
 
   async findById(id) {
     const result = await db.query(
@@ -36,7 +36,8 @@ export class InspectionRepository {
     );
 
     return result.rows[0] || null;
-  }
+}
+
   async findPlanForInspection(planId) {
   const result = await db.query(
     `
@@ -58,7 +59,7 @@ export class InspectionRepository {
   return result.rows[0] || null;
 }
 
-async findSwitchingHistory(planId) {
+  async findSwitchingHistory(planId) {
   const result = await db.query(
     `
     SELECT
@@ -82,7 +83,7 @@ async findSwitchingHistory(planId) {
   return result.rows;
 }
 
-async create(data) {
+ async create(data) {
   const result = await db.query(
     `
     INSERT INTO inspections (
@@ -200,7 +201,7 @@ async create(data) {
   return result.rows[0];
 }
 
-async findForUpdate(id) {
+  async findForUpdate(id) {
   const result = await db.query(
     `
     SELECT
@@ -220,7 +221,7 @@ async findForUpdate(id) {
   return result.rows[0] || null;
 }
 
-async update(id, data) {
+ async update(id, data) {
   const result = await db.query(
     `
     UPDATE public.inspections
@@ -316,7 +317,7 @@ async update(id, data) {
   return result.rows[0] || null;
 }
 
-async findForConditionalApproval(id) {
+ async findForConditionalApproval(id) {
   const result = await db.query(
     `
     SELECT
@@ -334,7 +335,7 @@ async findForConditionalApproval(id) {
   return result.rows[0] || null;
 }
 
-async approveConditionally(
+ async approveConditionally(
   id,
   {
     reason,
@@ -367,6 +368,75 @@ async approveConditionally(
       approvedByRole,
       String(id),
     ]
+  );
+
+  return result.rows[0] || null;
+}
+
+ async findForConditionalApproval(id) {
+  const result = await db.query(
+    `
+    SELECT
+      id,
+      type,
+      status,
+      result,
+      conditional_approval_status
+    FROM public.inspections
+    WHERE id::text = $1::text
+    `,
+    [String(id)]
+  );
+
+  return result.rows[0] || null;
+}
+
+ async approveConditionally(
+  id,
+  {
+    reason,
+    note,
+    approvedBy,
+    approvedByUser,
+    approvedByRole,
+  }
+) {
+  const result = await db.query(
+    `
+    UPDATE public.inspections
+    SET
+      conditional_approval_status = 'approved_conditional',
+      conditional_approval_reason = $1,
+      conditional_approval_note = $2,
+      conditional_approval_by = $3,
+      conditional_approval_by_user = $4,
+      conditional_approval_by_role = $5,
+      conditional_approval_at = NOW(),
+      updated_at = NOW()
+    WHERE id::text = $6::text
+    RETURNING *
+    `,
+    [
+      reason,
+      note || null,
+      approvedBy,
+      approvedByUser,
+      approvedByRole,
+      String(id),
+    ]
+  );
+
+  return result.rows[0] || null;
+}
+
+ async deleteById(id) {
+  const result = await db.query(
+    `
+    DELETE FROM public.inspections
+    WHERE id::text = $1::text
+    RETURNING id
+    `,
+    [String(id)]
   );
 
   return result.rows[0] || null;

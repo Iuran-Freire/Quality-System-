@@ -119,9 +119,13 @@ const filtered = computed(() => {
     return [];
   }
 
-  const base = [...(insps.items || [])].sort((a, b) =>
-    String(b.createdAt || "").localeCompare(String(a.createdAt || ""))
-  );
+  const base = [...(insps.items || [])].sort((a, b) => {
+    const dateA = new Date(a.startedAt || a.createdAt || 0).getTime();
+
+    const dateB = new Date(b.startedAt || b.createdAt || 0).getTime();
+
+    return dateB - dateA;
+  });
 
   return base.filter((x) => {
     const inspectionArea = String(x.type || x.inspectionArea || x.inspection_area || "")

@@ -612,7 +612,7 @@ export class InspectionService {
       );
 
     return rows.map(mapInspection);
-  }
+}
 
   async getById(user, id) {
     const userArea =
@@ -648,7 +648,7 @@ export class InspectionService {
     }
 
     return mapInspection(inspection);
-  }
+}
 
   async create(user, data = {}) {
   const p = data;
@@ -1388,6 +1388,188 @@ export class InspectionService {
   }
 
   return updatedInspection;
+}
+
+ async approveConditionally(user, id, data = {}) {
+  const accessLevel = Number(
+    user?.accessLevel ??
+    user?.access_level ??
+    3
+  );
+
+  if (accessLevel > 2) {
+    throw createServiceError(
+      "Somente usuários Nível 1 ou Nível 2 podem aprovar condicionalmente um lote.",
+      403
+    );
+  }
+
+  const reason = String(
+    data?.reason || ""
+  ).trim();
+
+  const note = String(
+    data?.note || ""
+  ).trim();
+
+  if (!reason) {
+    throw createServiceError(
+      "Informe o motivo da aprovação condicional.",
+      400
+    );
+  }
+
+  const current =
+    await inspectionRepository.findForConditionalApproval(
+      id
+    );
+
+  if (!current) {
+    throw createServiceError(
+      "Inspeção não encontrada.",
+      404
+    );
+  }
+
+  const userArea =
+    getLoggedUserArea(user);
+
+  if (!userArea) {
+    throw createServiceError(
+      "Seu usuário não possui uma área de inspeção válida. Verifique o cadastro do usuário.",
+      403
+    );
+  }
+
+  if (
+    !userCanAccessArea(
+      user,
+      current.type
+    )
+  ) {
+    throw createServiceError(
+      "Você não possui autorização para aprovar inspeções desta área.",
+      403
+    );
+  }
+
+  if (
+    String(current.type || "")
+      .trim()
+      .toUpperCase() !== "IQC"
+  ) {
+    throw createServiceError(
+      "Aprovação condicional está disponível somente para inspeções IQC.",
+      409
+    );
+  }
+
+  if (
+    String(current.status || "")
+      .trim()
+      .toLowerCase() !== "done"
+  ) {
+    throw createServiceError(
+      "A inspeção precisa estar finalizada antes da aprovação condicional.",
+      409
+    );
+  }
+
+  if (
+    normalizeResult(
+      current.result
+    ) !== "FAIL"
+  ) {
+    throw createServiceError(
+      "Aprovação condicional só pode ser usada em inspeções com resultado oficial FAIL.",
+      409
+    );
+  }
+
+  if (
+    String(
+      current.conditional_approval_status ||
+      "none"
+    ).toLowerCase() !== "none"
+  ) {
+    throw createServiceError(
+      "Esta inspeção já possui uma aprovação condicional registrada.",
+      409
+    );
+  }
+
+  const approvedBy =
+    user?.name ||
+    user?.username ||
+    "Não informado";
+
+  const approvedByUser =
+    user?.username || "";
+
+  const approvedByRole =
+    user?.cargo ||
+    user?.role ||
+    "";
+
+  const updated =
+    await inspectionRepository.approveConditionally(
+      id,
+      {
+        reason,
+        note,
+        approvedBy,
+        approvedByUser,
+        approvedByRole,
+      }
+    );
+
+  return mapInspection(updated);
+}
+
+ async delete(user, id) {
+  const userArea =
+    getLoggedUserArea(user);
+
+  if (!userArea) {
+    throw createServiceError(
+      "Seu usuário não possui uma área de inspeção válida. Verifique o cadastro do usuário.",
+      403
+    );
+  }
+
+  const inspection =
+    await inspectionRepository.findById(id);
+
+  if (!inspection) {
+    throw createServiceError(
+      "Inspeção não encontrada.",
+      404
+    );
+  }
+
+  if (
+    !userCanAccessArea(
+      user,
+      inspection.type
+    )
+  ) {
+    throw createServiceError(
+      "Você não possui autorização para excluir inspeções desta área.",
+      403
+    );
+  }
+
+  const deleted =
+    await inspectionRepository.deleteById(id);
+
+  if (!deleted) {
+    throw createServiceError(
+      "Inspeção não encontrada.",
+      404
+    );
+  }
+
+  return deleted;
 }
 }
 
