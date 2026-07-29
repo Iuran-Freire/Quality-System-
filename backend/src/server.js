@@ -2,6 +2,8 @@ import express from "express";
 import cors from "cors";
 import dotenv from "dotenv";
 import jwt from "jsonwebtoken";
+
+
 import { testConnection } from "./db.js";
 
 import setupRoutes from "./routes/setup.routes.js";
@@ -10,7 +12,7 @@ import usersRoutes from "./routes/users.routes.js";
 import switchingRoutes from "./routes/switching.routes.js";
 import plansRoutes from "./routes/plans.routes.js";
 import inspectionsRoutes from "./routes/inspections.routes.js";
-import alertsRoutes from "./Routes/alerts.routes.js";
+import alertsRoutes from "./routes/alerts.routes.js";
 
 dotenv.config();
 
