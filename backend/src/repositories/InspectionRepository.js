@@ -200,6 +200,123 @@ async create(data) {
   return result.rows[0];
 }
 
+async findForUpdate(id) {
+  const result = await db.query(
+    `
+    SELECT
+      i.id,
+      i.type,
+      i.plan_id,
+      i.plan_revision_number,
+      p.revision_number AS current_plan_revision_number
+    FROM public.inspections i
+    LEFT JOIN public.plans p
+      ON p.id::text = i.plan_id::text
+    WHERE i.id::text = $1::text
+    `,
+    [String(id)]
+  );
+
+  return result.rows[0] || null;
+}
+
+async update(id, data) {
+  const result = await db.query(
+    `
+    UPDATE public.inspections
+    SET
+      plan_id = $1,
+      plan_name = $2,
+      type = $3,
+      pn = $4,
+      model = $5,
+      client = $6,
+      supplier = $7,
+      lot = $8,
+      invoice = $9,
+      lot_size = $10,
+      shift = $11,
+      resp = $12,
+      obs = $13,
+      status = $14,
+      result = $15,
+      started_at = $16,
+      finished_at = $17,
+      updated_by = $18,
+      updated_by_user = $19,
+      updated_by_role = $20,
+      finished_by = $21,
+      finished_by_user = $22,
+      finished_by_role = $23,
+      plan_samples = $24,
+      plan_box_qty = $25,
+      box_qty = $26,
+      sampling = $27::jsonb,
+      chars = $28::jsonb,
+      samples = $29::jsonb,
+      parent_inspection_id = $30,
+      is_reinspection = $31,
+      inspection_cycle = $32,
+      created_at = $33,
+      plan_revision_number = $34,
+      updated_at = NOW()
+    WHERE id::text = $35::text
+    RETURNING *
+    `,
+    [
+      data.planId,
+      data.planName,
+
+      data.type,
+      data.pn,
+      data.model,
+      data.client,
+      data.supplier,
+
+      data.lot,
+      data.invoice,
+      data.lotSize,
+      data.shift,
+      data.resp,
+      data.obs,
+
+      data.status,
+      data.result,
+
+      data.startedAt,
+      data.finishedAt,
+
+      data.updatedBy,
+      data.updatedByUser,
+      data.updatedByRole,
+
+      data.finishedBy,
+      data.finishedByUser,
+      data.finishedByRole,
+
+      data.planSamples,
+      data.planBoxQty,
+      data.boxQty,
+
+      JSON.stringify(data.sampling),
+      JSON.stringify(data.chars),
+      JSON.stringify(data.samples),
+
+      data.parentInspectionId,
+      data.isReinspection,
+      data.inspectionCycle,
+
+      data.createdAt,
+      data.planRevisionNumber,
+
+      String(id),
+    ]
+  );
+
+  return result.rows[0] || null;
+}
+
+
 }
 
 export const inspectionRepository =

@@ -75,6 +75,7 @@ export class InspectionController {
       );
     }
   }
+
   async create(req, res) {
   try {
     const item =
@@ -115,6 +116,33 @@ export class InspectionController {
     );
   }
 }
+
+ async update(req, res) {
+  try {
+    const item =
+      await inspectionService.update(
+        req.user,
+        req.params.id,
+        req.body || {}
+      );
+
+    return res.json({
+      ok: true,
+      item,
+    });
+  } catch (error) {
+    console.error(
+      "Erro ao atualizar inspeção:",
+      error
+    );
+
+    return sendError(
+      res,
+      error,
+      "Erro ao atualizar inspeção."
+    );
+  }
+ }
 }
 
 export const inspectionController =

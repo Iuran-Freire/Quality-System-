@@ -1,4 +1,8 @@
 import { inspectionRepository } from "../repositories/InspectionRepository.js";
+import {
+  createInspectionFailAlert,
+  createDeltaReturnAlert,
+} from "./alerts.service.js";
 
 function createServiceError(message, statusCode) {
   const error = new Error(message);
@@ -645,7 +649,7 @@ export class InspectionService {
 
     return mapInspection(inspection);
   }
-  
+
   async create(user, data = {}) {
   const p = data;
 
