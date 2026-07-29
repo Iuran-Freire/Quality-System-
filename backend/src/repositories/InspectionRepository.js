@@ -316,7 +316,61 @@ async update(id, data) {
   return result.rows[0] || null;
 }
 
+async findForConditionalApproval(id) {
+  const result = await db.query(
+    `
+    SELECT
+      id,
+      type,
+      status,
+      result,
+      conditional_approval_status
+    FROM public.inspections
+    WHERE id::text = $1::text
+    `,
+    [String(id)]
+  );
 
+  return result.rows[0] || null;
+}
+
+async approveConditionally(
+  id,
+  {
+    reason,
+    note,
+    approvedBy,
+    approvedByUser,
+    approvedByRole,
+  }
+) {
+  const result = await db.query(
+    `
+    UPDATE public.inspections
+    SET
+      conditional_approval_status = 'approved_conditional',
+      conditional_approval_reason = $1,
+      conditional_approval_note = $2,
+      conditional_approval_by = $3,
+      conditional_approval_by_user = $4,
+      conditional_approval_by_role = $5,
+      conditional_approval_at = NOW(),
+      updated_at = NOW()
+    WHERE id::text = $6::text
+    RETURNING *
+    `,
+    [
+      reason,
+      note || null,
+      approvedBy,
+      approvedByUser,
+      approvedByRole,
+      String(id),
+    ]
+  );
+
+  return result.rows[0] || null;
+}
 }
 
 export const inspectionRepository =

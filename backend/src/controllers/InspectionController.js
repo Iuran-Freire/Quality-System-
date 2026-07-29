@@ -143,6 +143,35 @@ export class InspectionController {
     );
   }
  }
+
+ async approveConditionally(req, res) {
+  try {
+    const item =
+      await inspectionService.approveConditionally(
+        req.user,
+        req.params.id,
+        req.body || {}
+      );
+
+    return res.json({
+      ok: true,
+      message:
+        "Lote aprovado condicionalmente. O resultado oficial permanece FAIL.",
+      item,
+    });
+  } catch (error) {
+    console.error(
+      "Erro ao registrar aprovação condicional:",
+      error
+    );
+
+    return sendError(
+      res,
+      error,
+      "Erro ao registrar aprovação condicional."
+    );
+  }
+}
 }
 
 export const inspectionController =

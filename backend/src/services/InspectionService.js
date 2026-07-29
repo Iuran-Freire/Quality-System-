@@ -922,7 +922,473 @@ export class InspectionService {
   return mapInspection(inspection);
 }
 
+  async approveConditionally(user, id, data = {}) {
+  const accessLevel = Number(
+    user?.accessLevel ??
+    user?.access_level ??
+    3
+  );
 
+  if (accessLevel > 2) {
+    throw createServiceError(
+      "Somente usuários Nível 1 ou Nível 2 podem aprovar condicionalmente um lote.",
+      403
+    );
+  }
+
+  const reason = String(
+    data?.reason || ""
+  ).trim();
+
+  const note = String(
+    data?.note || ""
+  ).trim();
+
+  if (!reason) {
+    throw createServiceError(
+      "Informe o motivo da aprovação condicional.",
+      400
+    );
+  }
+
+  const current =
+    await inspectionRepository.findForConditionalApproval(
+      id
+    );
+
+  if (!current) {
+    throw createServiceError(
+      "Inspeção não encontrada.",
+      404
+    );
+  }
+
+  const userArea =
+    getLoggedUserArea(user);
+
+  if (!userArea) {
+    throw createServiceError(
+      "Seu usuário não possui uma área de inspeção válida. Verifique o cadastro do usuário.",
+      403
+    );
+  }
+
+  if (
+    !userCanAccessArea(
+      user,
+      current.type
+    )
+  ) {
+    throw createServiceError(
+      "Você não possui autorização para aprovar inspeções desta área.",
+      403
+    );
+  }
+
+  if (
+    String(current.type || "")
+      .trim()
+      .toUpperCase() !== "IQC"
+  ) {
+    throw createServiceError(
+      "Aprovação condicional está disponível somente para inspeções IQC.",
+      409
+    );
+  }
+
+  if (
+    String(current.status || "")
+      .trim()
+      .toLowerCase() !== "done"
+  ) {
+    throw createServiceError(
+      "A inspeção precisa estar finalizada antes da aprovação condicional.",
+      409
+    );
+  }
+
+  if (
+    normalizeResult(
+      current.result
+    ) !== "FAIL"
+  ) {
+    throw createServiceError(
+      "Aprovação condicional só pode ser usada em inspeções com resultado oficial FAIL.",
+      409
+    );
+  }
+
+  if (
+    String(
+      current.conditional_approval_status ||
+      "none"
+    ).toLowerCase() !== "none"
+  ) {
+    throw createServiceError(
+      "Esta inspeção já possui uma aprovação condicional registrada.",
+      409
+    );
+  }
+
+  const approvedBy =
+    user?.name ||
+    user?.username ||
+    "Não informado";
+
+  const approvedByUser =
+    user?.username || "";
+
+  const approvedByRole =
+    user?.cargo ||
+    user?.role ||
+    "";
+
+  const updated =
+    await inspectionRepository.approveConditionally(
+      id,
+      {
+        reason,
+        note,
+        approvedBy,
+        approvedByUser,
+        approvedByRole,
+      }
+    );
+
+  return mapInspection(updated);
+}
+
+  async update(user, id, data = {}) {
+  const p = data;
+
+  const currentInspection =
+    await inspectionRepository.findForUpdate(id);
+
+  if (!currentInspection) {
+    throw createServiceError(
+      "Inspeção não encontrada.",
+      404
+    );
+  }
+
+  const userArea =
+    getLoggedUserArea(user);
+
+  if (!userArea) {
+    throw createServiceError(
+      "Seu usuário não possui uma área de inspeção válida. Verifique o cadastro do usuário.",
+      403
+    );
+  }
+
+  if (
+    !userCanAccessArea(
+      user,
+      currentInspection.type
+    )
+  ) {
+    throw createServiceError(
+      "Você não possui autorização para alterar inspeções desta área.",
+      403
+    );
+  }
+
+  const dbRevision =
+    Number(
+      currentInspection.plan_revision_number ||
+      0
+    );
+
+  const bodyRevision =
+    Number(
+      p.planRevisionNumber ||
+      p.plan_revision_number ||
+      0
+    );
+
+  const currentPlanRevision =
+    Number(
+      currentInspection.current_plan_revision_number ||
+      0
+    );
+
+  const planRevisionNumber =
+    dbRevision > 1
+      ? dbRevision
+      : bodyRevision > 1
+        ? bodyRevision
+        : currentPlanRevision > 0
+          ? currentPlanRevision
+          : 1;
+
+  const updatedRow =
+    await inspectionRepository.update(
+      id,
+      {
+        planId:
+          p.planId ||
+          p.plan_id ||
+          null,
+
+        planName:
+          p.planName ||
+          p.plan_name ||
+          "",
+
+        type:
+          currentInspection.type,
+
+        pn:
+          p.pn || "",
+
+        model:
+          p.model || "",
+
+        client:
+          p.client || "",
+
+        supplier:
+          p.supplier || "",
+
+        lot:
+          p.lot || "",
+
+        invoice:
+          p.invoice || "",
+
+        lotSize:
+          p.lotSize == null ||
+          p.lotSize === ""
+            ? null
+            : Number(p.lotSize),
+
+        shift:
+          p.shift || "",
+
+        resp:
+          p.resp || "",
+
+        obs:
+          p.obs || "",
+
+        status:
+          p.status || "draft",
+
+        result:
+          p.result || null,
+
+        startedAt:
+          p.startedAt ||
+          p.started_at ||
+          null,
+
+        finishedAt:
+          p.finishedAt ||
+          p.finished_at ||
+          null,
+
+        updatedBy:
+          p.updatedBy ||
+          p.updated_by ||
+          "",
+
+        updatedByUser:
+          p.updatedByUser ||
+          p.updated_by_user ||
+          "",
+
+        updatedByRole:
+          p.updatedByRole ||
+          p.updated_by_role ||
+          "",
+
+        finishedBy:
+          p.finishedBy ||
+          p.finished_by ||
+          "",
+
+        finishedByUser:
+          p.finishedByUser ||
+          p.finished_by_user ||
+          "",
+
+        finishedByRole:
+          p.finishedByRole ||
+          p.finished_by_role ||
+          "",
+
+        planSamples:
+          Number(
+            p.planSamples ??
+            p.plan_samples ??
+            5
+          ),
+
+        planBoxQty:
+          Number(
+            p.planBoxQty ??
+            p.plan_box_qty ??
+            2
+          ),
+
+        boxQty:
+          Number(
+            p.boxQty ??
+            p.box_qty ??
+            p.planBoxQty ??
+            p.plan_box_qty ??
+            2
+          ),
+
+        sampling:
+          p.sampling || null,
+
+        chars:
+          p.chars || [],
+
+        samples:
+          p.samples || {},
+
+        parentInspectionId:
+          p.parentInspectionId ||
+          p.parent_inspection_id ||
+          null,
+
+        isReinspection:
+          Boolean(
+            p.isReinspection ??
+            p.is_reinspection
+          ),
+
+        inspectionCycle:
+          Number(
+            p.inspectionCycle ??
+            p.inspection_cycle ??
+            1
+          ),
+
+        createdAt:
+          p.createdAt ||
+          p.created_at ||
+          new Date().toISOString(),
+
+        planRevisionNumber,
+      }
+    );
+
+  const updatedInspection =
+    mapInspection(updatedRow);
+
+  if (
+    updatedInspection.status === "done" &&
+    normalizeResult(
+      updatedInspection.result
+    ) === "FAIL"
+  ) {
+    try {
+      const switchingOutcome =
+        getSwitchingOutcome({
+          result:
+            updatedInspection.result,
+
+          chars:
+            updatedInspection.chars,
+
+          samples:
+            updatedInspection.samples,
+
+          sampling:
+            updatedInspection.sampling,
+        });
+
+      await createInspectionFailAlert({
+        inspectionId:
+          updatedInspection.id,
+
+        planId:
+          updatedInspection.planId,
+
+        inspectionArea:
+          updatedInspection.type,
+
+        planName:
+          updatedInspection.planName,
+
+        pn:
+          updatedInspection.pn,
+
+        lot:
+          updatedInspection.lot,
+
+        invoice:
+          updatedInspection.invoice,
+
+        result:
+          updatedInspection.result,
+
+        xrfOnlyFailure:
+          switchingOutcome.xrfOnlyFailure,
+      });
+    } catch (alertError) {
+      console.error(
+        "Inspeção finalizada, mas não foi possível criar o alerta:",
+        alertError
+      );
+    }
+  }
+
+  if (
+    updatedInspection.status === "done" &&
+    Boolean(
+      updatedInspection.sampling
+        ?.deltaTriggered
+    )
+  ) {
+    try {
+      await createDeltaReturnAlert({
+        inspectionId:
+          updatedInspection.id,
+
+        planId:
+          updatedInspection.planId,
+
+        inspectionArea:
+          updatedInspection.type,
+
+        planName:
+          updatedInspection.planName,
+
+        pn:
+          updatedInspection.pn,
+
+        lot:
+          updatedInspection.lot,
+
+        invoice:
+          updatedInspection.invoice,
+
+        regimeApplied:
+          updatedInspection
+            .inspectionRegimeSnapshot ||
+          updatedInspection.sampling
+            ?.inspectionRegime ||
+          "atenuada",
+
+        deltaDetails:
+          updatedInspection.sampling
+            ?.deltaDetails ||
+          [],
+      });
+    } catch (alertError) {
+      console.error(
+        "Inspeção finalizada, mas não foi possível criar o alerta de condição Δ:",
+        alertError
+      );
+    }
+  }
+
+  return updatedInspection;
+}
 }
 
 export const inspectionService =

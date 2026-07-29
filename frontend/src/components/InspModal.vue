@@ -7,30 +7,6 @@ import { resolveSamplingSnapshot } from "../utils/sampling/resolveSamplingSnapsh
 import { useAuthStore } from "../stores/auth";
 import { useSwitchingStore } from "../stores/switching";
 
-/*async function createInspectionFromPlan(plan) {
-  // lotSize vem do input do usuário (principalmente para NBR)
-  const lotSize = form.lotSize; // exemplo
-
-  const samplingSnapshot = resolveSamplingSnapshot({ plan, lotSize });
-
-  const insp = {
-    // ... seus campos atuais
-    planId: plan.id,
-    planName: plan.name,
-    planSnapshot: {
-      // características, limites etc (você já faz)  
-    },
-
-    samplingSnapshot, // <<<<< FREEZE AQUI
-
-    // define quantas amostras a tela vai renderizar:
-    sampleN: samplingSnapshot.sampleN,
-  };
-
-  // salvar no Dexie
-  await inspectionsStore.add(insp);
-}
-*/
 const props = defineProps({
   show: Boolean,
   id: { type: [String, Number, null], default: null },
@@ -993,13 +969,7 @@ function fmt(v, d = 3) {
 }
 
 function nowLocalISO() {
-  const d = new Date();
-  const pad = (n) => String(n).padStart(2, "0");
-
-  return (
-    `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}` +
-    `T${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`
-  );
+  return new Date().toISOString();
 }
 
 function parseDateTimeLocal(value) {
