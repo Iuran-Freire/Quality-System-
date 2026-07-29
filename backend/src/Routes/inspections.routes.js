@@ -1,6 +1,7 @@
 import express from "express";
 import { db } from "../db.js";
 import { createInspectionFailAlert, createDeltaReturnAlert } from "../services/alerts.service.js";
+import { InspectionController } from "../controllers/InspectionController.js";
 
 const router = express.Router();
 
@@ -414,95 +415,19 @@ conditionalApprovalNote:
   };
 }
 
-router.get("/", async (req, res) => {
-  try {
-    const userArea = getLoggedUserArea(req);
+router.get(
+  "/",
+  inspectionController.list.bind(
+    inspectionController
+  )
+);
 
-    if (!userArea) {
-      return sendInvalidUserArea(res);
-    }
-
-    const result =
-      userArea === "ALL"
-        ? await db.query(`
-            SELECT *
-            FROM public.inspections
-            ORDER BY created_at DESC, id DESC
-          `)
-        : await db.query(
-            `
-            SELECT *
-            FROM public.inspections
-            WHERE UPPER(TRIM(type)) = $1
-            ORDER BY created_at DESC, id DESC
-            `,
-            [userArea]
-          );
-
-    res.json({
-      ok: true,
-      items: result.rows.map(mapInspection),
-    });
-  } catch (error) {
-    console.error("Erro ao listar inspeções:", error);
-
-    res.status(500).json({
-      ok: false,
-      message: "Erro ao listar inspeções.",
-      error: error.message,
-    });
-  }
-});
-
-router.get("/:id", async (req, res) => {
-  try {
-    const { id } = req.params;
-    const userArea = getLoggedUserArea(req);
-
-    if (!userArea) {
-      return sendInvalidUserArea(res);
-    }
-
-    const result = await db.query(
-      `
-      SELECT *
-      FROM public.inspections
-      WHERE id::text = $1::text
-      `,
-      [String(id)]
-    );
-
-    const inspection = result.rows[0];
-
-    if (!inspection) {
-      return res.status(404).json({
-        ok: false,
-        message: "Inspeção não encontrada.",
-      });
-    }
-
-    if (!userCanAccessArea(req, inspection.type)) {
-      return res.status(403).json({
-        ok: false,
-        message:
-          "Você não possui autorização para acessar inspeções desta área.",
-      });
-    }
-
-    res.json({
-      ok: true,
-      item: mapInspection(inspection),
-    });
-  } catch (error) {
-    console.error("Erro ao buscar inspeção:", error);
-
-    res.status(500).json({
-      ok: false,
-      message: "Erro ao buscar inspeção.",
-      error: error.message,
-    });
-  }
-});
+router.get(
+  "/:id",
+  inspectionController.getById.bind(
+    inspectionController
+  )
+);
 
 router.post("/", async (req, res) => {
   try {

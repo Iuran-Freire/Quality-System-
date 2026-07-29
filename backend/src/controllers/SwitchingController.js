@@ -202,6 +202,29 @@ async approvePlan(req, res) {
   }
 }
 
+async getHistory(req, res) {
+  try {
+    const items =
+      await switchingService.getHistory();
+
+    return res.json({
+      ok: true,
+      items,
+    });
+  } catch (error) {
+    console.error(
+      "Erro ao listar histórico de comutação:",
+      error
+    );
+
+    return sendError(
+      res,
+      error,
+      "Erro ao listar histórico de comutação."
+    );
+  }
+}
+
 }
 
 export const switchingController =
