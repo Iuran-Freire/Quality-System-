@@ -10,13 +10,13 @@ import {
 
 import { testConnection } from "./db.js";
 
-import setupRoutes from "./routes/setup.routes.js";
-import authRoutes from "./routes/auth.routes.js";
-import usersRoutes from "./routes/users.routes.js";
-import switchingRoutes from "./routes/switching.routes.js";
-import plansRoutes from "./routes/plans.routes.js";
-import inspectionsRoutes from "./routes/inspections.routes.js";
-import alertsRoutes from "./routes/alerts.routes.js";
+import setupRoutes from "./Routes/setup.routes.js";
+import authRoutes from "./Routes/auth.routes.js";
+import usersRoutes from "./Routes/users.routes.js";
+import switchingRoutes from "./Routes/switching.routes.js";
+import plansRoutes from "./Routes/plans.routes.js";
+import inspectionsRoutes from "./Routes/inspections.routes.js";
+import alertsRoutes from "./Routes/alerts.routes.js";
 
 dotenv.config();
 
