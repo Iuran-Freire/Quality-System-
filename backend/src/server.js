@@ -52,25 +52,33 @@ app.get("/health", (req, res) => {
   });
 });
 
-app.get("/db-test", async (req, res) => {
-  try {
-    const result = await testConnection();
+app.get(
+  "/db-test",
+  requireAuth,
+  requireSystemManager,
+  async (req, res) => {
+    try {
+      const result = await testConnection();
 
-    res.json({
-      ok: true,
-      message: "Banco conectado com sucesso",
-      databaseTime: result.now,
-    });
-  } catch (error) {
-    console.error("Erro ao conectar no banco:", error);
+      return res.json({
+        ok: true,
+        message: "Banco conectado com sucesso",
+        databaseTime: result.now,
+      });
+    } catch (error) {
+      console.error(
+        "Erro ao conectar no banco:",
+        error
+      );
 
-    res.status(500).json({
-      ok: false,
-      message: "Erro ao conectar no banco",
-      error: error.message,
-    });
+      return res.status(500).json({
+        ok: false,
+        message: "Erro ao conectar no banco",
+        error: error.message,
+      });
+    }
   }
-});
+);
 
 const PORT = process.env.PORT || 3333;
 
