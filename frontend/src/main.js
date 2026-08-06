@@ -17,5 +17,6 @@ import "./styles/inspection-results.css";
 import "./styles/conditional-approval.css";
 import "./styles/inspections-page.css";
 import "./styles/login-page.css";
+import "./styles/analytics.css";
 
 createApp(App).use(createPinia()).mount("#app");

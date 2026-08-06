@@ -9,6 +9,7 @@ import LoginPage from "./components/LoginPage.vue";
 import { useUsersStore } from "./stores/users";
 import { useSwitchingStore } from "./stores/switching";
 import { useAlertsStore } from "./stores/alerts";
+import AnalyticsPage from "./components/AnalyticsPage.vue";
 
 const ui = useUiStore();
 const plans = usePlansStore();
@@ -1098,10 +1099,8 @@ async function resolveAlert(item) {
 
         <!-- ================= ANÁLISES ================= -->
 
-        <div v-else-if="isAnalytics" class="vstack">
-          <div class="title">Análises</div>
-          <div class="tabline"></div>
-          <div class="card">Em construção…</div>
+        <div v-else-if="isAnalytics">
+          <AnalyticsPage />
         </div>
 
         <!-- ================= GERENCIAMENTO ================= -->
