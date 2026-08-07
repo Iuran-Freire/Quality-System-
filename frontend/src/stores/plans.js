@@ -130,6 +130,7 @@ function normalizePlan(plan = {}) {
   p.pn = p.pn || "";
   p.resp = p.resp || "";
   p.supplier = (p.supplier || "").trim();
+  p.process = String(p.process || "").trim().toUpperCase();
   p.n = Number(p.n ?? 5) || 5;
   p.type = p.type ?? "OQC";
   p.active = p.active ?? true;

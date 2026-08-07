@@ -44,6 +44,19 @@ function mapSafeUser(user) {
   };
 }
 
+function requireStrongSetupPassword(password) {
+  const cleanPassword = String(password || "");
+
+  if (cleanPassword.length < 10) {
+    throw createServiceError(
+      "Informe uma senha inicial com pelo menos 10 caracteres.",
+      400
+    );
+  }
+
+  return cleanPassword;
+}
+
 export class AuthService {
   async login({ username, password } = {}) {
     const cleanUsername = String(username || "")
@@ -90,13 +103,13 @@ export class AuthService {
     };
   }
 
-  async seedAdmin() {
+  async seedAdmin(data = {}) {
     const userData = {
-      name: "Iuran",
-      username: "iuran",
-      password: "1234",
-      matricula: "8919",
-      cargo: "Admin",
+      name: String(data.name || "Administrador").trim(),
+      username: String(data.username || "admin").trim().toLowerCase(),
+      password: requireStrongSetupPassword(data.password),
+      matricula: String(data.matricula || "").trim(),
+      cargo: String(data.cargo || "Administrador").trim(),
       role: "admin",
       accessLevel: 1,
       inspectionArea: "ALL",
@@ -148,16 +161,16 @@ export class AuthService {
     };
   }
 
-  async seedInspector() {
+  async seedInspector(data = {}) {
     const userData = {
-      name: "Inspetor Teste",
-      username: "inspetor",
-      password: "1234",
-      matricula: "0003",
-      cargo: "Inspetor IQC",
+      name: String(data.name || "Inspetor").trim(),
+      username: String(data.username || "inspetor").trim().toLowerCase(),
+      password: requireStrongSetupPassword(data.password),
+      matricula: String(data.matricula || "").trim(),
+      cargo: String(data.cargo || "Inspetor").trim(),
       role: "inspetor",
       accessLevel: 3,
-      inspectionArea: "IQC",
+      inspectionArea: normalizeInspectionArea(data.inspectionArea) || "IQC",
     };
 
     const existing =

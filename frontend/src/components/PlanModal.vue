@@ -1,6 +1,7 @@
 <script setup>
 import { reactive, watch, computed, onMounted, ref } from "vue";
 import { usePlansStore } from "../stores/plans";
+import { requestConfirmation } from "../services/systemFeedback";
 
 const props = defineProps({
   show: { type: Boolean, default: false },
@@ -69,6 +70,7 @@ const form = reactive({
   pn: "",
   resp: "",
   supplier: "",
+  process: "",
   type: "OQC",
 
   // amostragem fixa (fallback e também usada quando sampling.mode="fixed")
@@ -123,6 +125,7 @@ function resetForm() {
   form.pn = "";
   form.resp = "";
   form.supplier = "";
+  form.process = "";
   form.type = "OQC";
   form.n = 10;
   form.boxQty = 2;
@@ -252,6 +255,7 @@ watch(
         form.pn = p.pn || "";
         form.resp = p.resp || "";
         form.supplier = p.supplier || "";
+        form.process = p.process || "";
         form.type = p.type || "OQC";
 
         form.n = p.n ?? 10;
@@ -299,7 +303,7 @@ watch(
     }
   }
 );
-function cloneCharacteristicsFromPlan() {
+async function cloneCharacteristicsFromPlan() {
   if (!cloneSourceId.value) {
     alert("Selecione um plano para clonar as características.");
     return;
@@ -321,10 +325,11 @@ function cloneCharacteristicsFromPlan() {
     return;
   }
 
-  const ok = confirm(
+  const ok = await requestConfirmation(
     "Deseja clonar as características deste plano?\n\n" +
       "Atenção: os valores Mín/Máx serão removidos.\n" +
-      "Os dados do plano atual não serão alterados."
+      "Os dados do plano atual não serão alterados.",
+    { title: "Clonar características", confirmLabel: "Clonar" }
   );
 
   if (!ok) return;
@@ -557,6 +562,7 @@ function getCurrentPlanForComparison() {
     model: form.model || "",
     client: form.client || "",
     supplier: form.supplier || "",
+    process: form.process || "",
     resp: form.resp || "",
     n: form.n ?? "",
     sampling: {
@@ -627,6 +633,7 @@ function buildRevisionComparison(revision) {
     { label: "Modelo", key: "model" },
     { label: "Cliente", key: "client" },
     { label: "Fornecedor", key: "supplier" },
+    { label: "Processo", key: "process" },
     { label: "Responsável", key: "resp" },
     { label: "Amostra atual", key: "n" },
   ];
@@ -788,6 +795,7 @@ async function save() {
   if (!form.model.trim()) return alert("Preencha o Modelo.");
   if (!form.client.trim()) return alert("Preencha o Cliente.");
   if (!form.supplier.trim()) return alert("Preencha o Fornecedor.");
+  if (!form.process) return alert("Selecione o Processo.");
   if (!form.pn.trim()) return alert("Preencha o PN.");
   if (!form.resp.trim()) return alert("Preencha o Responsável.");
 
@@ -1022,6 +1030,7 @@ async function save() {
     pn: form.pn.trim(),
     resp: form.resp.trim(),
     supplier: form.supplier.trim(),
+    process: form.process,
     type: form.type,
 
     // sempre mantém n como fallback (mesmo que o plano use NBR)
@@ -1063,6 +1072,7 @@ async function save() {
 </script>
 
 <template>
+  <Teleport to="body">
   <div class="modal" :class="{ show: show }">
     <div class="sheet vstack plan-modal-sheet">
       <div class="hstack" style="justify-content: space-between; align-items: center">
@@ -1178,6 +1188,21 @@ async function save() {
               <option value="IQC">IQC</option>
             </select>
             <span>Tipo</span>
+          </label>
+        </div>
+
+        <div class="span-2">
+          <label class="float-label">
+            <select v-model="form.process">
+              <option value="" disabled>Selecione</option>
+              <option value="BATERIA">Bateria</option>
+              <option value="CARREGADOR">Carregador</option>
+              <option value="ADAPTADOR">Adaptador</option>
+              <option value="TRAFO">Trafo</option>
+              <option value="TP LINK">TP-Link</option>
+              <option value="MODEM">Modem</option>
+            </select>
+            <span>Processo *</span>
           </label>
         </div>
       </div>
@@ -1381,28 +1406,38 @@ async function save() {
             {{ charBadgeLabel(c) }}
           </div>
 
-          <div class="hstack" style="gap: 6px">
+          <div class="char-operations" aria-label="Operações da característica">
             <button
               class="btn ghost move-char-btn"
               type="button"
               title="Mover para cima"
+              aria-label="Mover característica para cima"
               :disabled="index === 0"
               @click="moveChar(index, -1)"
             >
-              ↑
+              <span aria-hidden="true">↑</span>
+              UP
             </button>
 
             <button
               class="btn ghost move-char-btn"
               type="button"
               title="Mover para baixo"
+              aria-label="Mover característica para baixo"
               :disabled="index === form.chars.length - 1"
               @click="moveChar(index, 1)"
             >
-              ↓
+              <span aria-hidden="true">↓</span>
+              DOWN
             </button>
 
-            <button class="btn ghost danger" type="button" @click="removeChar(c.id)">
+            <button
+              class="btn ghost danger remove-char-btn"
+              type="button"
+              title="Remover característica"
+              @click="removeChar(c.id)"
+            >
+              <span aria-hidden="true">×</span>
               Remover
             </button>
           </div>
@@ -2003,4 +2038,5 @@ async function save() {
       </div>
     </div>
   </div>
+  </Teleport>
 </template>

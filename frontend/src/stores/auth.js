@@ -1,5 +1,15 @@
 import { defineStore } from "pinia";
 import { apiFetch } from "../services/api.js";
+import { clearAuthToken, setAuthToken } from "../services/authSession.js";
+
+const INACTIVITY_LIMIT_MS = 15 * 60 * 1000;
+const ACTIVITY_EVENTS = ["pointerdown", "keydown", "touchstart", "scroll"];
+let inactivityTimer = null;
+let activityHandler = null;
+
+// Remove sessões persistidas por versões anteriores.
+localStorage.removeItem("authUser");
+localStorage.removeItem("authToken");
 
 function normalizeInspectionArea(value) {
   const area = String(value || "").trim().toUpperCase();
@@ -13,8 +23,9 @@ function normalizeInspectionArea(value) {
 
 export const useAuthStore = defineStore("auth", {
   state: () => ({
-    user: JSON.parse(localStorage.getItem("authUser") || "null"),
-    token: localStorage.getItem("authToken") || "",
+    user: null,
+    token: "",
+    sessionMessage: "",
   }),
 
   getters: {
@@ -84,17 +95,51 @@ export const useAuthStore = defineStore("auth", {
 
       this.user = data.user;
       this.token = data.token;
+      this.sessionMessage = "";
 
-      localStorage.setItem("authUser", JSON.stringify(data.user));
-      localStorage.setItem("authToken", data.token);
+      setAuthToken(data.token);
+      this.startInactivityMonitor();
     },
 
-    logout() {
+    resetInactivityTimer() {
+      if (!this.isLogged) return;
+
+      clearTimeout(inactivityTimer);
+      inactivityTimer = setTimeout(() => {
+        this.logout("Sessão encerrada após 15 minutos de inatividade.");
+      }, INACTIVITY_LIMIT_MS);
+    },
+
+    startInactivityMonitor() {
+      this.stopInactivityMonitor();
+      activityHandler = () => this.resetInactivityTimer();
+
+      ACTIVITY_EVENTS.forEach((eventName) => {
+        window.addEventListener(eventName, activityHandler, { passive: true });
+      });
+
+      this.resetInactivityTimer();
+    },
+
+    stopInactivityMonitor() {
+      clearTimeout(inactivityTimer);
+      inactivityTimer = null;
+
+      if (activityHandler) {
+        ACTIVITY_EVENTS.forEach((eventName) => {
+          window.removeEventListener(eventName, activityHandler);
+        });
+        activityHandler = null;
+      }
+    },
+
+    logout(message = "") {
+      this.stopInactivityMonitor();
       this.user = null;
       this.token = "";
+      this.sessionMessage = message;
 
-      localStorage.removeItem("authUser");
-      localStorage.removeItem("authToken");
+      clearAuthToken();
     },
   },
 });

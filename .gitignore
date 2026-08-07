@@ -40,3 +40,4 @@ pnpm-debug.log*
 
 # Docker local
 docker-compose.override.yml
+backups/

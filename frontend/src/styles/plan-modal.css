@@ -116,17 +116,59 @@
 
 /* Botões de ordenação das características */
 
+.char-operations {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 4px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: #f8fafc;
+}
+
 .move-char-btn {
-  min-width: 38px;
-  padding: 6px 10px;
-  font-size: 18px;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  min-width: auto;
+  padding: 6px 9px;
+  border-color: transparent;
+  font-size: 12px;
+  font-weight: 700;
+  line-height: 1.2;
+}
+
+.move-char-btn span,
+.remove-char-btn span {
+  font-size: 15px;
   font-weight: 800;
   line-height: 1;
+}
+
+.remove-char-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  margin-left: 2px;
+  padding: 6px 9px;
+  font-size: 12px;
+  font-weight: 700;
 }
 
 .move-char-btn:disabled {
   opacity: 0.35;
   cursor: not-allowed;
+}
+
+@media (max-width: 720px) {
+  .char-operations {
+    width: 100%;
+  }
+
+  .char-operations .btn {
+    flex: 1;
+    justify-content: center;
+  }
 }
 
 /* XRF / RoHS */
@@ -360,4 +402,10 @@
 .plan-modal-sheet .span-5,
 .plan-modal-sheet .span-6 {
   min-width: 0;
+}
+.badge.dot {
+  width: auto;
+  height: auto;
+  border-radius: 999px;
+  white-space: nowrap;
 }

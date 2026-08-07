@@ -65,6 +65,7 @@ export function mapInspection(row) {
     model: row.model,
     client: row.client,
     supplier: row.supplier,
+    process: row.process,
 
     lot: row.lot,
     invoice: row.invoice,
@@ -807,6 +808,9 @@ export class InspectionService {
       supplier:
         p.supplier || "",
 
+      process:
+        planSnapshot?.process || p.process || "",
+
       lot:
         p.lot || "",
 
@@ -1093,6 +1097,17 @@ export class InspectionService {
     );
   }
 
+  if (
+    String(currentInspection.status || "")
+      .trim()
+      .toLowerCase() === "done"
+  ) {
+    throw createServiceError(
+      "Inspeções finalizadas são registros imutáveis e não podem ser alteradas.",
+      409
+    );
+  }
+
   const dbRevision =
     Number(
       currentInspection.plan_revision_number ||
@@ -1149,6 +1164,9 @@ export class InspectionService {
 
         supplier:
           p.supplier || "",
+
+        process:
+          p.process || "",
 
         lot:
           p.lot || "",
@@ -1527,6 +1545,19 @@ export class InspectionService {
 }
 
  async delete(user, id) {
+  const accessLevel = Number(
+    user?.accessLevel ??
+    user?.access_level ??
+    3
+  );
+
+  if (accessLevel > 2) {
+    throw createServiceError(
+      "Somente usuários Nível 1 ou Nível 2 podem excluir inspeções em andamento.",
+      403
+    );
+  }
+
   const userArea =
     getLoggedUserArea(user);
 
@@ -1556,6 +1587,17 @@ export class InspectionService {
     throw createServiceError(
       "Você não possui autorização para excluir inspeções desta área.",
       403
+    );
+  }
+
+  if (
+    String(inspection.status || "")
+      .trim()
+      .toLowerCase() === "done"
+  ) {
+    throw createServiceError(
+      "Inspeções finalizadas fazem parte do histórico e não podem ser excluídas.",
+      409
     );
   }
 

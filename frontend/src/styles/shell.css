@@ -84,3 +84,23 @@
     display: none;
   }
 }
+/* Transição simples entre as áreas principais do sistema. */
+@keyframes qs-tab-enter {
+  from {
+    opacity: 0;
+  }
+
+  to {
+    opacity: 1;
+  }
+}
+
+.layout main > div {
+  animation: qs-tab-enter 280ms ease-out;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .layout main > div {
+    animation: none;
+  }
+}

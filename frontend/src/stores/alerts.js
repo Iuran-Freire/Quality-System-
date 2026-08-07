@@ -90,6 +90,30 @@ export const useAlertsStore = defineStore("alerts", {
       return updated;
     },
 
+    async markAllViewed() {
+      const unreadItems = this.items.filter((item) => item.status === "new");
+      if (!unreadItems.length) return [];
+
+      const updates = await Promise.all(
+        unreadItems.map((item) =>
+          apiFetch(`/api/alerts/${item.id}/view`, { method: "PATCH" })
+        )
+      );
+
+      const updatedById = new Map(
+        updates
+          .map((data) => data?.item)
+          .filter(Boolean)
+          .map((item) => [String(item.id), item])
+      );
+
+      this.items = this.items.map(
+        (item) => updatedById.get(String(item.id)) || item
+      );
+      await this.loadSummary();
+      return updates;
+    },
+
     async resolve(id, resolutionNote = "") {
       if (!id) return null;
 

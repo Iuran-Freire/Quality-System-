@@ -18,5 +18,8 @@ import "./styles/conditional-approval.css";
 import "./styles/inspections-page.css";
 import "./styles/login-page.css";
 import "./styles/analytics.css";
+import "./styles/system-feedback.css";
+import { installSystemFeedback } from "./services/systemFeedback";
 
+installSystemFeedback();
 createApp(App).use(createPinia()).mount("#app");

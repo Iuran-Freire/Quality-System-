@@ -188,6 +188,7 @@ export const useInspectionsStore = defineStore("inspections", {
         model: plan.model,
         client: plan.client,
         supplier: plan.supplier,
+        process: plan.process,
         resp: plan.resp,
 
         lot: meta.lot ?? "",
@@ -294,6 +295,7 @@ export const useInspectionsStore = defineStore("inspections", {
         model: originalInspection.model,
         client: originalInspection.client,
         supplier: originalInspection.supplier,
+        process: originalInspection.process,
 
         lot: originalInspection.lot,
         invoice: originalInspection.invoice,

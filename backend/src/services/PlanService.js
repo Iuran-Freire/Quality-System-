@@ -41,6 +41,7 @@ function mapPlan(row) {
     model: row.model,
     client: row.client,
     supplier: row.supplier,
+    process: row.process,
     resp: row.resp,
     active: row.active,
 
@@ -308,6 +309,7 @@ export class PlanService {
         model: p.model || "",
         client: p.client || "",
         supplier: p.supplier || "",
+        process: p.process || "",
         resp: p.resp || "",
 
         active:
@@ -436,6 +438,9 @@ export class PlanService {
       supplier:
         existingPlan.supplier,
 
+      process:
+        existingPlan.process,
+
       resp:
         existingPlan.resp,
 
@@ -532,6 +537,9 @@ export class PlanService {
 
         supplier:
           p.supplier || "",
+
+        process:
+          p.process || "",
 
         resp:
           p.resp || "",

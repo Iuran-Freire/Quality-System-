@@ -6,6 +6,7 @@ import { requireAuth } from "./middlewares/auth.middleware.js";
 import {
   requireSystemManager,
 } from "./middlewares/permissions.middleware.js";
+import { auditMutations } from "./middlewares/audit.middleware.js";
 
 
 import { testConnection } from "./db.js";
@@ -24,6 +25,7 @@ const app = express();
 
 app.use(cors());
 app.use(express.json());
+app.use(auditMutations);
 
 
 // Rotas sem login

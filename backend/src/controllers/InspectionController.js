@@ -173,51 +173,28 @@ export class InspectionController {
   }
 }
 
-async delete(user, id) {
-  const userArea =
-    getLoggedUserArea(user);
+  async delete(req, res) {
+    try {
+      const item = await inspectionService.delete(
+        req.user,
+        req.params.id
+      );
 
-  if (!userArea) {
-    throw createServiceError(
-      "Seu usuário não possui uma área de inspeção válida. Verifique o cadastro do usuário.",
-      403
-    );
+      return res.json({
+        ok: true,
+        message: "Inspeção excluída com sucesso.",
+        item,
+      });
+    } catch (error) {
+      console.error("Erro ao excluir inspeção:", error);
+
+      return sendError(
+        res,
+        error,
+        "Erro ao excluir inspeção."
+      );
+    }
   }
-
-  const inspection =
-    await inspectionRepository.findById(id);
-
-  if (!inspection) {
-    throw createServiceError(
-      "Inspeção não encontrada.",
-      404
-    );
-  }
-
-  if (
-    !userCanAccessArea(
-      user,
-      inspection.type
-    )
-  ) {
-    throw createServiceError(
-      "Você não possui autorização para excluir inspeções desta área.",
-      403
-    );
-  }
-
-  const deleted =
-    await inspectionRepository.deleteById(id);
-
-  if (!deleted) {
-    throw createServiceError(
-      "Inspeção não encontrada.",
-      404
-    );
-  }
-
-  return deleted;
-}
 }
 
 export const inspectionController =

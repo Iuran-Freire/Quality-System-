@@ -35,7 +35,7 @@ export class AuthController {
   async seedAdmin(req, res) {
     try {
       const result =
-        await authService.seedAdmin();
+        await authService.seedAdmin(req.body || {});
 
       return res.json({
         ok: true,
@@ -51,10 +51,11 @@ export class AuthController {
         error
       );
 
-      return res.status(500).json({
+      return res.status(error.statusCode || 500).json({
         ok: false,
-        message: "Erro ao criar admin.",
-        error: error.message,
+        message: error.statusCode
+          ? error.message
+          : "Erro ao criar admin.",
       });
     }
   }
@@ -62,7 +63,7 @@ export class AuthController {
   async seedInspector(req, res) {
     try {
       const result =
-        await authService.seedInspector();
+        await authService.seedInspector(req.body || {});
 
       return res.json({
         ok: true,
@@ -78,10 +79,11 @@ export class AuthController {
         error
       );
 
-      return res.status(500).json({
+      return res.status(error.statusCode || 500).json({
         ok: false,
-        message: "Erro ao criar inspetor.",
-        error: error.message,
+        message: error.statusCode
+          ? error.message
+          : "Erro ao criar inspetor.",
       });
     }
   }

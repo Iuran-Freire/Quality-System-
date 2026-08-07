@@ -1,5 +1,6 @@
 import express from "express";
 import { planController } from "../controllers/PlanController.js";
+import { requireSystemManager } from "../middlewares/permissions.middleware.js";
 
 const router = express.Router();
 
@@ -24,6 +25,7 @@ router.get(
 
 router.post(
   "/",
+  requireSystemManager,
   planController.create.bind(
     planController
   )
@@ -31,6 +33,7 @@ router.post(
 
 router.put(
   "/:id",
+  requireSystemManager,
   planController.update.bind(
     planController
   )
@@ -38,6 +41,7 @@ router.put(
 
 router.delete(
   "/:id",
+  requireSystemManager,
   planController.delete.bind(
     planController
   )

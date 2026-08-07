@@ -15,22 +15,29 @@ router.post(
   requireSetupKey,
   async (req, res) => {
     try {
-      const sqlPath = path.join(
+      const sqlDirectory = path.join(
         __dirname,
-        "../sql/001_init.sql"
+        "../sql"
       );
 
-      const sql = fs.readFileSync(
-        sqlPath,
-        "utf8"
-      );
+      const migrationFiles = fs
+        .readdirSync(sqlDirectory)
+        .filter((file) => /^\d+.*\.sql$/i.test(file))
+        .sort();
 
-      await db.query(sql);
+      for (const file of migrationFiles) {
+        const sql = fs.readFileSync(
+          path.join(sqlDirectory, file),
+          "utf8"
+        );
+
+        await db.query(sql);
+      }
 
       return res.json({
         ok: true,
         message:
-          "Banco inicializado com sucesso.",
+          "Banco inicializado e atualizado com sucesso.",
       });
     } catch (error) {
       console.error(

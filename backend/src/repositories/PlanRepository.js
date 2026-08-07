@@ -100,6 +100,7 @@ export class PlanRepository {
     model,
     client,
     supplier,
+    process,
     resp,
     active,
     n,
@@ -116,6 +117,7 @@ export class PlanRepository {
         model,
         client,
         supplier,
+        process,
         resp,
         active,
         n,
@@ -124,9 +126,9 @@ export class PlanRepository {
         chars
       )
       VALUES (
-        $1, $2, $3, $4, $5, $6,
-        $7, $8, $9, $10,
-        $11::jsonb, $12::jsonb
+        $1, $2, $3, $4, $5, $6, $7,
+        $8, $9, $10, $11,
+        $12::jsonb, $13::jsonb
       )
       RETURNING *
       `,
@@ -137,6 +139,7 @@ export class PlanRepository {
         model,
         client,
         supplier,
+        process,
         resp,
         active,
         n,
@@ -164,6 +167,7 @@ export class PlanRepository {
     model,
     client,
     supplier,
+    process,
     resp,
     active,
     n,
@@ -215,15 +219,16 @@ export class PlanRepository {
           model = $4,
           client = $5,
           supplier = $6,
-          resp = $7,
-          active = $8,
-          n = $9,
-          box_qty = $10,
-          sampling = $11::jsonb,
-          chars = $12::jsonb,
-          revision_number = $13,
+          process = $7,
+          resp = $8,
+          active = $9,
+          n = $10,
+          box_qty = $11,
+          sampling = $12::jsonb,
+          chars = $13::jsonb,
+          revision_number = $14,
           updated_at = NOW()
-        WHERE id = $14
+        WHERE id = $15
         RETURNING *
         `,
         [
@@ -233,6 +238,7 @@ export class PlanRepository {
           model,
           client,
           supplier,
+          process,
           resp,
           active,
           n,

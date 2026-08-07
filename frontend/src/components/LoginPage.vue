@@ -17,6 +17,11 @@ async function submitLogin() {
     error.value = err.message || "Erro ao fazer login.";
   }
 }
+
+function clearMessage() {
+  error.value = "";
+  auth.sessionMessage = "";
+}
 </script>
 
 <template>
@@ -30,7 +35,7 @@ async function submitLogin() {
       <p class="login-subtitle">Autenticação de acesso ao sistema</p>
 
       <label class="float-label">
-        <input v-model="username" placeholder=" " @keyup.enter="submitLogin" />
+        <input v-model="username" placeholder=" " @input="clearMessage" @keyup.enter="submitLogin" />
         <span>Identificação do usuário</span>
       </label>
 
@@ -39,13 +44,14 @@ async function submitLogin() {
           v-model="password"
           type="password"
           placeholder=" "
+          @input="clearMessage"
           @keyup.enter="submitLogin"
         />
         <span>Senha</span>
       </label>
 
-      <div v-if="error" class="login-error">
-        {{ error }}
+      <div v-if="error || auth.sessionMessage" class="login-error">
+        {{ error || auth.sessionMessage }}
       </div>
 
       <button class="btn login-btn" type="button" @click="submitLogin">Entrar</button>

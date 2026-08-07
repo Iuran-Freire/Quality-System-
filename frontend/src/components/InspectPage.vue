@@ -6,6 +6,7 @@ import { useAuthStore } from "../stores/auth";
 import { useUiStore } from "../stores/ui";
 import { exportInspectionPdf } from "../utils/pdf";
 import { getLogoDataUrl } from "../utils/logo";
+import { requestConfirmation } from "../services/systemFeedback";
 
 async function exportPdf(row) {
   const logoDataUrl = await getLogoDataUrl();
@@ -64,6 +65,28 @@ const fType = ref(""); // "" | "OQC" | "IQC"
 const fRecordType = ref("");
 const fFrom = ref(""); // yyyy-mm-dd
 const fTo = ref(""); // yyyy-mm-dd
+const currentPage = ref(1);
+const pageSize = 15;
+
+const activeFilterCount = computed(() => {
+  let count = 0;
+  if (fStatus.value) count += 1;
+  if (fResult.value) count += 1;
+  if (fRecordType.value) count += 1;
+  if (fFrom.value) count += 1;
+  if (fTo.value) count += 1;
+  if (canSelectInspectionArea.value && fType.value) count += 1;
+  return count;
+});
+
+function clearFilters() {
+  fStatus.value = "";
+  fResult.value = "";
+  fRecordType.value = "";
+  fFrom.value = "";
+  fTo.value = "";
+  fType.value = canSelectInspectionArea.value ? "" : loggedInspectionArea.value || "";
+}
 
 watch(
   loggedInspectionArea,
@@ -161,6 +184,26 @@ const filtered = computed(() => {
     } ${x.resp} ${x.supplier || ""}`.toLowerCase();
     return blob.includes(s);
   });
+});
+
+const totalPages = computed(() =>
+  Math.max(1, Math.ceil(filtered.value.length / pageSize))
+);
+
+const paginatedInspections = computed(() => {
+  const start = (currentPage.value - 1) * pageSize;
+  return filtered.value.slice(start, start + pageSize);
+});
+
+watch(
+  [fStatus, fResult, fType, fRecordType, fFrom, fTo, () => ui.q],
+  () => {
+    currentPage.value = 1;
+  }
+);
+
+watch(totalPages, (pages) => {
+  if (currentPage.value > pages) currentPage.value = pages;
 });
 
 /**
@@ -271,7 +314,11 @@ async function confirmRemove(id) {
       "Deseja continuar mesmo assim?";
   }
 
-  const ok = confirm(message);
+  const ok = await requestConfirmation(message, {
+    title: "Excluir inspeção",
+    confirmLabel: "Excluir",
+    danger: true,
+  });
 
   if (!ok) return;
 
@@ -289,6 +336,26 @@ function pdfDisabledTitle(x) {
     <div class="tabline"></div>
 
     <div class="filterbar inspect-filter-card">
+      <div class="inspect-filter-header">
+        <div>
+          <strong>Filtros</strong>
+          <span>Refine os registros exibidos na tabela</span>
+        </div>
+
+        <div class="inspect-filter-summary">
+          <span>{{ filtered.length }} resultado(s)</span>
+          <button
+            class="inspect-clear-filters"
+            type="button"
+            :disabled="activeFilterCount === 0"
+            @click="clearFilters"
+          >
+            Limpar filtros
+            <b v-if="activeFilterCount">{{ activeFilterCount }}</b>
+          </button>
+        </div>
+      </div>
+
       <div class="inspect-filter-row">
         <div class="field">
           <label class="float-label">
@@ -364,11 +431,11 @@ function pdfDisabledTitle(x) {
 
       <div class="inspect-actions-row">
         <button class="btn ghost" type="button" @click="exportCsv()">
-          Exportar registros
+          Exportar CSV
         </button>
 
         <button class="btn" type="button" @click="openNew()">
-          + Iniciar nova inspeção
+          + Nova inspeção
         </button>
       </div>
     </div>
@@ -401,7 +468,7 @@ function pdfDisabledTitle(x) {
               <td colspan="11">Nenhuma inspeção encontrada com os filtros atuais.</td>
             </tr>
 
-            <tr v-else v-for="x in filtered" :key="x.id">
+            <tr v-else v-for="(x, idx) in paginatedInspections" :key="x.id">
               <td>{{ (x.createdAt || "").slice(0, 10) }}</td>
               <td>
                 <div class="inspection-type-cell">
@@ -445,33 +512,74 @@ function pdfDisabledTitle(x) {
                 </div>
               </td>
               <td class="actions-col">
-                <div class="actions-cell">
-                  <button class="btn ghost action-btn" type="button" @click="openEdit(x)">
-                    Visualizar
+                <div class="operations-cell">
+                  <button
+                    class="table-primary-action"
+                    :class="{ 'table-primary-action-active': x.status !== 'done' }"
+                    type="button"
+                    @click="openEdit(x)"
+                  >
+                    {{ x.status === "done" ? "Visualizar" : "Continuar inspeção" }}
                   </button>
 
-                  <button
-                    class="btn ghost action-btn"
-                    :disabled="x.status !== 'done'"
-                    type="button"
-                    @click="exportPdf(x)"
+                  <details
+                    class="operations-menu"
+                    :class="idx >= paginatedInspections.length - 2 ? 'operations-menu-up' : 'operations-menu-down'"
                   >
-                    Relatório PDF
-                  </button>
+                    <summary title="Mais ações" aria-label="Mais ações">•••</summary>
 
-                  <button
-                    v-if="isAdmin"
-                    class="btn ghost danger action-btn"
-                    type="button"
-                    @click="confirmRemove(x.id)"
-                  >
-                    Excluir
-                  </button>
+                    <div class="operations-list inspection-operations-list">
+                      <button
+                        type="button"
+                        :disabled="x.status !== 'done'"
+                        @click="exportPdf(x)"
+                      >
+                        Relatório PDF
+                      </button>
+
+                      <button
+                        v-if="isAdmin"
+                        class="operation-danger"
+                        type="button"
+                        @click="confirmRemove(x.id)"
+                      >
+                        Excluir
+                      </button>
+                    </div>
+                  </details>
                 </div>
               </td>
             </tr>
           </tbody>
         </table>
+      </div>
+
+      <div v-if="filtered.length" class="inspection-pagination">
+        <span>
+          Exibindo {{ paginatedInspections.length }} de {{ filtered.length }} inspeções
+        </span>
+
+        <div class="inspection-pagination-controls">
+          <button
+            class="btn ghost"
+            type="button"
+            :disabled="currentPage === 1"
+            @click="currentPage--"
+          >
+            Anterior
+          </button>
+
+          <b>Página {{ currentPage }} de {{ totalPages }}</b>
+
+          <button
+            class="btn ghost"
+            type="button"
+            :disabled="currentPage === totalPages"
+            @click="currentPage++"
+          >
+            Próxima
+          </button>
+        </div>
       </div>
     </div>
   </div>

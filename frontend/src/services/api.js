@@ -1,7 +1,9 @@
+import { getAuthToken } from "./authSession.js";
+
 const API_URL = "http://localhost:3333";
 
 export async function apiFetch(path, options = {}) {
-  const token = localStorage.getItem("authToken");
+  const token = getAuthToken();
 
   const headers = {
     "Content-Type": "application/json",

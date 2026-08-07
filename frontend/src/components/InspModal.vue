@@ -6,6 +6,7 @@ import { getSamplingPlan } from "../utils/sampling/nbr5426";
 import { resolveSamplingSnapshot } from "../utils/sampling/resolveSamplingSnapshot";
 import { useAuthStore } from "../stores/auth";
 import { useSwitchingStore } from "../stores/switching";
+import { requestConfirmation } from "../services/systemFeedback";
 
 const props = defineProps({
   show: Boolean,
@@ -237,9 +238,10 @@ async function confirmConditionalApproval() {
     return;
   }
 
-  const confirmed = confirm(
+  const confirmed = await requestConfirmation(
     "Confirmar aprovação condicional?\n\n" +
-      "O resultado oficial permanecerá FAIL e continuará contando para a comutação NBR."
+      "O resultado oficial permanecerá FAIL e continuará contando para a comutação NBR.",
+    { title: "Aprovação condicional", confirmLabel: "Confirmar" }
   );
 
   if (!confirmed) return;
@@ -894,8 +896,8 @@ function formatUserTrace(name, role, at) {
   return `${user}${roleText}${dateText}`;
 }
 
-function clearChar(charId) {
-  const ok = confirm("Limpar todas as amostras desta característica?");
+async function clearChar(charId) {
+  const ok = await requestConfirmation("Limpar todas as amostras desta característica?", { title: "Limpar amostras", confirmLabel: "Limpar", danger: true });
   if (!ok) return;
   if (!Array.isArray(localSamples.value?.[charId])) return;
   localSamples.value[charId] = localSamples.value[charId].map(() => "");
@@ -1509,11 +1511,12 @@ async function createReinspection() {
     return;
   }
 
-  const confirmed = confirm(
+  const confirmed = await requestConfirmation(
     `Deseja criar uma reinspeção para esta inspeção?\n\n` +
       `Plano: ${insp.value.planName || "-"}\n` +
       `Lote: ${insp.value.lot || "-"}\n` +
-      `Resultado atual: ${insp.value.result || "-"}`
+      `Resultado atual: ${insp.value.result || "-"}`,
+    { title: "Criar reinspeção", confirmLabel: "Criar reinspeção" }
   );
 
   if (!confirmed) return;
@@ -1544,7 +1547,7 @@ async function registerSwitchingSuggestion() {
 
   if (!p?.id || !switchingAnalysis.value?.hasSuggestion) return;
 
-  const ok = confirm("Registrar esta sugestão de comutação como pendente de aprovação?");
+  const ok = await requestConfirmation("Registrar esta sugestão de comutação como pendente de aprovação?", { title: "Sugestão de comutação", confirmLabel: "Registrar" });
 
   if (!ok) return;
 
@@ -1812,6 +1815,7 @@ Motivo: ${p.reason}`;
 </script>
 
 <template>
+  <Teleport to="body">
   <div class="modal" :class="{ show: props.show }">
     <div class="sheet vstack inspection-modal-sheet">
       <div class="hstack" style="justify-content: space-between; align-items: center">
@@ -2721,4 +2725,5 @@ Motivo: ${p.reason}`;
       </div>
     </div>
   </div>
+  </Teleport>
 </template>

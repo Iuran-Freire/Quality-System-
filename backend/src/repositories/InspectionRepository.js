@@ -128,6 +128,7 @@ export class InspectionRepository {
       inspection_regime_snapshot,
       sample_n_snapshot,
       plan_revision_number
+      ,process
     )
     VALUES (
       $1, $2, $3, $4, $5, $6, $7, $8,
@@ -136,7 +137,7 @@ export class InspectionRepository {
       $25, $26, $27, $28, $29, $30,
       $31::jsonb, $32::jsonb, $33::jsonb,
       $34, $35, $36,
-      $37, $38, $39, $40, $41
+      $37, $38, $39, $40, $41, $42
     )
     RETURNING *
     `,
@@ -195,6 +196,7 @@ export class InspectionRepository {
       data.inspectionRegimeSnapshot,
       data.sampleNSnapshot,
       data.planRevisionNumber,
+      data.process,
     ]
   );
 
@@ -260,8 +262,9 @@ export class InspectionRepository {
       inspection_cycle = $32,
       created_at = $33,
       plan_revision_number = $34,
+      process = $35,
       updated_at = NOW()
-    WHERE id::text = $35::text
+    WHERE id::text = $36::text
     RETURNING *
     `,
     [
@@ -309,6 +312,8 @@ export class InspectionRepository {
 
       data.createdAt,
       data.planRevisionNumber,
+
+      data.process,
 
       String(id),
     ]

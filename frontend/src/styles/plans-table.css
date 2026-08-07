@@ -13,15 +13,15 @@
 
 .plans-table th,
 .plans-table td {
-  padding: 8px 8px;
-  font-size: 12px;
-  line-height: 1.25;
+  padding: 10px 8px;
+  font-size: 13px;
+  line-height: 1.35;
   vertical-align: middle;
 }
 
 .plans-table th {
-  font-size: 11px;
-  font-weight: 850;
+  font-size: 12px;
+  font-weight: 700;
   color: #475569;
   white-space: nowrap;
 }
@@ -124,7 +124,7 @@
   min-height: 21px;
   padding: 4px 8px;
   font-size: 11px;
-  font-weight: 800;
+  font-weight: 700;
 }
 
 .plans-table .switching-pill {
@@ -163,8 +163,42 @@
 .operations-cell {
   position: relative;
   display: flex;
+  align-items: center;
   justify-content: center;
+  gap: 6px;
   z-index: 20;
+}
+
+.table-primary-action {
+  min-height: 32px;
+  padding: 6px 12px;
+  border: 1px solid #f59e0b;
+  border-radius: 8px;
+  background: #ffffff;
+  color: #9a3412;
+  font-size: 11.5px;
+  font-weight: 750;
+  line-height: 1.2;
+  white-space: nowrap;
+  cursor: pointer;
+  transition: background 160ms ease, border-color 160ms ease, box-shadow 160ms ease;
+}
+
+.table-primary-action:hover {
+  border-color: #f97316;
+  background: #fff7ed;
+}
+
+.table-primary-action-active {
+  border-color: #f59e0b;
+  background: #f59e0b;
+  color: #ffffff;
+  box-shadow: 0 3px 10px rgba(245, 158, 11, 0.24);
+}
+
+.table-primary-action-active:hover {
+  border-color: #ea8b05;
+  background: #ea8b05;
 }
 
 .operations-menu {
@@ -176,13 +210,15 @@
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  min-height: 30px;
-  padding: 6px 10px;
-  border: 1px solid #f59e0b;
-  border-radius: 9px;
+  width: 38px;
+  height: 32px;
+  padding: 0;
+  border: 1px solid #dbe2ea;
+  border-radius: 8px;
   background: #ffffff;
   color: #0f172a;
-  font-size: 11.5px;
+  font-size: 14px;
+  letter-spacing: 1px;
   font-weight: 800;
   cursor: pointer;
   list-style: none;
@@ -194,10 +230,7 @@
 }
 
 .operations-menu summary::after {
-  content: "▾";
-  margin-left: 6px;
-  color: #c2410c;
-  font-size: 10px;
+  content: none;
 }
 
 .operations-menu[open] {
@@ -207,8 +240,9 @@
 .operations-menu[open] summary {
   position: relative;
   z-index: 51;
-  background: #fff7ed;
-  color: #7c2d12;
+  border-color: #f59e0b;
+  background: #fffaf2;
+  color: #9a3412;
 }
 
 .operations-list {
@@ -249,7 +283,7 @@
   background: transparent;
   color: #0f172a;
   font-size: 11.5px;
-  font-weight: 750;
+  font-weight: 650;
   text-align: left;
   cursor: pointer;
   line-height: 1.25;
