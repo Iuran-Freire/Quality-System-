@@ -19,7 +19,12 @@ import "./styles/inspections-page.css";
 import "./styles/login-page.css";
 import "./styles/analytics.css";
 import "./styles/system-feedback.css";
+import "./styles/mobile.css";
 import { installSystemFeedback } from "./services/systemFeedback";
 
 installSystemFeedback();
 createApp(App).use(createPinia()).mount("#app");
+
+if ("serviceWorker" in navigator && import.meta.env.PROD) {
+  window.addEventListener("load", () => navigator.serviceWorker.register("/sw.js"));
+}

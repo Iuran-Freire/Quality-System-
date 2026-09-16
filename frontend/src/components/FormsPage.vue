@@ -254,6 +254,34 @@ async function confirmRemovePlan(plan) {
     </div>
   </div>
 
+  <div class="plans-mobile-list" aria-label="Planos de inspeção">
+    <div v-if="plans.loading" class="card plans-mobile-empty">Carregando planos...</div>
+    <div v-else-if="!sourcePlans.length" class="card plans-mobile-empty">Nenhum plano criado ainda.</div>
+    <article v-for="p in paginatedPlans" v-else :key="`mobile-${p.id}`" class="card plan-mobile-card">
+      <header>
+        <div><span class="plan-mobile-type">{{ p.type }}</span><span v-if="p.process" class="plan-mobile-process">{{ p.process }}</span></div>
+        <span class="status-pill" :class="p.active ? 'on' : 'off'">{{ p.active ? "Ativo" : "Suspenso" }}</span>
+      </header>
+      <div class="plan-mobile-title"><strong>{{ p.name || "Plano não informado" }}</strong><span>{{ p.pn || "PN não informado" }} · {{ p.model || "Modelo não informado" }}</span></div>
+      <dl class="plan-mobile-details">
+        <div><dt>Cliente</dt><dd>{{ p.client || "—" }}</dd></div>
+        <div><dt>Responsável</dt><dd>{{ p.resp || "—" }}</dd></div>
+        <div><dt>Revisão</dt><dd>Rev. {{ Number(p.revisionNumber || p.revision_number || 1).toString().padStart(2, "0") }}</dd></div>
+        <div><dt>Regime</dt><dd>{{ regimeLabel(p.inspectionRegime) }}</dd></div>
+      </dl>
+      <div class="plan-mobile-sampling"><span>Critério de amostragem</span><b>{{ samplingLabel(p) }}</b></div>
+      <footer v-if="canEditSystem">
+        <button class="table-primary-action" type="button" @click="editPlanId = p.id; showPlan = true">Editar plano</button>
+        <button class="btn ghost" type="button" :disabled="switching.loading" @click="analyzePlanSwitching(p)">Comutação</button>
+      </footer>
+    </article>
+    <div v-if="sourcePlans.length" class="plans-mobile-pagination">
+      <button class="btn ghost" type="button" :disabled="currentPage === 1" @click="currentPage--">Anterior</button>
+      <span>{{ currentPage }} / {{ totalPages }}</span>
+      <button class="btn ghost" type="button" :disabled="currentPage === totalPages" @click="currentPage++">Próxima</button>
+    </div>
+  </div>
+
   <div class="card">
     <button
       v-if="canEditSystem"

@@ -1,0 +1,58 @@
+services:
+  database:
+    image: postgres:18-alpine
+    container_name: quality-system-database
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB}
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+    ports:
+      - "5433:5432"
+    volumes:
+      - quality-system-data:/var/lib/postgresql
+      - ./backend/src/sql:/docker-entrypoint-initdb.d:ro
+    healthcheck:
+      test:
+        - CMD-SHELL
+        - pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB}
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  backend:
+    build:
+      context: ./backend
+    image: quality-system-backend
+    container_name: quality-system-backend
+    restart: unless-stopped
+    environment:
+      PORT: 3333
+      DB_HOST: database
+      DB_PORT: 5432
+      DB_USER: ${POSTGRES_USER}
+      DB_PASSWORD: ${POSTGRES_PASSWORD}
+      DB_NAME: ${POSTGRES_DB}
+      JWT_SECRET: ${JWT_SECRET}
+      SETUP_KEY: ${SETUP_KEY}
+    depends_on:
+      database:
+        condition: service_healthy
+    ports:
+      - "3333:3333"
+
+  frontend:
+    build:
+      context: ./frontend
+      args:
+        VITE_API_URL: ""
+    image: quality-system-frontend
+    container_name: quality-system-frontend
+    restart: unless-stopped
+    depends_on:
+      - backend
+    ports:
+      - "8080:80"
+
+volumes:
+  quality-system-data:

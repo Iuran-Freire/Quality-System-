@@ -582,6 +582,48 @@ function pdfDisabledTitle(x) {
         </div>
       </div>
     </div>
+
+    <div class="inspection-mobile-list" aria-label="Registros de inspeção">
+      <div v-if="insps.loading" class="card inspection-mobile-empty">Carregando inspeções...</div>
+      <div v-else-if="!filtered.length" class="card inspection-mobile-empty">Nenhuma inspeção encontrada com os filtros atuais.</div>
+      <article v-for="x in paginatedInspections" v-else :key="`mobile-${x.id}`" class="card inspection-mobile-card" :class="{ 'inspection-mobile-card-open': x.status !== 'done' }">
+        <header>
+          <div>
+            <span class="inspection-mobile-area">{{ x.type || "—" }}</span>
+            <span v-if="x.process" class="inspection-mobile-process">{{ x.process }}</span>
+          </div>
+          <span class="status-pill" :class="x.status === 'done' ? 'on' : 'off'">{{ x.status === "done" ? "Finalizada" : "Em andamento" }}</span>
+        </header>
+
+        <div class="inspection-mobile-title">
+          <strong>{{ x.planName || "Plano não informado" }}</strong>
+          <span>{{ x.pn || "PN não informado" }} · {{ x.model || "Modelo não informado" }}</span>
+        </div>
+
+        <dl class="inspection-mobile-details">
+          <div><dt>Lote</dt><dd>{{ x.lot || "—" }}</dd></div>
+          <div><dt>Turno</dt><dd>{{ x.shift || "—" }}</dd></div>
+          <div><dt>Responsável</dt><dd>{{ x.resp || "—" }}</dd></div>
+          <div><dt>Registro</dt><dd>{{ (x.createdAt || "").slice(0, 10) || "—" }}</dd></div>
+        </dl>
+
+        <div v-if="x.status === 'done'" class="inspection-mobile-result">
+          <span>Resultado técnico</span>
+          <b :class="x.result === 'PASS' ? 'text-ok' : x.result === 'FAIL' ? 'text-bad' : ''">{{ x.result || "—" }}</b>
+        </div>
+
+        <footer>
+          <button class="table-primary-action" :class="{ 'table-primary-action-active': x.status !== 'done' }" type="button" @click="openEdit(x)">{{ x.status === "done" ? "Visualizar inspeção" : "Continuar inspeção" }}</button>
+          <button v-if="x.status === 'done'" class="btn ghost" type="button" @click="exportPdf(x)">PDF</button>
+        </footer>
+      </article>
+
+      <div v-if="filtered.length" class="inspection-mobile-pagination">
+        <button class="btn ghost" type="button" :disabled="currentPage === 1" @click="currentPage--">Anterior</button>
+        <span>{{ currentPage }} / {{ totalPages }}</span>
+        <button class="btn ghost" type="button" :disabled="currentPage === totalPages" @click="currentPage++">Próxima</button>
+      </div>
+    </div>
   </div>
 
   <InspModal

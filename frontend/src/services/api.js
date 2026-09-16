@@ -1,6 +1,6 @@
 import { getAuthToken } from "./authSession.js";
 
-const API_URL = "http://localhost:3333";
+const API_URL = import.meta.env.VITE_API_URL ?? "http://localhost:3333";
 
 export async function apiFetch(path, options = {}) {
   const token = getAuthToken();

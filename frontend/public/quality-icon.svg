@@ -1,0 +1,14 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" role="img" aria-labelledby="title desc">
+  <title id="title">Quality System</title>
+  <desc id="desc">Ícone genérico de gestão da qualidade</desc>
+  <defs>
+    <linearGradient id="g" x1="70" y1="55" x2="440" y2="462" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#FBBF24"/>
+      <stop offset="1" stop-color="#EA580C"/>
+    </linearGradient>
+  </defs>
+  <rect width="512" height="512" rx="108" fill="#FFF7ED"/>
+  <path d="M256 58 424 119v122c0 103-65 174-168 213C153 415 88 344 88 241V119L256 58Z" fill="url(#g)"/>
+  <path d="m167 247 56 57 128-137" fill="none" stroke="#fff" stroke-width="38" stroke-linecap="round" stroke-linejoin="round"/>
+  <path d="M162 366h188" fill="none" stroke="#7C2D12" stroke-width="20" stroke-linecap="round" opacity=".34"/>
+</svg>

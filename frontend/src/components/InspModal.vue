@@ -2560,6 +2560,10 @@ Motivo: ${p.reason}`;
                           />
                           <span>{{ visualLabel(c, idx) }} - OK/NG</span>
                         </label>
+                        <div v-if="!isDone" class="mobile-okng-actions">
+                          <button type="button" :class="{ active: localSamples[c.id][idx] === 'OK' }" @click="localSamples[c.id][idx] = 'OK'; markCharTrace(c)">OK</button>
+                          <button type="button" class="ng" :class="{ active: localSamples[c.id][idx] === 'NG' }" @click="localSamples[c.id][idx] = 'NG'; markCharTrace(c)">NG</button>
+                        </div>
                       </div>
                     </template>
                   </div>

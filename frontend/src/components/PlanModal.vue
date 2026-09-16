@@ -1075,7 +1075,7 @@ async function save() {
   <Teleport to="body">
   <div class="modal" :class="{ show: show }">
     <div class="sheet vstack plan-modal-sheet">
-      <div class="hstack" style="justify-content: space-between; align-items: center">
+      <div class="hstack plan-modal-header" style="justify-content: space-between; align-items: center">
         <div class="plan-modal-title-wrap">
           <h3>{{ isEdit ? "Editar Plano de Inspeção" : "Novo Plano de Inspeção" }}</h3>
 
@@ -1089,7 +1089,7 @@ async function save() {
           </span>
         </div>
 
-        <div class="hstack" style="gap: 8px">
+        <div class="hstack plan-modal-header-actions" style="gap: 8px">
           <button
             v-if="isEdit"
             class="btn ghost"
@@ -1138,7 +1138,7 @@ async function save() {
 
       <h4 class="modal-section-title">Dados do plano</h4>
 
-      <div class="row">
+      <div class="row plan-sampling-grid">
         <div class="span-2">
           <label class="float-label">
             <input v-model="form.name" placeholder=" " />
@@ -1377,10 +1377,10 @@ async function save() {
 
       <div class="hr"></div>
 
-      <div class="hstack between" style="align-items: center">
+      <div class="hstack between plan-characteristics-toolbar" style="align-items: center">
         <h4 style="margin: 0">Características e testes</h4>
 
-        <div class="hstack" style="gap: 8px; flex-wrap: wrap">
+        <div class="hstack plan-characteristic-actions" style="gap: 8px; flex-wrap: wrap">
           <button @click="addChar('variavel')">+ Variável (CPK)</button>
           <button @click="addChar('visual_produto')">+ Visual Produto</button>
           <button @click="addChar('visual_caixa')">+ Visual Caixa</button>

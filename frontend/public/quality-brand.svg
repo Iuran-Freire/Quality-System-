@@ -1,0 +1,20 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 420 120" role="img" aria-labelledby="title desc">
+  <title id="title">Quality System</title>
+  <desc id="desc">Escudo de qualidade com marca de conformidade e gráfico de controle</desc>
+  <defs>
+    <linearGradient id="brandGradient" x1="12" y1="12" x2="106" y2="108" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#FBBF24"/>
+      <stop offset="1" stop-color="#EA580C"/>
+    </linearGradient>
+  </defs>
+  <g transform="translate(8 8)">
+    <path d="M52 2 96 18v32c0 27-17 45-44 56C25 95 8 77 8 50V18L52 2Z" fill="url(#brandGradient)"/>
+    <path d="m29 52 14 14 32-34" fill="none" stroke="#fff" stroke-width="9" stroke-linecap="round" stroke-linejoin="round"/>
+    <path d="M27 83h50" fill="none" stroke="#7C2D12" stroke-width="5" stroke-linecap="round" opacity=".36"/>
+  </g>
+  <g fill="#0F172A">
+    <text x="132" y="56" font-family="Inter,Segoe UI,Arial,sans-serif" font-size="34" font-weight="800" letter-spacing="-.8">QUALITY</text>
+    <text x="132" y="87" font-family="Inter,Segoe UI,Arial,sans-serif" font-size="23" font-weight="650" letter-spacing="4">SYSTEM</text>
+  </g>
+  <path d="M134 99h239" stroke="#F59E0B" stroke-width="4" stroke-linecap="round"/>
+</svg>

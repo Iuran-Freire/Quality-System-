@@ -195,7 +195,7 @@ function userLevelLabel(level) {
       </button>
     </div>
 
-    <div class="tablewrap">
+    <div class="tablewrap management-table-scroll history-desktop-table">
       <table>
         <thead>
           <tr>
@@ -258,6 +258,67 @@ function userLevelLabel(level) {
         </tbody>
       </table>
     </div>
+
+    <div class="history-mobile-list">
+      <div v-if="switching.loading" class="history-mobile-empty">
+        Carregando histórico...
+      </div>
+
+      <div v-else-if="!switching.history.length" class="history-mobile-empty">
+        Nenhuma alteração de regime foi registrada até o momento.
+      </div>
+
+      <article
+        v-else
+        v-for="h in switching.history"
+        :key="`history-mobile-${h.id}`"
+        class="history-mobile-card"
+      >
+        <header>
+          <div>
+            <span>Data da alteração</span>
+            <strong>{{ formatDateTimeBR(h.approvedAt) }}</strong>
+          </div>
+          <div class="history-regime-flow" aria-label="Alteração de regime">
+            <span class="regime-pill" :class="`regime-${h.previousRegime || 'normal'}`">
+              {{ regimeLabel(h.previousRegime) }}
+            </span>
+            <span class="history-arrow" aria-hidden="true">→</span>
+            <span class="regime-pill" :class="`regime-${h.newRegime || 'normal'}`">
+              {{ regimeLabel(h.newRegime) }}
+            </span>
+          </div>
+        </header>
+
+        <div class="history-mobile-grid">
+          <div class="history-plan-field">
+            <span>Plano de inspeção</span>
+            <strong>{{ h.planName || "—" }}</strong>
+          </div>
+          <div>
+            <span>PN</span>
+            <strong>{{ h.pn || "—" }}</strong>
+          </div>
+          <div>
+            <span>Modelo</span>
+            <strong>{{ h.model || "—" }}</strong>
+          </div>
+          <div>
+            <span>Autorizado por</span>
+            <strong>{{ h.approvedByName || "—" }}</strong>
+          </div>
+          <div>
+            <span>Nível de acesso</span>
+            <strong>{{ userLevelLabel(h.approvedByLevel) }}</strong>
+          </div>
+        </div>
+
+        <div class="history-mobile-reason">
+          <span>Critério da alteração</span>
+          <p>{{ h.reason || "—" }}</p>
+        </div>
+      </article>
+    </div>
   </div>
 
   <div class="card tablecard management-card">
@@ -278,7 +339,7 @@ function userLevelLabel(level) {
       </button>
     </div>
 
-    <div class="tablewrap">
+    <div class="tablewrap management-table-scroll">
       <table>
         <thead>
           <tr>

@@ -28,7 +28,7 @@ function clearMessage() {
   <div class="login-page">
     <div class="login-card">
       <div class="login-logo">
-        <img src="/logo.png" alt="Inventus Power" />
+        <img src="/quality-brand.svg" alt="Quality System" />
       </div>
 
       <h2>Sistema de Gestão da Qualidade</h2>

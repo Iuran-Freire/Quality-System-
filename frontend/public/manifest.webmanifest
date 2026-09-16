@@ -1,0 +1,19 @@
+{
+  "name": "Quality System",
+  "short_name": "Quality System",
+  "description": "Sistema de planos e registros de inspeção da qualidade",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "background_color": "#f6f8fb",
+  "theme_color": "#ffffff",
+  "lang": "pt-BR",
+  "icons": [
+    {
+      "src": "/quality-icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ]
+}

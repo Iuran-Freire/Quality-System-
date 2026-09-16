@@ -24,7 +24,6 @@ export async function upsertQualityAlert({
   const result = await db.query(
     `
     INSERT INTO public.quality_alerts (
-      id,
       alert_type,
       severity,
       status,
@@ -39,7 +38,6 @@ export async function upsertQualityAlert({
       updated_at
     )
     VALUES (
-      gen_random_uuid(),
       $1,
       $2,
       'new',

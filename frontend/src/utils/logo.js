@@ -17,13 +17,36 @@ export async function fetchAsDataUrl(url) {
   });
 }
 
-import logoUrl from "../assets/Inventus_Power.png";
+const logoUrl = "/quality-brand.svg";
 
 let cache = null;
 
 /** Retorna DataURL da logo (com cache) */
 export async function getLogoDataUrl() {
   if (cache) return cache;
-  cache = await fetchAsDataUrl(logoUrl);
+  const response = await fetch(logoUrl);
+  if (!response.ok) throw new Error(`Falha ao carregar asset: ${logoUrl}`);
+  const blob = await response.blob();
+  const objectUrl = URL.createObjectURL(blob);
+
+  try {
+    cache = await new Promise((resolve, reject) => {
+      const image = new Image();
+      image.onload = () => {
+        const canvas = document.createElement("canvas");
+        canvas.width = 840;
+        canvas.height = 240;
+        const context = canvas.getContext("2d");
+        context.clearRect(0, 0, canvas.width, canvas.height);
+        context.drawImage(image, 0, 0, canvas.width, canvas.height);
+        resolve(canvas.toDataURL("image/png"));
+      };
+      image.onerror = reject;
+      image.src = objectUrl;
+    });
+  } finally {
+    URL.revokeObjectURL(objectUrl);
+  }
+
   return cache;
 }

@@ -1,4 +1,4 @@
-# PROJECT CONTEXT — OQC / IQC Inspection System (Inventus Power)
+# PROJECT CONTEXT — OQC / IQC Quality Inspection System
 
 ## 1. Overview
 
@@ -167,7 +167,7 @@ Generated only for finalized inspections.
 
 Contains:
 
-- Inventus Power branding
+- Neutral Quality System branding
 - Inspection metadata
 - Grouped tables:
   - Dimensional
@@ -227,7 +227,7 @@ Contains:
 
 ## 11. Author Context
 
-Developed as part of digital transformation initiatives applied to manufacturing quality systems at Inventus Power.
+Developed as a reusable digital quality-management solution for manufacturing inspection processes.
 
 Focus areas:
 
